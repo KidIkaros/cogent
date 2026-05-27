@@ -1,9 +1,8 @@
 class Cogent < Formula
   desc "Unified security audit & compliance platform"
   homepage "https://github.com/KidIkaros/cogent"
-  url "https://github.com/KidIkaros/cogent/archive/refs/tags/v1.0.0.tar.gz"
-  # sha256 computed at release time — run: shasum -a 256 cogent-v1.1.0.tar.gz
-  sha256 "PLACEHOLDER — update after pushing v1.1.0 tag"
+  url "https://github.com/KidIkaros/cogent/archive/refs/tags/v1.1.0.tar.gz"
+  sha256 "3939a73433a6524e43520653cfda4caadb8e2f22317cdd44716b3ea57cbdbaf7"
   license "Apache-2.0"
 
   depends_on "rust" => :build

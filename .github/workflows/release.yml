@@ -88,6 +88,8 @@ jobs:
   release:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -108,7 +110,6 @@ jobs:
         with:
           files: artifacts/*
           fail_on_unmatched_files: false
-          generate_release_notes: true
           body: |
             ## Installation
 

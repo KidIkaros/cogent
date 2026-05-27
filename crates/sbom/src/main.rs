@@ -42,7 +42,10 @@ struct Component {
 }
 
 fn iso_timestamp() -> String {
-    let secs = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs();
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
     let days = secs / 86400;
     let tod = secs % 86400;
     let hh = tod / 3600;
@@ -52,12 +55,17 @@ fn iso_timestamp() -> String {
     let doy = days % 365;
     let month = 1 + doy / 30;
     let day = 1 + doy % 30;
-    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", year, month, day, hh, mm, ss)
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        year, month, day, hh, mm, ss
+    )
 }
 
 fn parse_cargo_lock(root: &Path) -> Vec<Component> {
     let lock = root.join("Cargo.lock");
-    let Ok(content) = std::fs::read_to_string(&lock) else { return vec![] };
+    let Ok(content) = std::fs::read_to_string(&lock) else {
+        return vec![];
+    };
 
     // Read workspace Cargo.toml files for license info
     let mut license_map: HashMap<String, String> = HashMap::new();
@@ -69,14 +77,26 @@ fn parse_cargo_lock(root: &Path) -> Vec<Component> {
 
     for line in content.lines() {
         let t = line.trim();
-        if t == "[[package]]" { name.clear(); version.clear(); }
-        else if let Some(v) = t.strip_prefix("name = \"") { name = v.trim_end_matches('"').to_string(); }
-        else if let Some(v) = t.strip_prefix("version = \"") {
+        if t == "[[package]]" {
+            name.clear();
+            version.clear();
+        } else if let Some(v) = t.strip_prefix("name = \"") {
+            name = v.trim_end_matches('"').to_string();
+        } else if let Some(v) = t.strip_prefix("version = \"") {
             version = v.trim_end_matches('"').to_string();
             if !name.is_empty() {
-                let lic = license_map.get(&name).cloned().unwrap_or_else(|| "NOASSERTION".to_string());
+                let lic = license_map
+                    .get(&name)
+                    .cloned()
+                    .unwrap_or_else(|| "NOASSERTION".to_string());
                 let purl = format!("pkg:cargo/{}@{}", name, version);
-                components.push(Component { name: name.clone(), version: version.clone(), license: lic, ecosystem: "cargo".to_string(), purl });
+                components.push(Component {
+                    name: name.clone(),
+                    version: version.clone(),
+                    license: lic,
+                    ecosystem: "cargo".to_string(),
+                    purl,
+                });
             }
         }
     }
@@ -84,23 +104,34 @@ fn parse_cargo_lock(root: &Path) -> Vec<Component> {
 }
 
 fn collect_toml_licenses(root: &Path, map: &mut HashMap<String, String>) {
-    let Ok(entries) = std::fs::read_dir(root) else { return };
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
     for entry in entries.flatten() {
         let p = entry.path();
-        if p.is_dir() { collect_toml_licenses(&p, map); }
-        else if p.file_name().map(|n| n == "Cargo.toml").unwrap_or(false) {
+        if p.is_dir() {
+            collect_toml_licenses(&p, map);
+        } else if p.file_name().map(|n| n == "Cargo.toml").unwrap_or(false) {
             if let Ok(content) = std::fs::read_to_string(&p) {
                 let mut pkg_name = String::new();
                 let mut in_pkg = false;
                 for line in content.lines() {
                     let t = line.trim();
-                    if t == "[package]" { in_pkg = true; }
-                    else if t.starts_with('[') && t != "[package]" { in_pkg = false; }
-                    if !in_pkg { continue; }
-                    if let Some(v) = t.strip_prefix("name = \"") { pkg_name = v.trim_end_matches('"').to_string(); }
-                    else if let Some(v) = t.strip_prefix("license = \"") {
+                    if t == "[package]" {
+                        in_pkg = true;
+                    } else if t.starts_with('[') && t != "[package]" {
+                        in_pkg = false;
+                    }
+                    if !in_pkg {
+                        continue;
+                    }
+                    if let Some(v) = t.strip_prefix("name = \"") {
+                        pkg_name = v.trim_end_matches('"').to_string();
+                    } else if let Some(v) = t.strip_prefix("license = \"") {
                         let lic = v.trim_end_matches('"').to_string();
-                        if !pkg_name.is_empty() { map.insert(pkg_name.clone(), lic); }
+                        if !pkg_name.is_empty() {
+                            map.insert(pkg_name.clone(), lic);
+                        }
                     }
                 }
             }
@@ -114,18 +145,36 @@ fn parse_npm_lock(root: &Path) -> Vec<Component> {
         // Fall back to package.json
         return parse_npm_package_json(root);
     };
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) else { return vec![] };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return vec![];
+    };
 
     let mut components = Vec::new();
     let packages = v.get("packages").or_else(|| v.get("dependencies"));
     if let Some(pkgs) = packages.and_then(|p| p.as_object()) {
         for (key, data) in pkgs {
             let name = key.trim_start_matches("node_modules/");
-            if name.is_empty() { continue; }
-            let ver = data.get("version").and_then(|v| v.as_str()).unwrap_or("?").to_string();
-            let lic = data.get("license").and_then(|l| l.as_str()).unwrap_or("NOASSERTION").to_string();
+            if name.is_empty() {
+                continue;
+            }
+            let ver = data
+                .get("version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?")
+                .to_string();
+            let lic = data
+                .get("license")
+                .and_then(|l| l.as_str())
+                .unwrap_or("NOASSERTION")
+                .to_string();
             let purl = format!("pkg:npm/{}@{}", name, ver);
-            components.push(Component { name: name.to_string(), version: ver, license: lic, ecosystem: "npm".to_string(), purl });
+            components.push(Component {
+                name: name.to_string(),
+                version: ver,
+                license: lic,
+                ecosystem: "npm".to_string(),
+                purl,
+            });
         }
     }
     components
@@ -133,15 +182,30 @@ fn parse_npm_lock(root: &Path) -> Vec<Component> {
 
 fn parse_npm_package_json(root: &Path) -> Vec<Component> {
     let pkg = root.join("package.json");
-    let Ok(content) = std::fs::read_to_string(&pkg) else { return vec![] };
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) else { return vec![] };
+    let Ok(content) = std::fs::read_to_string(&pkg) else {
+        return vec![];
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return vec![];
+    };
     let mut components = Vec::new();
     for section in &["dependencies", "devDependencies"] {
         if let Some(deps) = v.get(section).and_then(|d| d.as_object()) {
             for (name, ver_val) in deps {
-                let ver = ver_val.as_str().unwrap_or("?").trim_start_matches('^').trim_start_matches('~').to_string();
+                let ver = ver_val
+                    .as_str()
+                    .unwrap_or("?")
+                    .trim_start_matches('^')
+                    .trim_start_matches('~')
+                    .to_string();
                 let purl = format!("pkg:npm/{}@{}", name, ver);
-                components.push(Component { name: name.clone(), version: ver, license: "NOASSERTION".to_string(), ecosystem: "npm".to_string(), purl });
+                components.push(Component {
+                    name: name.clone(),
+                    version: ver,
+                    license: "NOASSERTION".to_string(),
+                    ecosystem: "npm".to_string(),
+                    purl,
+                });
             }
         }
     }
@@ -150,19 +214,28 @@ fn parse_npm_package_json(root: &Path) -> Vec<Component> {
 
 fn parse_requirements(root: &Path) -> Vec<Component> {
     let req = root.join("requirements.txt");
-    let Ok(content) = std::fs::read_to_string(&req) else { return vec![] };
-    content.lines()
+    let Ok(content) = std::fs::read_to_string(&req) else {
+        return vec![];
+    };
+    content
+        .lines()
         .map(|l| l.trim())
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .map(|l| {
             let (name, ver) = if let Some(pos) = l.find("==") {
-                (&l[..pos], &l[pos+2..])
+                (&l[..pos], &l[pos + 2..])
             } else {
                 let name = l.split(&['>', '<', '~', '^', '!'][..]).next().unwrap_or(l);
                 (name, "?")
             };
             let purl = format!("pkg:pypi/{}@{}", name.trim().to_lowercase(), ver.trim());
-            Component { name: name.trim().to_string(), version: ver.trim().to_string(), license: "NOASSERTION".to_string(), ecosystem: "pypi".to_string(), purl }
+            Component {
+                name: name.trim().to_string(),
+                version: ver.trim().to_string(),
+                license: "NOASSERTION".to_string(),
+                ecosystem: "pypi".to_string(),
+                purl,
+            }
         })
         .collect()
 }
@@ -175,19 +248,38 @@ fn detect_project_name_version(root: &Path) -> (String, String) {
         let mut ver = String::new();
         for line in c.lines() {
             let t = line.trim();
-            if t == "[package]" { in_pkg = true; }
-            else if t.starts_with('[') && t != "[package]" { in_pkg = false; }
-            if !in_pkg { continue; }
-            if let Some(v) = t.strip_prefix("name = \"") { name = v.trim_end_matches('"').to_string(); }
-            if let Some(v) = t.strip_prefix("version = \"") { ver = v.trim_end_matches('"').to_string(); }
+            if t == "[package]" {
+                in_pkg = true;
+            } else if t.starts_with('[') && t != "[package]" {
+                in_pkg = false;
+            }
+            if !in_pkg {
+                continue;
+            }
+            if let Some(v) = t.strip_prefix("name = \"") {
+                name = v.trim_end_matches('"').to_string();
+            }
+            if let Some(v) = t.strip_prefix("version = \"") {
+                ver = v.trim_end_matches('"').to_string();
+            }
         }
-        if !name.is_empty() { return (name, ver); }
+        if !name.is_empty() {
+            return (name, ver);
+        }
     }
     // Try package.json
     if let Ok(c) = std::fs::read_to_string(root.join("package.json")) {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&c) {
-            let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("unknown").to_string();
-            let ver = v.get("version").and_then(|n| n.as_str()).unwrap_or("0.0.0").to_string();
+            let name = v
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            let ver = v
+                .get("version")
+                .and_then(|n| n.as_str())
+                .unwrap_or("0.0.0")
+                .to_string();
             return (name, ver);
         }
     }
@@ -201,7 +293,10 @@ fn render_cyclonedx(components: &[Component], name: &str, version: &str) -> Stri
         let lic = if c.license == "NOASSERTION" || c.license.is_empty() {
             "<licenses><expression>NOASSERTION</expression></licenses>".to_string()
         } else {
-            format!("<licenses><license><id>{}</id></license></licenses>", xml_escape(&c.license))
+            format!(
+                "<licenses><license><id>{}</id></license></licenses>",
+                xml_escape(&c.license)
+            )
         };
         comps.push_str(&format!(
             r#"    <component type="library" bom-ref="comp-{i}">
@@ -219,11 +314,12 @@ fn render_cyclonedx(components: &[Component], name: &str, version: &str) -> Stri
         ));
     }
 
-    format!(r#"<?xml version="1.0" encoding="UTF-8"?>
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
 <bom xmlns="http://cyclonedx.org/schema/bom/1.4" version="1">
   <metadata>
     <timestamp>{timestamp}</timestamp>
-    <tools><tool><vendor>CodeMetrics</vendor><name>sbom</name><version>1.0.0</version></tool></tools>
+    <tools><tool><vendor>Cogent</vendor><name>sbom</name><version>1.0.0</version></tool></tools>
     <component type="application">
       <name>{name}</name>
       <version>{version}</version>
@@ -246,29 +342,42 @@ fn render_spdx(components: &[Component], name: &str, version: &str) -> String {
     let mut packages = String::new();
     for (i, c) in components.iter().enumerate() {
         let spdx_id = format!("SPDXRef-Package-{}", i + 1);
-        let lic = if c.license.is_empty() || c.license == "NOASSERTION" { "NOASSERTION".to_string() } else { c.license.clone() };
+        let lic = if c.license.is_empty() || c.license == "NOASSERTION" {
+            "NOASSERTION".to_string()
+        } else {
+            c.license.clone()
+        };
         packages.push_str(&format!(
             "\nPackageName: {name}\nSPDXID: {id}\nPackageVersion: {ver}\nPackageDownloadLocation: {purl}\nFilesAnalyzed: false\nPackageLicenseConcluded: {lic}\nPackageLicenseDeclared: {lic}\n",
             name = c.name, id = spdx_id, ver = c.version, purl = c.purl, lic = lic,
         ));
     }
 
-    format!("SPDXVersion: SPDX-2.3\nDataLicense: CC0-1.0\nSPDXID: SPDXRef-DOCUMENT\nDocumentName: {doc_name}\nDocumentNamespace: https://codemetrics/sbom/{doc_name}-{ts}\nCreator: Tool: CodeMetrics-sbom-1.0.0\nCreated: {ts}\n{packages}",
+    format!("SPDXVersion: SPDX-2.3\nDataLicense: CC0-1.0\nSPDXID: SPDXRef-DOCUMENT\nDocumentName: {doc_name}\nDocumentNamespace: https://cogent/sbom/{doc_name}-{ts}\nCreator: Tool: Cogent-sbom-1.0.0\nCreated: {ts}\n{packages}",
         doc_name = doc_name, ts = timestamp, packages = packages,
     )
 }
 
 fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 fn run(cli: Cli) {
     let root = Path::new(&cli.path);
     let mut all: Vec<Component> = Vec::new();
 
-    if root.join("Cargo.lock").exists() { all.extend(parse_cargo_lock(root)); }
-    if root.join("package-lock.json").exists() || root.join("package.json").exists() { all.extend(parse_npm_lock(root)); }
-    if root.join("requirements.txt").exists() { all.extend(parse_requirements(root)); }
+    if root.join("Cargo.lock").exists() {
+        all.extend(parse_cargo_lock(root));
+    }
+    if root.join("package-lock.json").exists() || root.join("package.json").exists() {
+        all.extend(parse_npm_lock(root));
+    }
+    if root.join("requirements.txt").exists() {
+        all.extend(parse_requirements(root));
+    }
 
     // Deduplicate by purl
     let mut seen = std::collections::HashSet::new();
@@ -302,11 +411,13 @@ mod tests {
 
     #[test]
     fn test_cyclonedx_contains_header() {
-        let comps = vec![
-            Component { name: "serde".to_string(), version: "1.0.0".to_string(),
-                license: "MIT OR Apache-2.0".to_string(), ecosystem: "cargo".to_string(),
-                purl: "pkg:cargo/serde@1.0.0".to_string() },
-        ];
+        let comps = vec![Component {
+            name: "serde".to_string(),
+            version: "1.0.0".to_string(),
+            license: "MIT OR Apache-2.0".to_string(),
+            ecosystem: "cargo".to_string(),
+            purl: "pkg:cargo/serde@1.0.0".to_string(),
+        }];
         let xml = render_cyclonedx(&comps, "myapp", "1.0.0");
         assert!(xml.contains("cyclonedx.org/schema/bom/1.4"));
         assert!(xml.contains("serde"));
@@ -315,11 +426,13 @@ mod tests {
 
     #[test]
     fn test_spdx_contains_header() {
-        let comps = vec![
-            Component { name: "tokio".to_string(), version: "1.0.0".to_string(),
-                license: "MIT".to_string(), ecosystem: "cargo".to_string(),
-                purl: "pkg:cargo/tokio@1.0.0".to_string() },
-        ];
+        let comps = vec![Component {
+            name: "tokio".to_string(),
+            version: "1.0.0".to_string(),
+            license: "MIT".to_string(),
+            ecosystem: "cargo".to_string(),
+            purl: "pkg:cargo/tokio@1.0.0".to_string(),
+        }];
         let spdx = render_spdx(&comps, "myapp", "2.0.0");
         assert!(spdx.contains("SPDXVersion: SPDX-2.3"));
         assert!(spdx.contains("tokio"));

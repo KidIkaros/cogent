@@ -21,7 +21,8 @@ workspace = true
 [package.license]
 workspace = true
 
-[dependencies.codemetrics-common]
+[dependencies.cogent-common]
+path = "../cogent-common"
 version = "1.0.0"
 
 [dependencies.ast-parse-ts]
@@ -34,3 +35,6 @@ features = [ "derive",]
 [dependencies.serde]
 version = "1"
 features = [ "derive",]
+
+[dev-dependencies]
+assert_cmd = "2"

@@ -1,6 +1,6 @@
 Unified code quality checker for Rust. Headless-first, JSON output, CI-ready.
 
-Usage: codemetrics <COMMAND>
+Usage: cogent <COMMAND>
 
 Commands:
   check            Run all quality checks and report results

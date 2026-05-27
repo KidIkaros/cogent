@@ -4,9 +4,7 @@ use clap::Parser;
 use serde::Serialize;
 
 use ast_parse_ts::{parse_doc_coverage_items_file, Language};
-use codemetrics_common::{
-    find_source_files, print_table_header, print_table_row, separator, Column,
-};
+use cogent_common::{find_source_files, print_table_header, print_table_row, separator, Column};
 
 #[derive(Parser)]
 #[command(

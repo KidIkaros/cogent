@@ -17,7 +17,7 @@ A clear and concise description of what you want to happen.
 A clear and concise description of any alternative solutions or features you've considered.
 
 **Use case**
-Describe the use case for this feature. How would it benefit users of CodeMetrics?
+Describe the use case for this feature. How would it benefit users of Cogent?
 
 **Additional context**
 Add any other context, screenshots, or examples about the feature request here.

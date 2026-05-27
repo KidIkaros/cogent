@@ -1,6 +1,6 @@
 # Quality Standards — "Exceeding Standards" Definition
 
-These are the strict quality targets that all projects using CodeMetrics should meet. The tools themselves are held to these same standards.
+These are the strict quality targets that all projects using Cogent should meet. The tools themselves are held to these same standards.
 
 ## Metric Targets
 
@@ -42,4 +42,4 @@ Every crate in this project:
 3. Must use its own tools to verify compliance
 4. Must document all public APIs with >95% coverage
 
-Run `codemetrics run . --format sarif` to self-audit.
+Run `cogent run . --format sarif` to self-audit.

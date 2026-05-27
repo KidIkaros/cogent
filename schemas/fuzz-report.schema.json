@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://codemetrics.dev/schemas/fuzz-report.schema.json",
+  "$id": "https://cogent.dev/schemas/fuzz-report.schema.json",
   "title": "FuzzReport",
   "description": "Fuzz surface analysis report",
   "type": "object",
@@ -19,26 +19,60 @@
     "FuzzableFunction": {
       "type": "object",
       "properties": {
-        "name": { "type": "string" },
-        "file": { "type": "string" },
-        "line": { "type": "integer" },
-        "params": { "type": "array", "items": { "type": "string" } },
-        "score": { "type": "integer" },
-        "is_public": { "type": "boolean" },
-        "complexity": { "type": "integer" },
-        "has_harness": { "type": "boolean" },
-        "confidence": { "type": ["number", "null"] }
+        "name": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "score": {
+          "type": "integer"
+        },
+        "is_public": {
+          "type": "boolean"
+        },
+        "complexity": {
+          "type": "integer"
+        },
+        "has_harness": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
       },
-      "required": ["name", "file", "line", "params", "score", "is_public", "complexity"]
+      "additionalProperties": true
     },
     "FuzzSummary": {
       "type": "object",
       "properties": {
-        "total_functions": { "type": "integer" },
-        "fuzzable_functions": { "type": "integer" },
-        "functions_with_harnesses": { "type": "integer" },
-        "avg_score": { "type": "number" }
-      }
+        "total_functions": {
+          "type": "integer"
+        },
+        "fuzzable_functions": {
+          "type": "integer"
+        },
+        "functions_with_harnesses": {
+          "type": "integer"
+        },
+        "avg_score": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
     }
-  }
+  },
+  "additionalProperties": true
 }

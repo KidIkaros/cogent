@@ -2,7 +2,7 @@
 
 use ast_parse_ts::{parse_complexity_file, Language};
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::path::Path;
 
@@ -79,9 +79,8 @@ fn count_file_lines(path: &str) -> usize {
 
 fn run(cli: Cli) {
     let extensions = [
-        "rs", "py", "pyi", "js", "mjs", "cjs", "ts", "tsx", "mts",
-        "go", "c", "h", "cpp", "cc", "cxx", "hpp", "cs", "java",
-        "php", "rb", "swift",
+        "rs", "py", "pyi", "js", "mjs", "cjs", "ts", "tsx", "mts", "go", "c", "h", "cpp", "cc",
+        "cxx", "hpp", "cs", "java", "php", "rb", "swift",
     ];
 
     let files = if Path::new(&cli.path).is_file() {
@@ -128,8 +127,8 @@ fn run(cli: Cli) {
         }
     }
 
-    fn_violations.sort_by(|a, b| b.lines.cmp(&a.lines));
-    file_violations.sort_by(|a, b| b.lines.cmp(&a.lines));
+    fn_violations.sort_by_key(|b| std::cmp::Reverse(b.lines));
+    file_violations.sort_by_key(|b| std::cmp::Reverse(b.lines));
 
     let summary = LineLenSummary {
         files_scanned: files.len(),
@@ -141,7 +140,11 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = LineLenReport { fn_violations, file_violations, summary };
+            let report = LineLenReport {
+                fn_violations,
+                file_violations,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -155,35 +158,69 @@ fn run(cli: Cli) {
         _ => {
             if !fn_violations.is_empty() {
                 let cols = vec![
-                    Column { header: "File", width: 40, align_right: false },
-                    Column { header: "Function", width: 25, align_right: false },
-                    Column { header: "Lines", width: 7, align_right: true },
-                    Column { header: "Limit", width: 7, align_right: true },
+                    Column {
+                        header: "File",
+                        width: 40,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Function",
+                        width: 25,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Lines",
+                        width: 7,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Limit",
+                        width: 7,
+                        align_right: true,
+                    },
                 ];
                 print_table_header(&cols);
                 for v in &fn_violations {
-                    print_table_row(&cols, &[
-                        &truncate(&v.file, 40),
-                        &truncate(&v.function, 25),
-                        &v.lines.to_string(),
-                        &v.threshold.to_string(),
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&v.file, 40),
+                            &truncate(&v.function, 25),
+                            &v.lines.to_string(),
+                            &v.threshold.to_string(),
+                        ],
+                    );
                 }
             }
             if !file_violations.is_empty() {
                 println!();
                 let cols = vec![
-                    Column { header: "File (too long)", width: 55, align_right: false },
-                    Column { header: "Lines", width: 7, align_right: true },
-                    Column { header: "Limit", width: 7, align_right: true },
+                    Column {
+                        header: "File (too long)",
+                        width: 55,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Lines",
+                        width: 7,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Limit",
+                        width: 7,
+                        align_right: true,
+                    },
                 ];
                 print_table_header(&cols);
                 for v in &file_violations {
-                    print_table_row(&cols, &[
-                        &truncate(&v.file, 55),
-                        &v.lines.to_string(),
-                        &v.threshold.to_string(),
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&v.file, 55),
+                            &v.lines.to_string(),
+                            &v.threshold.to_string(),
+                        ],
+                    );
                 }
             }
             if fn_violations.is_empty() && file_violations.is_empty() {
@@ -221,8 +258,24 @@ mod tests {
     #[test]
     fn test_fn_violation_sorting() {
         let mut v = vec![
-            FnViolation { file: "a".into(), function: "a".into(), start_line: 1, end_line: 50, lines: 50, threshold: 40, suggested_fix: None },
-            FnViolation { file: "b".into(), function: "b".into(), start_line: 1, end_line: 100, lines: 100, threshold: 40, suggested_fix: None },
+            FnViolation {
+                file: "a".into(),
+                function: "a".into(),
+                start_line: 1,
+                end_line: 50,
+                lines: 50,
+                threshold: 40,
+                suggested_fix: None,
+            },
+            FnViolation {
+                file: "b".into(),
+                function: "b".into(),
+                start_line: 1,
+                end_line: 100,
+                lines: 100,
+                threshold: 40,
+                suggested_fix: None,
+            },
         ];
         v.sort_by(|a, b| b.lines.cmp(&a.lines));
         assert_eq!(v[0].lines, 100);

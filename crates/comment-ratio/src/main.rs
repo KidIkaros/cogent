@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::path::Path;
 
@@ -65,11 +65,14 @@ struct CommentSummary {
 fn is_comment_line(line: &str, ext: &str) -> bool {
     let t = line.trim();
     match ext {
-        "rs" | "c" | "cpp" | "cc" | "cxx" | "h" | "hpp" | "cs" | "java" | "js" | "ts" | "tsx" | "mjs" | "go" | "swift" => {
+        "rs" | "c" | "cpp" | "cc" | "cxx" | "h" | "hpp" | "cs" | "java" | "js" | "ts" | "tsx"
+        | "mjs" | "go" | "swift" => {
             t.starts_with("//") || t.starts_with("/*") || t.starts_with("*") || t.starts_with("*/")
         }
         "py" | "pyi" | "rb" => t.starts_with('#'),
-        "php" => t.starts_with("//") || t.starts_with('#') || t.starts_with("/*") || t.starts_with("*"),
+        "php" => {
+            t.starts_with("//") || t.starts_with('#') || t.starts_with("/*") || t.starts_with("*")
+        }
         _ => t.starts_with("//") || t.starts_with('#'),
     }
 }
@@ -79,15 +82,22 @@ fn is_doc_comment(line: &str, ext: &str) -> bool {
     let t = line.trim();
     match ext {
         "rs" => t.starts_with("///") || t.starts_with("//!") || t.starts_with("/**"),
-        "js" | "ts" | "tsx" | "java" | "cs" => t.starts_with("/**") || t.starts_with("* ") || t.starts_with("*/"),
+        "js" | "ts" | "tsx" | "java" | "cs" => {
+            t.starts_with("/**") || t.starts_with("* ") || t.starts_with("*/")
+        }
         "py" | "pyi" => t.starts_with("\"\"\"") || t.starts_with("'''"),
         _ => false,
     }
 }
 
 fn analyze_file(path: &str, min_ratio: f64) -> Option<FileCommentStats> {
-    let Ok(source) = std::fs::read_to_string(path) else { return None };
-    let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
+    let Ok(source) = std::fs::read_to_string(path) else {
+        return None;
+    };
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
 
     let mut code_lines = 0usize;
     let mut comment_lines = 0usize;
@@ -105,7 +115,11 @@ fn analyze_file(path: &str, min_ratio: f64) -> Option<FileCommentStats> {
     }
 
     let total = code_lines + comment_lines;
-    let ratio = if total == 0 { 1.0 } else { comment_lines as f64 / total as f64 };
+    let ratio = if total == 0 {
+        1.0
+    } else {
+        comment_lines as f64 / total as f64
+    };
     let below = ratio < min_ratio && total > 10; // Skip tiny files
 
     Some(FileCommentStats {
@@ -129,8 +143,8 @@ fn analyze_file(path: &str, min_ratio: f64) -> Option<FileCommentStats> {
 
 fn run(cli: Cli) {
     let extensions = [
-        "rs", "py", "pyi", "js", "mjs", "ts", "tsx", "go",
-        "c", "h", "cpp", "cc", "hpp", "java", "rb", "swift", "php", "cs",
+        "rs", "py", "pyi", "js", "mjs", "ts", "tsx", "go", "c", "h", "cpp", "cc", "hpp", "java",
+        "rb", "swift", "php", "cs",
     ];
 
     let files = if Path::new(&cli.path).is_file() {
@@ -148,13 +162,20 @@ fn run(cli: Cli) {
         }
     }
 
-    stats.sort_by(|a, b| a.comment_ratio.partial_cmp(&b.comment_ratio).unwrap_or(std::cmp::Ordering::Equal));
+    stats.sort_by(|a, b| {
+        a.comment_ratio
+            .partial_cmp(&b.comment_ratio)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let below = stats.iter().filter(|s| s.below_threshold).count();
     let total_code: usize = stats.iter().map(|s| s.code_lines).sum();
     let total_comments: usize = stats.iter().map(|s| s.comment_lines).sum();
-    let overall_ratio = if total_code + total_comments == 0 { 0.0 }
-        else { total_comments as f64 / (total_code + total_comments) as f64 };
+    let overall_ratio = if total_code + total_comments == 0 {
+        0.0
+    } else {
+        total_comments as f64 / (total_code + total_comments) as f64
+    };
 
     let summary = CommentSummary {
         files_scanned: files.len(),
@@ -167,7 +188,10 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = CommentReport { files: stats, summary };
+            let report = CommentReport {
+                files: stats,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -177,27 +201,52 @@ fn run(cli: Cli) {
         }
         _ => {
             let cols = vec![
-                Column { header: "File", width: 45, align_right: false },
-                Column { header: "Code", width: 6, align_right: true },
-                Column { header: "Comments", width: 9, align_right: true },
-                Column { header: "Ratio", width: 7, align_right: true },
-                Column { header: "Status", width: 8, align_right: false },
+                Column {
+                    header: "File",
+                    width: 45,
+                    align_right: false,
+                },
+                Column {
+                    header: "Code",
+                    width: 6,
+                    align_right: true,
+                },
+                Column {
+                    header: "Comments",
+                    width: 9,
+                    align_right: true,
+                },
+                Column {
+                    header: "Ratio",
+                    width: 7,
+                    align_right: true,
+                },
+                Column {
+                    header: "Status",
+                    width: 8,
+                    align_right: false,
+                },
             ];
             print_table_header(&cols);
             for s in &stats {
                 let status = if s.below_threshold { "LOW" } else { "ok" };
-                print_table_row(&cols, &[
-                    &truncate(&s.file, 45),
-                    &s.code_lines.to_string(),
-                    &s.comment_lines.to_string(),
-                    &format!("{:.1}%", s.comment_ratio * 100.0),
-                    status,
-                ]);
+                print_table_row(
+                    &cols,
+                    &[
+                        &truncate(&s.file, 45),
+                        &s.code_lines.to_string(),
+                        &s.comment_lines.to_string(),
+                        &format!("{:.1}%", s.comment_ratio * 100.0),
+                        status,
+                    ],
+                );
             }
             println!(
                 "\nSummary: {} files  |  overall ratio {:.1}%  |  {} files below {:.0}% threshold",
-                summary.files_scanned, summary.overall_comment_ratio * 100.0,
-                summary.files_below_threshold, summary.min_ratio_threshold * 100.0
+                summary.files_scanned,
+                summary.overall_comment_ratio * 100.0,
+                summary.files_below_threshold,
+                summary.min_ratio_threshold * 100.0
             );
         }
     }

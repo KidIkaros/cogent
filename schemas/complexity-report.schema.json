@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/complexity-report.schema.json",
+  "title": "ComplexityReport",
+  "description": "Cyclomatic complexity analysis report",
+  "type": "object",
+  "properties": {
+    "functions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ComplexityFunction"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/ComplexitySummary"
+    }
+  },
+  "$defs": {
+    "ComplexityFunction": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "function": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "complexity": {
+          "type": "integer"
+        },
+        "above_threshold": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "ComplexitySummary": {
+      "type": "object",
+      "properties": {
+        "files_scanned": {
+          "type": "integer"
+        },
+        "functions_total": {
+          "type": "integer"
+        },
+        "functions_above_threshold": {
+          "type": "integer"
+        },
+        "max_complexity_threshold": {
+          "type": "integer"
+        },
+        "average_complexity": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

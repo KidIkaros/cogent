@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/crap-metric-report.schema.json",
+  "title": "CrapMetricReport",
+  "description": "CRAP score maintenance risk report",
+  "type": "object",
+  "properties": {
+    "functions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CrapFunction"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/CrapSummary"
+    }
+  },
+  "$defs": {
+    "CrapFunction": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "function": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "complexity": {
+          "type": "integer"
+        },
+        "coverage": {
+          "type": "number"
+        },
+        "crap_score": {
+          "type": "number"
+        },
+        "above_threshold": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "CrapSummary": {
+      "type": "object",
+      "properties": {
+        "files_scanned": {
+          "type": "integer"
+        },
+        "functions_total": {
+          "type": "integer"
+        },
+        "functions_above_threshold": {
+          "type": "integer"
+        },
+        "max_crap_threshold": {
+          "type": "number"
+        },
+        "average_crap": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,40 @@
+[[bin]]
+name = "access-control"
+path = "src/main.rs"
+
+[package]
+name = "access-control"
+description = "Access control checker — detect missing auth guards, hardcoded credentials, overly permissive IAM policies, and dangerous CORS settings"
+
+[dependencies]
+serde_json = "1"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+serde_json = "1"
+
+[package.version]
+workspace = true
+
+[package.edition]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.license]
+workspace = true
+
+[dependencies.cogent-common]
+path = "../cogent-common"
+version = "1.0.0"
+
+[dependencies.clap]
+version = "4"
+features = ["derive"]
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]

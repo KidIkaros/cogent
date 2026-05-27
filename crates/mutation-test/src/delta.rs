@@ -113,8 +113,8 @@ fn parse_hunk_header(line: &str) -> Option<(usize, usize)> {
 
 /// Return true if the trimmed line looks like the start of a Rust function signature.
 fn is_fn_signature(trimmed: &str) -> bool {
-    trimmed.contains('(') &&
-        (trimmed.starts_with("pub fn ")
+    trimmed.contains('(')
+        && (trimmed.starts_with("pub fn ")
             || trimmed.starts_with("fn ")
             || trimmed.starts_with("pub async fn ")
             || trimmed.starts_with("async fn ")
@@ -127,7 +127,11 @@ fn extract_fn_name(trimmed: &str) -> Option<&str> {
     let rest = &trimmed[trimmed.find("fn ")? + 3..];
     let end = rest.find(|c: char| c == '(' || c.is_whitespace())?;
     let name = rest[..end].trim();
-    if name.is_empty() { None } else { Some(name) }
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
 }
 
 /// Count net open braces on a line (`{` minus `}`).
@@ -258,7 +262,10 @@ fn reverse_call_graph(
     let mut reverse: HashMap<String, HashSet<String>> = HashMap::new();
     for (caller, callees) in call_graph {
         for callee in callees {
-            reverse.entry(callee.clone()).or_default().insert(caller.clone());
+            reverse
+                .entry(callee.clone())
+                .or_default()
+                .insert(caller.clone());
         }
     }
     reverse

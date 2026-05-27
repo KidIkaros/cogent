@@ -1,6 +1,6 @@
 # Versioning & Stability Policy
 
-CodeMetrics follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer) for public API surface and CLI contracts.
+Cogent follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer) for public API surface and CLI contracts.
 
 ---
 
@@ -8,14 +8,14 @@ CodeMetrics follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (
 
 | Component | Version Scope | Breaking Change Criteria |
 |-----------|---------------|--------------------------|
-| `codemetrics` CLI binary (command syntax, flags, exit codes) | **MAJOR** | Removing/renaming subcommands, changing exit code semantics, removing flag |
+| `cogent` CLI binary (command syntax, flags, exit codes) | **MAJOR** | Removing/renaming subcommands, changing exit code semantics, removing flag |
 | JSON/NDJSON/SARIF output schemas (files in `schemas/`) | **MAJOR** | Removing/renaming fields, changing types, altering nested structure |
 | Tool algorithm results (score computations) | **MINOR** | Score formula changes, threshold defaults adjustments |
 | Language detection heuristics | **MINOR** | Support for new language parsers |
 | Hermes Agent skill interface | **MINOR** | Skill ID/name changes, output format changes |
 | Internal crate structure (private modules) | **PATCH** | Private refactors, optimizations, bug fixes not affecting outputs |
 
-**Bottom line:** If a downstream script or agent depends on CodeMetrics output, breaking changes require a MAJOR version bump.
+**Bottom line:** If a downstream script or agent depends on Cogent output, breaking changes require a MAJOR version bump.
 
 ---
 
@@ -73,7 +73,7 @@ See `schemas/README.md` for schema usage and validation instructions.
 
 | Version | Breaking Change | Migration Guidance |
 |---------|-----------------|--------------------|
-| 1.0.0 | `quality` → `codemetrics` CLI rename; `.quality-baseline.sarif` → `.codemetrics-baseline.sarif` | See `UPGRADE.md` |
+| 1.0.0 | `quality` → `cogent` CLI rename; `.quality-baseline.sarif` → `.cogent-baseline.sarif` | See `UPGRADE.md` |
 | Future (2.0.0) | TBD — will be announced at least one minor version in advance | Watch CHANGELOG and releases |
 
 ---

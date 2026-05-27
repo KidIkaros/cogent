@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/type-coverage-report.schema.json",
+  "title": "TypeCoverageReport",
+  "description": "Type annotation coverage report",
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TypeCovFile"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/TypeCovSummary"
+    }
+  },
+  "$defs": {
+    "TypeCovFile": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "total_functions": {
+          "type": "integer"
+        },
+        "typed_functions": {
+          "type": "integer"
+        },
+        "coverage_pct": {
+          "type": "number"
+        },
+        "below_threshold": {
+          "type": "boolean"
+        },
+        "untyped_functions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggested_fix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "TypeCovSummary": {
+      "type": "object",
+      "properties": {
+        "files_scanned": {
+          "type": "integer"
+        },
+        "total_functions": {
+          "type": "integer"
+        },
+        "typed_functions": {
+          "type": "integer"
+        },
+        "overall_coverage_pct": {
+          "type": "number"
+        },
+        "min_coverage_threshold": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

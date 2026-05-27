@@ -1,32 +1,32 @@
-# CodeMetrics — AI Agent Quick Reference
+# Cogent — AI Agent Quick Reference
 
-This project uses **CodeMetrics** for automated code quality analysis.
-Run `codemetrics init` once and it handles everything else automatically.
+This project uses **Cogent** for automated code quality analysis.
+Run `cogent init` once and it handles everything else automatically.
 
 ## Zero-Config Bootstrap
 
 ```bash
 # Detect project type and write .quality.toml with language-tuned thresholds
-codemetrics init
+cogent init
 
 # Full CI bootstrap: config + GitHub Actions workflow + pre-commit hook + baseline SARIF
-codemetrics init --ci
+cogent init --ci
 ```
 
 ## Command Reference
 
 | Command | What it does | When to use |
 |---------|-------------|-------------|
-| `codemetrics init` | Detect ecosystem, write `.quality.toml` | First time setup |
-| `codemetrics init --ci` | Full CI wiring (GHA + hook + baseline) | Repo bootstrap |
-| `codemetrics check .` | Run all checks, auto-loads `.quality.toml` | Before PR / after changes |
-| `codemetrics check . --format json` | Machine-readable check results | Agent consumption |
-| `codemetrics watch .` | Watch changes, run tests + coverage + checks | Local dev loop |
-| `codemetrics watch . --no-tests` | Watch without running tests | Fast metrics-only loop |
-| `codemetrics install-hooks` | Install full pre-commit hook (tests + coverage + check) | Once per repo |
-| `codemetrics install-hooks --fast` | Install lightweight hook (metrics only) | Fast commit workflow |
-| `codemetrics run . --format sarif` | Full 10-tool batch audit | CI / deep audit |
-| `codemetrics run . --format json` | Full audit, JSON output | Agent / pipeline |
+| `cogent init` | Detect ecosystem, write `.quality.toml` | First time setup |
+| `cogent init --ci` | Full CI wiring (GHA + hook + baseline) | Repo bootstrap |
+| `cogent check .` | Run all checks, auto-loads `.quality.toml` | Before PR / after changes |
+| `cogent check . --format json` | Machine-readable check results | Agent consumption |
+| `cogent watch .` | Watch changes, run tests + coverage + checks | Local dev loop |
+| `cogent watch . --no-tests` | Watch without running tests | Fast metrics-only loop |
+| `cogent install-hooks` | Install full pre-commit hook (tests + coverage + check) | Once per repo |
+| `cogent install-hooks --fast` | Install lightweight hook (metrics only) | Fast commit workflow |
+| `cogent run . --format sarif` | Full 10-tool batch audit | CI / deep audit |
+| `cogent run . --format json` | Full audit, JSON output | Agent / pipeline |
 
 ## Exit Codes
 
@@ -39,7 +39,7 @@ codemetrics init --ci
 ## Agent Consumption Pattern
 
 ```bash
-result=$(codemetrics check . --format json)
+result=$(cogent check . --format json)
 if [ $? -eq 0 ]; then
   echo "Quality passed"
 else
@@ -49,21 +49,21 @@ fi
 
 ## Tool Priority for AI Agents
 
-1. **`codemetrics check .`** — fast gate, auto-uses `.quality.toml` thresholds
-2. **`codemetrics crap`** — find high-risk functions (CRAP > 30 = fix before proceeding)
-3. **`codemetrics mutate`** — verify tests catch mutations (requires passing `cargo test`)
-4. **`codemetrics debt`** — zero tolerance for TODO/FIXME/HACK markers
-5. **`codemetrics riskmap`** — identify complex + churned files (bug hotspots)
+1. **`cogent check .`** — fast gate, auto-uses `.quality.toml` thresholds
+2. **`cogent crap`** — find high-risk functions (CRAP > 30 = fix before proceeding)
+3. **`cogent mutate`** — verify tests catch mutations (requires passing `cargo test`)
+4. **`cogent debt`** — zero tolerance for TODO/FIXME/HACK markers
+5. **`cogent riskmap`** — identify complex + churned files (bug hotspots)
 
 ## Individual Tool Commands
 
 ```bash
-codemetrics crap ./src --recursive --format json
-codemetrics debt ./src --recursive --format json
-codemetrics doccov ./src --recursive --format json
-codemetrics mutate . -p <crate-name> --max-mutants 5 --format json
-codemetrics riskmap . --format json
-codemetrics taint ./src --recursive --format json
+cogent crap ./src --recursive --format json
+cogent debt ./src --recursive --format json
+cogent doccov ./src --recursive --format json
+cogent mutate . -p <crate-name> --max-mutants 5 --format json
+cogent riskmap . --format json
+cogent taint ./src --recursive --format json
 ```
 
 ## Output Formats
@@ -77,7 +77,7 @@ codemetrics taint ./src --recursive --format json
 
 ## Key Notes
 
-- `codemetrics check .` **automatically loads** `.quality.toml` — no threshold flags needed
+- `cogent check .` **automatically loads** `.quality.toml` — no threshold flags needed
 - CLI flags **override** `.quality.toml` values when provided
 - `watch` **auto-detects** test runner (Cargo, pytest, jest/vitest, go test)
 - `mutate` requires `cargo test` to pass on the original code first
@@ -86,15 +86,15 @@ codemetrics taint ./src --recursive --format json
 ## MCP Server
 
 ```bash
-codemetrics-server --mode stdio   # MCP stdio server for Claude Desktop, Cursor, Windsurf
+cogent-server --mode stdio   # MCP stdio server for Claude Desktop, Cursor, Windsurf
 ```
 
 ```json
-{ "mcpServers": { "codemetrics": { "command": "codemetrics-server", "args": ["--mode", "stdio"] } } }
+{ "mcpServers": { "cogent": { "command": "cogent-server", "args": ["--mode", "stdio"] } } }
 ```
 
 ## See Also
 
-- `docs/utcp/codemetrics.json` — UTCP tool definitions
-- `codemetrics discover --format json` — live tool catalog
+- `docs/utcp/cogent.json` — UTCP tool definitions
+- `cogent discover --format json` — live tool catalog
 - `docs/utcp-integration.md` — MCP / Hermes integration guide

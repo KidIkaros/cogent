@@ -2,7 +2,7 @@
 # Adaptive test runner: scales parallelism to available CPU and RAM.
 # Usage: ./test.sh [extra cargo test args...]
 #   e.g: ./test.sh --workspace
-#        ./test.sh -p codemetrics-cli
+#        ./test.sh -p cogent-cli
 
 set -euo pipefail
 
@@ -37,7 +37,7 @@ if [[ "$*" == *"--safe"* ]]; then
     export CARGO_BUILD_JOBS=1
     export RUST_TEST_THREADS=1
     ALL_CRATES=(
-        codemetrics-common ast-parse-ts codemetrics-server codemetrics-cli
+        cogent-common ast-parse-ts cogent-server cogent-cli
         debt-scan doc-coverage crap-metric coupling risk-map
         duplication taint-scan fuzz-surface mutation-test prop-cov
     )
@@ -55,9 +55,9 @@ fi
 if [[ $# -eq 0 ]] || [[ "$*" == *"--workspace"* ]]; then
     echo "Running tests in batches (avoids peak memory from --workspace compilation)..."
     BATCHES=(
-        "-p codemetrics-common"
+        "-p cogent-common"
         "-p ast-parse-ts"
-        "-p codemetrics-server -p codemetrics-cli"
+        "-p cogent-server -p cogent-cli"
         "-p debt-scan -p doc-coverage"
         "-p crap-metric -p coupling"
         "-p risk-map -p duplication"

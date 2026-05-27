@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://codemetrics.dev/schemas/tool-response.schema.json",
+  "$id": "https://cogent.dev/schemas/tool-response.schema.json",
   "title": "ToolResponse",
   "description": "Response from a quality tool execution",
   "type": "object",
@@ -42,5 +42,5 @@
       "description": "Whether an auto-fix is available"
     }
   },
-  "required": ["tool", "version", "success", "duration_ms", "data"]
+  "additionalProperties": true
 }

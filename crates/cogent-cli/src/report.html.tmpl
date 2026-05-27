@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cogent Audit — __PROJECT__</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#1e293b;line-height:1.5}
+a{color:#6366f1;text-decoration:none}
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.sidebar{background:#0f172a;color:#94a3b8;padding:28px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar .brand{padding:0 20px 24px;border-bottom:1px solid #1e293b;margin-bottom:20px}
+.sidebar .brand-name{font-size:13px;font-weight:700;color:#e2e8f0;text-transform:uppercase;letter-spacing:.08em}
+.sidebar .brand-sub{font-size:11px;color:#475569;margin-top:2px}
+.sidebar nav a{display:flex;align-items:center;gap:10px;padding:9px 20px;font-size:13px;color:#94a3b8;transition:background .15s}
+.sidebar nav a:hover,.sidebar nav a.active{background:#1e293b;color:#e2e8f0}
+.sidebar .nav-icon{font-size:15px;width:20px;text-align:center}
+.sidebar .cat-score{margin-left:auto;font-size:11px;font-weight:600;padding:1px 7px;border-radius:10px}
+.sidebar .score-pass{background:#14532d;color:#86efac}
+.sidebar .score-fail{background:#7f1d1d;color:#fca5a5}
+.sidebar .divider{border:none;border-top:1px solid #1e293b;margin:12px 20px}
+.main{padding:36px 40px 60px;max-width:1000px}
+.page-header{background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);color:#fff;padding:32px 36px;border-radius:14px;margin-bottom:32px;display:flex;gap:32px;align-items:center}
+.page-header-text{flex:1}
+.page-header .eyebrow{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.page-header h1{font-size:26px;font-weight:800;letter-spacing:-.3px;color:#f8fafc}
+.page-header .meta{font-size:12px;color:#64748b;margin-top:6px}
+.verdict-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);padding:8px 18px;border-radius:8px;margin-top:14px}
+.verdict-pill .v-label{font-size:18px;font-weight:800;color:__OC__}
+.verdict-pill .v-sub{font-size:13px;color:#94a3b8}
+.score-ring{display:flex;flex-direction:column;align-items:center;gap:4px}
+.grade-badge{font-size:40px;font-weight:900;color:__GC__;line-height:1}
+.grade-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+.stat-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);text-align:center;border:1px solid #f1f5f9}
+.stat-card .n{font-size:34px;font-weight:900;line-height:1}
+.stat-card .lbl{font-size:11px;color:#94a3b8;margin-top:6px;text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+.card{background:#fff;border-radius:12px;padding:28px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:28px;border:1px solid #f1f5f9}
+.card-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.cat-bars{display:flex;flex-direction:column;gap:14px}
+.cat-bar-row{display:flex;align-items:center;gap:12px}
+.cat-bar-label{font-size:13px;color:#475569;min-width:120px;font-weight:500}
+.footer{font-size:12px;color:#94a3b8;text-align:center;margin-top:48px;padding-top:24px;border-top:1px solid #e2e8f0}
+.collapsible-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+.collapsible-header::before{content:'▸';font-size:12px;color:#9ca3af;transition:transform .15s}
+.collapsible-header.open::before{content:'▾'}
+.collapsible-body{overflow:hidden;transition:max-height .2s ease}
+.collapsible-body.closed{max-height:0}
+.heatmap-row{cursor:pointer;transition:background .1s}
+.heatmap-row:hover{background:#f0f9ff}
+.filter-tag{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-bottom:12px}
+.filter-tag .x{cursor:pointer;font-size:14px;line-height:1}
+@media(max-width:768px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:static;height:auto}
+  .main{padding:20px}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  .page-header{flex-direction:column}
+}
+@media print{
+  .sidebar{display:none}
+  .layout{grid-template-columns:1fr}
+  .main{padding:20px}
+  body{background:#fff}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-name">Cogent</div>
+    <div class="brand-sub">Audit Report</div>
+  </div>
+  <nav>
+    <a href="#overview" class="active"><span class="nav-icon">&#128203;</span>Overview
+      <span class="cat-score __OS__">__OL__</span>
+    </a>
+    <hr class="divider">
+    <a href="#security"><span class="nav-icon">&#128274;</span>Security
+      <span class="cat-score __SS__">__SEC_PASS__/__SEC_TOTAL__</span>
+    </a>
+    <a href="#quality"><span class="nav-icon">&#128202;</span>Quality
+      <span class="cat-score __QS__">__QUAL_PASS__/__QUAL_TOTAL__</span>
+    </a>
+    <a href="#compliance"><span class="nav-icon">&#128203;</span>Compliance
+      <span class="cat-score __CS__">__COMP_PASS__/__COMP_TOTAL__</span>
+    </a>
+    <hr class="divider">
+    <a href="#remediation"><span class="nav-icon">&#128295;</span>Remediation</a>
+  </nav>
+</aside>
+
+<main class="main">
+
+<div id="overview">
+
+<div class="page-header">
+  <div class="page-header-text">
+    <div class="eyebrow">Automated Code Audit Report</div>
+    <h1>__PROJECT__</h1>
+    <div class="meta">Generated __DATE__ &nbsp;&middot;&nbsp; Path: __PATH__ &nbsp;&middot;&nbsp; Cogent v__VERSION__</div>
+    <div class="verdict-pill">
+      <span class="v-label">__OVERALL_LABEL__</span>
+      <span class="v-sub">__PCT__% of __TOTAL__ checks passed</span>
+    </div>
+  </div>
+  <div class="score-ring">
+    __DONUT__
+    <div class="grade-badge" style="color:__GC__">__GRADE__</div>
+    <div class="grade-label">Health Grade</div>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card"><div class="n" style="color:#1e293b">__TOTAL__</div><div class="lbl">Total Checks</div></div>
+  <div class="stat-card"><div class="n" style="color:#22c55e">__PASSED_N__</div><div class="lbl">Passed</div></div>
+  <div class="stat-card"><div class="n" style="color:#ef4444">__FAILED_N__</div><div class="lbl">Failed</div></div>
+  <div class="stat-card"><div class="n" style="color:__GC__">__HEALTH__/100</div><div class="lbl">Health Score</div></div>
+</div>
+
+<div class="card">
+  <div class="card-title">&#128200; Category Breakdown</div>
+  <div class="cat-bars">
+    <div class="cat-bar-row"><span class="cat-bar-label">&#128274; Security</span>__SEC_BAR__</div>
+    <div class="cat-bar-row"><span class="cat-bar-label">&#128202; Quality</span>__QUAL_BAR__</div>
+    <div class="cat-bar-row"><span class="cat-bar-label">&#128203; Compliance</span>__COMP_BAR__</div>
+  </div>
+</div>
+
+__SEVERITY_CHART__
+
+__SPARKLINE__
+
+__FILE_HEATMAP__
+
+<div class="card">
+  <div class="card-title">&#127919; Executive Summary</div>
+  <p style="font-size:14px;color:#475569;line-height:1.6;margin-bottom:20px">__EXEC_VERDICT__</p>
+  <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:12px">Top Priority Actions</div>
+  __TOP3_HTML__
+</div>
+
+</div>
+
+<div class="card" id="remediation" style="scroll-margin-top:80px">
+  <div class="card-title">&#128295; Remediation Checklist
+    <span style="font-size:12px;font-weight:400;color:#9ca3af;margin-left:4px">&#8212; ranked by severity</span>
+  </div>
+  <p style="font-size:13px;color:#9ca3af;margin-bottom:16px">Address Critical and High items before any release.</p>
+  __REMEDIATION_HTML__
+</div>
+
+__FINDINGS_SECTION__
+
+__GAUGE__
+
+__QUAL_SECTION__
+__SEC_SECTION__
+__COMP_SECTION__
+
+<div class="footer">
+  Generated by <strong>Cogent</strong> &#8212; automated code quality &amp; security auditing &nbsp;&middot;&nbsp; __DATE__<br>
+  <span style="color:#cbd5e1">This report is machine-generated. Results should be reviewed by a qualified engineer before use in compliance filings.</span>
+</div>
+
+</main>
+</div>
+
+<script>
+const sections = document.querySelectorAll('[id]');
+const links = document.querySelectorAll('.sidebar nav a');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      links.forEach(l=>l.classList.remove('active'));
+      const a = document.querySelector('.sidebar nav a[href="#'+e.target.id+'"]');
+      if(a) a.classList.add('active');
+    }
+  });
+},{threshold:0.3});
+sections.forEach(s=>obs.observe(s));
+
+// Collapsible findings sections
+function toggleCollapsible(h){
+  const body = h.nextElementSibling;
+  if(!body) return;
+  body.classList.toggle('closed');
+  h.classList.toggle('open');
+  if(!body.classList.contains('closed')){
+    body.style.maxHeight = body.scrollHeight + 'px';
+  } else {
+    body.style.maxHeight = '0px';
+  }
+}
+document.querySelectorAll('.collapsible-header').forEach(h=>{
+  h.addEventListener('click', ()=>toggleCollapsible(h));
+});
+
+// Findings search
+function filterFindings(q){
+  const rows = document.querySelectorAll('.finding-row');
+  rows.forEach(r=>{
+    const txt = r.textContent.toLowerCase();
+    r.style.display = txt.includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// File heatmap click-to-filter
+let activeFileFilter = '';
+function filterByFile(file){
+  activeFileFilter = file;
+  const rows = document.querySelectorAll('.finding-row');
+  rows.forEach(r=>{
+    const cell = r.querySelector('td');
+    if(cell){
+      const f = cell.textContent.trim();
+      r.style.display = f === file ? '' : 'none';
+    }
+  });
+  // Show active filter badge
+  let badge = document.getElementById('file-filter-badge');
+  if(!badge){
+    badge = document.createElement('div');
+    badge.id = 'file-filter-badge';
+    badge.className = 'filter-tag';
+    const header = document.querySelector('#findings .card-title');
+    if(header) header.parentNode.insertBefore(badge, header.nextSibling);
+  }
+  badge.innerHTML = 'File: ' + file + ' <span class="x" onclick="clearFileFilter()">&times;</span>';
+  badge.style.display = 'inline-flex';
+}
+function clearFileFilter(){
+  activeFileFilter = '';
+  const rows = document.querySelectorAll('.finding-row');
+  rows.forEach(r=>r.style.display = '');
+  const badge = document.getElementById('file-filter-badge');
+  if(badge) badge.style.display = 'none';
+}
+document.querySelectorAll('.heatmap-row').forEach(row=>{
+  row.addEventListener('click', ()=>{
+    const fileDiv = row.querySelector('div');
+    if(fileDiv) filterByFile(fileDiv.textContent.trim());
+  });
+});
+</script>
+</body>
+</html>

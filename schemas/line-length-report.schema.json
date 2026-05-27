@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/line-length-report.schema.json",
+  "title": "LineLengthReport",
+  "description": "Line length violation report",
+  "type": "object",
+  "properties": {
+    "fn_violations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FnViolation"
+      }
+    },
+    "file_violations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FileViolation"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/LineLengthSummary"
+    }
+  },
+  "$defs": {
+    "FnViolation": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "function": {
+          "type": "string"
+        },
+        "line_start": {
+          "type": "integer"
+        },
+        "line_end": {
+          "type": "integer"
+        },
+        "line_count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "FileViolation": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line_count": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
+    "LineLengthSummary": {
+      "type": "object",
+      "properties": {
+        "files_scanned": {
+          "type": "integer"
+        },
+        "fn_violations": {
+          "type": "integer"
+        },
+        "file_violations": {
+          "type": "integer"
+        },
+        "max_fn_lines_threshold": {
+          "type": "integer"
+        },
+        "max_file_lines_threshold": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

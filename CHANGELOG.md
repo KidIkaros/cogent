@@ -1,11 +1,25 @@
 # Changelog
 
-All notable changes to CodeMetrics are documented in this file.
+All notable changes to Cogent are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+—
+
+## [1.1.0] — 2026-05-23
+
+### Rebranded to Cogent
+- **Project renamed from `CodeMetrics` to `Cogent`** — all crates, binaries, documentation, and references updated
+- Binary renamed: `codemetrics` → `cogent`
+- Server binary renamed: `codemetrics-server` → `cogent-server`
+- Crate directories renamed: `crates/codemetrics-*` → `crates/cogent-*`
+- History directory renamed: `.codemetrics-history/` → `.cogent-history/`
+- Baseline file renamed: `.codemetrics-baseline.sarif` → `.cogent-baseline.sarif`
+- GitHub repository URL updated: `github.com/KidIkaros/cogent`
+- See [`UPGRADE.md`](UPGRADE.md) for migration notes
 
 ### Added — Security & Compliance tools
 - `sast` — SAST scanner covering SQL injection, XSS, path traversal, command injection, eval, SSRF, unsafe deserialization (25 rules / 7 categories)
@@ -24,28 +38,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `halstead` — Halstead bug estimate
 
 ### Added — CLI commands
-- `codemetrics report .` — HTML audit report with sidebar nav, SVG donut gauge, A–F health grade, inline offender drill-downs, executive summary, remediation checklist
-- `codemetrics report . --format markdown` — Markdown variant
-- `codemetrics report . --from-json check.json` — render from existing JSON snapshot
-- `codemetrics report . --open` — auto-launch report in browser after generation
-- `codemetrics sbom .` — standalone SBOM generation
-- `codemetrics diff old.json new.json` — compare two check snapshots, show regressions/fixes
-- `codemetrics check . --only <checks>` — run a specific subset of checks
-- `codemetrics check . --ci` — CI shorthand: JSON output + no TTY color/progress
-- `codemetrics check . --verbose` — print inline file:line offenders for all checks
-- `codemetrics watch . --full` — run all 21 checks every cycle (not just debt/doc/crap)
+- `cogent report .` — HTML audit report with sidebar nav, SVG donut gauge, A–F health grade, inline offender drill-downs, executive summary, remediation checklist
+- `cogent report . --format markdown` — Markdown variant
+- `cogent report . --from-json check.json` — render from existing JSON snapshot
+- `cogent report . --open` — auto-launch report in browser after generation
+- `cogent sbom .` — standalone SBOM generation
+- `cogent diff old.json new.json` — compare two check snapshots, show regressions/fixes
+- `cogent check . --only <checks>` — run a specific subset of checks
+- `cogent check . --ci` — CI shorthand: JSON output + no TTY color/progress
+- `cogent check . --verbose` — print inline file:line offenders for all checks
+- `cogent watch . --full` — run all 21 checks every cycle (not just debt/doc/crap)
 
 ### Added — UX / Terminal output
 - Weighted health score (0–100) and letter grade (A–F) in `╔═╗` summary box
 - Inline file:line offenders under each failed check line
 - Cycle diff in watch mode: `↑ name now passing` / `↓ name now failing` lines
-- `codemetrics init` / `codemetrics init --ci` now print a numbered next-steps block
+- `cogent init` / `cogent init --ci` now print a numbered next-steps block
 - Better missing-tool error messages: names the binary and suggests install path
 
 ### Changed
-- **Rebranded from `quality-tools` to `codemetrics`** — all commands, paths, and references updated
-- Unified CLI entry point: `codemetrics <subcommand>` (previously separate binaries)
-- Default history directory renamed to `.codemetrics-history/`
+- **Rebranded from `quality-tools` to `codemetrics`, then to `cogent`** — all commands, paths, and references updated
+- Unified CLI entry point: `cogent <subcommand>` (previously separate binaries)
+- Default history directory renamed to `.cogent-history/`
 - HTML report rebuilt: token-replacement approach avoids Rust 2021 prefixed-literal issues with CSS
 - Date arithmetic in report header fixed (was computing wrong month from Unix timestamp)
 - `run_watch_checks` now returns results for cycle diff comparison
@@ -95,4 +109,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Upgrade Guide
 
-See [`UPGRADE.md`](UPGRADE.md) for migration instructions from `quality-tools` to `codemetrics`.
+See [`UPGRADE.md`](UPGRADE.md) for migration instructions from `quality-tools` to `cogent`.

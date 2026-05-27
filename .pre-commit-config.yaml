@@ -1,4 +1,4 @@
-# pre-commit configuration for CodeMetrics
+# pre-commit configuration for Cogent
 # Run `pre-commit install` to set up hooks on `git commit`
 
 repos:

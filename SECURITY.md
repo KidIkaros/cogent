@@ -9,7 +9,7 @@ We take security seriously and strive to promptly address security vulnerabiliti
 | < 0.1   | :x:                |
 
 ## Reporting a Vulnerability
-If you discover a security vulnerability in CodeMetrics, please report it responsibly.
+If you discover a security vulnerability in Cogent, please report it responsibly.
 
 ### How to Report
 **Please DO NOT report security vulnerabilities through public GitHub issues.**
@@ -44,7 +44,7 @@ Please include the following information in your report:
 - Public disclosure happens after a fix is available and users have had reasonable time to update
 
 ## Security Best Practices for Contributors
-When contributing to CodeMetrics, please keep these security considerations in mind:
+When contributing to Cogent, please keep these security considerations in mind:
 
 ### Code Review Checklist
 - [ ] Input validation: Are all user inputs properly validated?
@@ -79,25 +79,25 @@ We regularly update dependencies to patch known vulnerabilities. You can help by
 
 ## Known Security Considerations
 
-### CodeMetrics Security Model
-- CodeMetrics is a CLI tool that analyzes source code
+### Cogent Security Model
+- Cogent is a CLI tool that analyzes source code
 - It runs locally on the user's machine
-- It does not expose network services (except codemetrics-server, which is optional)
+- It does not expose network services (except cogent-server, which is optional)
 - It reads source files and produces reports
 
 ### Potential Risks
 1. **Malicious Source Files**: Tree-sitter parsers are generally safe, but malformed input could cause issues
 2. **Path Traversal**: When processing user-specified paths
 3. **Resource Exhaustion**: Large codebases could cause high memory/CPU usage
-4. **codemetrics-server**: The JSON-RPC server should not be exposed to untrusted networks
+4. **cogent-server**: The JSON-RPC server should not be exposed to untrusted networks
 
 ### Mitigations
 - We use memory monitoring to prevent OOM conditions
 - We limit rayon parallelism to prevent CPU exhaustion
 - We validate and canonicalize file paths
-- codemetrics-server is designed for local/trusted network use only
+- cogent-server is designed for local/trusted network use only
 
 ## Contact
 For security-related questions or concerns, contact: kidikaros@proton.me
 
-For general questions, please use [GitHub Issues](https://github.com/KidIkaros/codemetrics/issues).
+For general questions, please use [GitHub Issues](https://github.com/KidIkaros/cogent/issues).

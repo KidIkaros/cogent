@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use ast_parse_ts::{parse_complexity_file, Language};
-use codemetrics_common::{get_git_churn, print_table_header, print_table_row, separator, Column};
+use cogent_common::{get_git_churn, print_table_header, print_table_row, separator, Column};
 
 #[derive(Parser)]
 #[command(

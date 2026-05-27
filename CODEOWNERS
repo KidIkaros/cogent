@@ -1,13 +1,13 @@
-# CodeOwners file for CodeMetrics
+# CodeOwners file for Cogent
 # This file controls who is automatically assigned as a reviewer on PRs.
 
 # Default owner for the entire repo
 * @KidIkaros
 
 # Crate-specific owners (update as team grows)
-/crates/codemetrics-common/ @KidIkaros
-/crates/codemetrics-cli/ @KidIkaros
-/crates/codemetrics-server/ @KidIkaros
+/crates/cogent-common/ @KidIkaros
+/crates/cogent-cli/ @KidIkaros
+/crates/cogent-server/ @KidIkaros
 
 # Documentation
 /docs/ @KidIkaros

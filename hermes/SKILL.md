@@ -1,5 +1,5 @@
 ---
-name: codemetrics
+name: cogent
 description: AI-native code quality, security, and compliance audit toolkit - 21 automated checks for CI/CD pipelines and AI agents
 version: 0.1.0
 author: KidIkaros
@@ -13,7 +13,7 @@ metadata:
     fallback_for_tools: []
 ---
 
-# codemetrics
+# cogent
 
 21-check audit toolkit covering quality, security, and compliance. Designed for CI/CD pipelines and AI agents.
 
@@ -30,27 +30,27 @@ metadata:
 
 | Command | Purpose |
 |---------|----------|
-| `codemetrics init` | Detect ecosystem, write `.quality.toml` |
-| `codemetrics init --ci` | Full CI wiring (GHA + hook + baseline) |
-| `codemetrics check .` | All 21 checks, auto-loads `.quality.toml` |
-| `codemetrics check . --format json` | Machine-readable results for agents |
-| `codemetrics check . --only sast,secrets,crypto` | Run specific checks only |
-| `codemetrics check . --verbose` | Print file:line offenders for all checks |
-| `codemetrics check . --ci` | CI mode: JSON out, no colors, exits 1 on fail |
-| `codemetrics report .` | Generate HTML audit report |
-| `codemetrics report . --open` | Generate + open in browser |
-| `codemetrics diff old.json new.json` | Compare two check snapshots |
-| `codemetrics watch . --no-tests` | Fast metrics-only watch loop |
-| `codemetrics watch . --full` | Watch with all 21 checks |
-| `codemetrics install-hooks --fast` | Lightweight pre-commit hook |
-| `codemetrics run . --format sarif` | Full batch audit (SARIF output) |
-| `codemetrics crap ./src --recursive` | CRAP scores only |
-| `codemetrics mutate . -p {crate} --max-mutants 5` | Test quality |
-| `codemetrics riskmap . --format json` | High-risk files |
-| `codemetrics debt ./src --recursive` | TODOs/FIXMEs |
-| `codemetrics doccov ./src --recursive` | Doc coverage |
-| `codemetrics taint ./src --recursive` | Security taint |
-| `codemetrics sbom .` | Generate SBOM (CycloneDX / SPDX) |
+| `cogent init` | Detect ecosystem, write `.quality.toml` |
+| `cogent init --ci` | Full CI wiring (GHA + hook + baseline) |
+| `cogent check .` | All 21 checks, auto-loads `.quality.toml` |
+| `cogent check . --format json` | Machine-readable results for agents |
+| `cogent check . --only sast,secrets,crypto` | Run specific checks only |
+| `cogent check . --verbose` | Print file:line offenders for all checks |
+| `cogent check . --ci` | CI mode: JSON out, no colors, exits 1 on fail |
+| `cogent report .` | Generate HTML audit report |
+| `cogent report . --open` | Generate + open in browser |
+| `cogent diff old.json new.json` | Compare two check snapshots |
+| `cogent watch . --no-tests` | Fast metrics-only watch loop |
+| `cogent watch . --full` | Watch with all 21 checks |
+| `cogent install-hooks --fast` | Lightweight pre-commit hook |
+| `cogent run . --format sarif` | Full batch audit (SARIF output) |
+| `cogent crap ./src --recursive` | CRAP scores only |
+| `cogent mutate . -p {crate} --max-mutants 5` | Test quality |
+| `cogent riskmap . --format json` | High-risk files |
+| `cogent debt ./src --recursive` | TODOs/FIXMEs |
+| `cogent doccov ./src --recursive` | Doc coverage |
+| `cogent taint ./src --recursive` | Security taint |
+| `cogent sbom .` | Generate SBOM (CycloneDX / SPDX) |
 
 ## Prerequisites
 
@@ -59,7 +59,7 @@ Build and install the binary:
 ```bash
 cargo build --release
 # Or install to PATH:
-cargo install --path crates/codemetrics-cli
+cargo install --path crates/cogent-cli
 ```
 
 ## Procedure
@@ -67,72 +67,72 @@ cargo install --path crates/codemetrics-cli
 ### 0. Zero-Config Setup (do once per repo)
 
 ```bash
-codemetrics init        # detect ecosystem, write .quality.toml
-codemetrics init --ci  # also wire GitHub Actions + pre-commit hook + baseline
+cogent init        # detect ecosystem, write .quality.toml
+cogent init --ci  # also wire GitHub Actions + pre-commit hook + baseline
 ```
 
 ### 1. Full Audit (Recommended for CI/CD)
 
 ```bash
 # Run all 10 tools, output SARIF for GitHub Security tab
-codemetrics run . --format sarif > results.sarif
+cogent run . --format sarif > results.sarif
 
 # Or quick gate with .quality.toml thresholds
-codemetrics check . --format json
+cogent check . --format json
 ```
 
 ### 2. Quick Risk Check
 
 ```bash
 # Find high-risk functions (CRAP > 15)
-codemetrics crap ./src --recursive --format json
+cogent crap ./src --recursive --format json
 
 # Find complex/churned files
-codemetrics riskmap . --format json
+cogent riskmap . --format json
 ```
 
 ### 3. Test Quality Check
 
 ```bash
 # Requires: cargo test must pass first
-codemetrics mutate . -p ast-parse-ts --max-mutants 5 --format json
+cogent mutate . -p ast-parse-ts --max-mutants 5 --format json
 ```
 
 ### 4. Technical Debt
 
 ```bash
-codemetrics debt ./src --recursive --format json
+cogent debt ./src --recursive --format json
 ```
 
 ### 5. Security Spot-Check
 
 ```bash
 # Run only security checks
-codemetrics check . --only sast,secrets,crypto,taint,errhandle,vulnscan
+cogent check . --only sast,secrets,crypto,taint,errhandle,vulnscan
 ```
 
 ### 6. License / Compliance Audit
 
 ```bash
-codemetrics check . --only licenses,sbom
-codemetrics sbom .   # standalone SBOM output
+cogent check . --only licenses,sbom
+cogent sbom .   # standalone SBOM output
 ```
 
 ### 7. Watch Mode (live dev loop)
 
 ```bash
-codemetrics watch .            # runs tests + coverage + checks on every change
-codemetrics watch . --full     # all 21 checks every cycle
-codemetrics watch . --no-tests # metrics-only, faster
+cogent watch .            # runs tests + coverage + checks on every change
+cogent watch . --full     # all 21 checks every cycle
+cogent watch . --no-tests # metrics-only, faster
 ```
 
 ### 8. Snapshot comparison
 
 ```bash
-codemetrics check . --format json > before.json
+cogent check . --format json > before.json
 # ... make changes ...
-codemetrics check . --format json > after.json
-codemetrics diff before.json after.json
+cogent check . --format json > after.json
+cogent diff before.json after.json
 ```
 
 ## Tool Details
@@ -184,12 +184,12 @@ codemetrics diff before.json after.json
 
 ## CI/CD Integration
 
-### GitHub Actions (auto-generated by `codemetrics init --ci`)
+### GitHub Actions (auto-generated by `cogent init --ci`)
 
 ```yaml
 - name: Quality Audit
   run: |
-    codemetrics run . --format sarif > results.sarif
+    cogent run . --format sarif > results.sarif
 - name: Upload SARIF
   uses: github/codeql-action/upload-sarif@v3
   with:
@@ -200,27 +200,27 @@ codemetrics diff before.json after.json
 
 ```bash
 # Install full hook (runs tests + coverage + check)
-codemetrics install-hooks
+cogent install-hooks
 
 # Install fast hook (metrics only, no test run)
-codemetrics install-hooks --fast
+cogent install-hooks --fast
 ```
 
 ## MCP / Hermes Server Integration
 
-The `codemetrics-server` crate exposes all tools as an MCP stdio server:
+The `cogent-server` crate exposes all tools as an MCP stdio server:
 
 ```bash
 # Start MCP server (stdio transport)
-codemetrics-server --mode stdio
+cogent-server --mode stdio
 
 # Start with TCP transport
-codemetrics-server --mode tcp --port 9876
+cogent-server --mode tcp --port 9876
 ```
 
 Hermes MCP tool provider config:
 ```json
-{ "mcpServers": { "codemetrics": { "command": "codemetrics-server", "args": ["--mode", "stdio"] } } }
+{ "mcpServers": { "cogent": { "command": "cogent-server", "args": ["--mode", "stdio"] } } }
 ```
 
 The server supports both legacy `tools/run` (JSON-RPC) and standard MCP `tools/call` — existing Hermes skills using `tools/run` continue to work.
@@ -237,26 +237,26 @@ The server supports both legacy `tools/run` (JSON-RPC) and standard MCP `tools/c
 ## Pitfalls
 
 1. **mutate fails**: Ensure `cargo test` passes first; use `-p crate-name` in workspaces
-2. **Coverage required for accurate CRAP**: Run `codemetrics init` to auto-detect coverage command
-3. **No `.quality.toml`**: Run `codemetrics init` — `check` will use generic defaults without it
-4. **Binary not on PATH**: Run `cargo install --path crates/codemetrics-cli` and `cargo install --path crates/codemetrics-server`
+2. **Coverage required for accurate CRAP**: Run `cogent init` to auto-detect coverage command
+3. **No `.quality.toml`**: Run `cogent init` — `check` will use generic defaults without it
+4. **Binary not on PATH**: Run `cargo install --path crates/cogent-cli` and `cargo install --path crates/cogent-server`
 
 ## Verification
 
 ```bash
 # Check all tools work
-codemetrics run . --format json | jq '.summary'
+cogent run . --format json | jq '.summary'
 
 # Check specific tool
-codemetrics crap ./src --recursive --format json | head
+cogent crap ./src --recursive --format json | head
 
 # Verify MCP server responds
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}}}' | codemetrics-server --mode stdio
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}}}' | cogent-server --mode stdio
 ```
 
 ## Rules
 
-1. Run `codemetrics check .` before every PR (exit 0 = good to merge)
+1. Run `cogent check .` before every PR (exit 0 = good to merge)
 2. Fix CRAP > 30 immediately before proceeding
 3. Use `mutate` to verify test suites catch bugs
 4. Zero tolerance for TODO/FIXME in production code
@@ -264,8 +264,8 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 
 ## See Also
 
-- Repository: https://github.com/KidIkaros/codemetrics
-- UTCP Manual: `docs/utcp/codemetrics.json`
+- Repository: https://github.com/KidIkaros/cogent
+- UTCP Manual: `docs/utcp/cogent.json`
 - Claude Code: `CLAUDE.md` (repo root)
 - OpenCode: `AGENTS.md` (repo root)
 - MCP / UTCP integration: `docs/utcp-integration.md`

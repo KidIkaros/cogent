@@ -1,0 +1,47 @@
+[package]
+name = "cogent-server"
+edition = "2021"
+description = "UTCP/MCP server bridge for Cogent — exposes tools as model-context-protocol resources"
+
+[dependencies]
+serde_json = "1"
+
+[features]
+default = [ "tcp",]
+tcp = []
+stdio = []
+
+[package.version]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.keywords]
+workspace = true
+
+[package.categories]
+workspace = true
+
+[package.license]
+workspace = true
+
+[dependencies.cogent-common]
+path = "../cogent-common"
+version = "1.0.0"
+
+[dependencies.serde]
+version = "1"
+features = [ "derive",]
+
+[dependencies.tokio]
+version = "1"
+features = [ "rt-multi-thread", "net", "io-util", "macros", "process", "time", "io-std",]
+
+[dependencies.clap]
+version = "4"
+features = [ "derive",]
+
+[dependencies.uuid]
+version = "1"
+features = [ "v4",]

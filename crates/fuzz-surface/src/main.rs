@@ -2,7 +2,7 @@
 
 use ast_parse_ts::{parse_complexity, Language};
 use clap::Parser;
-use codemetrics_common::{
+use cogent_common::{
     find_source_files, print_table_header, print_table_row, separator, truncate, Column,
 };
 use serde::Serialize;
@@ -1138,7 +1138,6 @@ fn get_fuzz_hint(f: &FuzzableFunction) -> String {
         )
     }
 }
-
 
 fn output_table(display: &[FuzzableFunction], all: &[FuzzableFunction]) {
     println!("FUZZING SURFACE ANALYSIS");

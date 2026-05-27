@@ -2,7 +2,7 @@
 
 use ast_parse_ts::Language;
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use rayon::prelude::*;
 use serde::Serialize;
 use std::collections::HashSet;
@@ -311,7 +311,9 @@ fn analyze_file_multilang(
         }
 
         // Rust: detect #[sensitive] attribute on its own line
-        if lang == Language::Rust && (trimmed == "#[sensitive]" || trimmed.starts_with("#[sensitive")) {
+        if lang == Language::Rust
+            && (trimmed == "#[sensitive]" || trimmed.starts_with("#[sensitive"))
+        {
             prev_was_sensitive_attr = true;
             continue;
         }
@@ -741,4 +743,3 @@ store_hash(hashed)
         );
     }
 }
-

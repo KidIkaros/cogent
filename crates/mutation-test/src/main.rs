@@ -10,9 +10,7 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
-use codemetrics_common::{
-    print_table_header, print_table_row, separator, wrap_tool_response, Column,
-};
+use cogent_common::{print_table_header, print_table_row, separator, wrap_tool_response, Column};
 
 mod delta;
 
@@ -501,7 +499,7 @@ fn run(cli: Cli) -> Result<(), String> {
         if crate_root_raw.is_file() {
             return analyze_non_rust_file(&cli.path, &cli);
         } else {
-            return Err(format!("Mutation test execution requires Rust crate (Cargo.toml). For other languages, pass individual files for mutation analysis only."));
+            return Err("Mutation test execution requires Rust crate (Cargo.toml). For other languages, pass individual files for mutation analysis only.".to_string());
         }
     }
 
@@ -1587,7 +1585,7 @@ fn output_table_streaming(
         ("Mutation Score:", format!("{:.0}%", score)),
         ("Verdict:", verdict.to_string()),
     ];
-    codemetrics_common::print_summary(&summary);
+    cogent_common::print_summary(&summary);
 
     if timeouts > 0 {
         println!("  Timeout:        {}", timeouts);

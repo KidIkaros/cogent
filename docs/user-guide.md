@@ -1,29 +1,29 @@
-# User Guide — Using CodeMetrics to Improve Your Project
+# User Guide — Using Cogent to Improve Your Project
 
-This guide shows how to use CodeMetrics to audit and improve your project's code quality.
+This guide shows how to use Cogent to audit and improve your project's code quality.
 
 ## Quick Start (5 Minutes)
 
-1. **Install CodeMetrics**:
+1. **Install Cogent**:
    ```bash
-   git clone https://github.com/KidIkaros/codemetrics.git
-   cd codemetrics && cargo build --release
+   git clone https://github.com/KidIkaros/cogent.git
+   cd cogent && cargo build --release
    export PATH="$PWD/target/release:$PATH"
    ```
 
 2. **Bootstrap your project** (auto-detects language, writes `.quality.toml`):
    ```bash
-   codemetrics init
+   cogent init
    ```
 
 3. **Run all 21 checks**:
    ```bash
-   codemetrics check .
+   cogent check .
    ```
 
 4. **Generate an HTML audit report**:
    ```bash
-   codemetrics report . --open
+   cogent report . --open
    ```
 
 5. **Interpret results**:
@@ -35,42 +35,42 @@ This guide shows how to use CodeMetrics to audit and improve your project's code
 
 ### CRAP Metric (Maintenance Risk)
 ```bash
-codemetrics crap ./src --recursive
+cogent crap ./src --recursive
 ```
 - **Target**: CRAP < 15 per function
 - **Fix**: Reduce complexity (split functions) + increase test coverage
 
 ### Technical Debt Scan
 ```bash
-codemetrics debt ./src --recursive
+cogent debt ./src --recursive
 ```
 - **Target**: 0 TODO/FIXME/HACK markers
 - **Fix**: Address each marker or convert to tracked issues
 
 ### Documentation Coverage
 ```bash
-codemetrics doccov ./src --recursive
+cogent doccov ./src --recursive
 ```
 - **Target**: >95% public API documentation
 - **Fix**: Add doc comments to all public functions/types
 
 ### Code Duplication
 ```bash
-codemetrics run . --format json | jq '.checks[] | select(.name=="dup")'
+cogent run . --format json | jq '.checks[] | select(.name=="dup")'
 ```
 - **Target**: 0 duplication blocks >3 lines
 - **Fix**: Extract duplicated code into shared functions
 
 ### Security (SAST / Secrets / Crypto)
 ```bash
-codemetrics check . --only sast,secrets,crypto,taint
+cogent check . --only sast,secrets,crypto,taint
 ```
 - **Target**: 0 findings
 - **Fix**: Address each finding; use `--verbose` for file:line context
 
 ### Fuzz Surface Analysis
 ```bash
-codemetrics fuzz ./src --recursive
+cogent fuzz ./src --recursive
 ```
 - **Target**: Identify high-value fuzz targets
 - **Fix**: Add fuzz harnesses for flagged functions
@@ -79,29 +79,29 @@ codemetrics fuzz ./src --recursive
 
 ```bash
 # 1. Auto-detect ecosystem and write .quality.toml
-codemetrics init
+cogent init
 
 # 2. Edit thresholds if needed
 vim .quality.toml
 
 # 3. Run all 21 checks
-codemetrics check .
+cogent check .
 
 # 4. Generate visual report
-codemetrics report . --open
+cogent report . --open
 ```
 
 ## CI Integration
 
 ```bash
 # Wire GitHub Actions + pre-commit hook automatically
-codemetrics init --ci
+cogent init --ci
 ```
 
 Or add manually to your GitHub Actions workflow:
 ```yaml
 - name: Quality Gate
-  run: codemetrics check . --ci   # JSON output, no TTY colors, exits 1 on failure
+  run: cogent check . --ci   # JSON output, no TTY colors, exits 1 on failure
 - name: Upload SARIF
   uses: github/codeql-action/upload-sarif@v3
   with:
@@ -111,9 +111,9 @@ Or add manually to your GitHub Actions workflow:
 ## Watch Mode (live dev loop)
 
 ```bash
-codemetrics watch .            # runs debt + doc + crap on every file change
-codemetrics watch . --full     # runs all 21 checks every cycle
-codemetrics watch . --no-tests # skip tests, metrics-only
+cogent watch .            # runs debt + doc + crap on every file change
+cogent watch . --full     # runs all 21 checks every cycle
+cogent watch . --no-tests # skip tests, metrics-only
 ```
 
 ## Understanding Reports

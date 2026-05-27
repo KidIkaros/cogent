@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://codemetrics.dev/schemas/risk-report.schema.json",
+  "$id": "https://cogent.dev/schemas/risk-report.schema.json",
   "title": "RiskReport",
   "description": "Risk map report",
   "type": "object",
@@ -19,30 +19,81 @@
     "FileRisk": {
       "type": "object",
       "properties": {
-        "file": { "type": "string" },
-        "churn": { "type": "integer" },
-        "complexity": { "type": "integer" },
-        "function_count": { "type": "integer" },
-        "risk_score": { "type": "integer" },
-        "category": { "type": "string" },
-        "unsafe_count": { "type": "integer" },
-        "hot_functions": { "type": "array", "items": { "type": "string" } },
-        "suggested_fix": { "type": ["string", "null"] },
-        "auto_fix_available": { "type": ["boolean", "null"] },
-        "code_context": { "type": ["string", "null"] }
+        "file": {
+          "type": "string"
+        },
+        "churn": {
+          "type": "integer"
+        },
+        "complexity": {
+          "type": "integer"
+        },
+        "function_count": {
+          "type": "integer"
+        },
+        "risk_score": {
+          "type": "integer"
+        },
+        "category": {
+          "type": "string"
+        },
+        "unsafe_count": {
+          "type": "integer"
+        },
+        "hot_functions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "suggested_fix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "auto_fix_available": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "code_context": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
-      "required": ["file", "churn", "complexity", "function_count", "risk_score", "category"]
+      "additionalProperties": true
     },
     "RiskSummary": {
       "type": "object",
       "properties": {
-        "total_files": { "type": "integer" },
-        "high_risk": { "type": "integer" },
-        "medium_risk": { "type": "integer" },
-        "low_risk": { "type": "integer" },
-        "total_unsafe": { "type": "integer" },
-        "danger_zone": { "type": "array", "items": { "type": "string" } }
-      }
+        "total_files": {
+          "type": "integer"
+        },
+        "high_risk": {
+          "type": "integer"
+        },
+        "medium_risk": {
+          "type": "integer"
+        },
+        "low_risk": {
+          "type": "integer"
+        },
+        "total_unsafe": {
+          "type": "integer"
+        },
+        "danger_zone": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
     }
-  }
+  },
+  "additionalProperties": true
 }

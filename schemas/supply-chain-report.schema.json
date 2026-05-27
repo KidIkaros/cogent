@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/supply-chain-report.schema.json",
+  "title": "SupplyChainReport",
+  "description": "Supply chain risk report",
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SupplyFinding"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/SupplySummary"
+    }
+  },
+  "$defs": {
+    "SupplyFinding": {
+      "type": "object",
+      "properties": {
+        "package": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "risk_type": {
+          "type": "string"
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "remediation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "SupplySummary": {
+      "type": "object",
+      "properties": {
+        "packages_scanned": {
+          "type": "integer"
+        },
+        "total_risks": {
+          "type": "integer"
+        },
+        "critical": {
+          "type": "integer"
+        },
+        "high": {
+          "type": "integer"
+        },
+        "medium": {
+          "type": "integer"
+        },
+        "low": {
+          "type": "integer"
+        },
+        "max_risks_threshold": {
+          "type": "integer"
+        },
+        "ecosystems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

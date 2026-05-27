@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::path::Path;
 
@@ -179,10 +179,18 @@ const RULES: &[CryptoRule] = &[
 ];
 
 fn scan_file(path: &str) -> Vec<CryptoFinding> {
-    let Ok(source) = std::fs::read_to_string(path) else { return vec![] };
-    let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
+    let Ok(source) = std::fs::read_to_string(path) else {
+        return vec![];
+    };
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
 
-    if !matches!(ext, "rs" | "py" | "js" | "ts" | "tsx" | "go" | "java" | "cs" | "rb" | "php") {
+    if !matches!(
+        ext,
+        "rs" | "py" | "js" | "ts" | "tsx" | "go" | "java" | "cs" | "rb" | "php"
+    ) {
         return vec![];
     }
 
@@ -194,9 +202,13 @@ fn scan_file(path: &str) -> Vec<CryptoFinding> {
         }
 
         for rule in RULES {
-            if !line.contains(rule.pattern) { continue; }
+            if !line.contains(rule.pattern) {
+                continue;
+            }
             if let Some(also) = rule.also {
-                if !line.contains(also) { continue; }
+                if !line.contains(also) {
+                    continue;
+                }
             }
             findings.push(CryptoFinding {
                 file: path.to_string(),
@@ -215,7 +227,9 @@ fn scan_file(path: &str) -> Vec<CryptoFinding> {
 }
 
 fn run(cli: Cli) {
-    let extensions = ["rs", "py", "js", "ts", "tsx", "go", "java", "cs", "rb", "php"];
+    let extensions = [
+        "rs", "py", "js", "ts", "tsx", "go", "java", "cs", "rb", "php",
+    ];
     let files = if Path::new(&cli.path).is_file() {
         vec![cli.path.clone()]
     } else {
@@ -227,15 +241,27 @@ fn run(cli: Cli) {
         all_findings.extend(scan_file(file));
     }
     all_findings.sort_by(|a, b| {
-        let sev_ord = |s: &str| match s { "critical" => 0u8, "high" => 1, "medium" => 2, _ => 3 };
-        sev_ord(&a.severity).cmp(&sev_ord(&b.severity))
+        let sev_ord = |s: &str| match s {
+            "critical" => 0u8,
+            "high" => 1,
+            "medium" => 2,
+            _ => 3,
+        };
+        sev_ord(&a.severity)
+            .cmp(&sev_ord(&b.severity))
             .then(a.file.cmp(&b.file))
             .then(a.line.cmp(&b.line))
     });
 
-    let critical = all_findings.iter().filter(|f| f.severity == "critical").count();
+    let critical = all_findings
+        .iter()
+        .filter(|f| f.severity == "critical")
+        .count();
     let high = all_findings.iter().filter(|f| f.severity == "high").count();
-    let medium = all_findings.iter().filter(|f| f.severity == "medium").count();
+    let medium = all_findings
+        .iter()
+        .filter(|f| f.severity == "medium")
+        .count();
     let total = all_findings.len();
 
     let summary = CryptoSummary {
@@ -249,7 +275,10 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = CryptoReport { findings: all_findings, summary };
+            let report = CryptoReport {
+                findings: all_findings,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -262,27 +291,61 @@ fn run(cli: Cli) {
                 println!("No cryptographic issues detected.");
             } else {
                 let cols = vec![
-                    Column { header: "File", width: 30, align_right: false },
-                    Column { header: "Line", width: 6, align_right: true },
-                    Column { header: "Sev", width: 9, align_right: false },
-                    Column { header: "Rule", width: 18, align_right: false },
-                    Column { header: "Category", width: 16, align_right: false },
-                    Column { header: "Context", width: 40, align_right: false },
+                    Column {
+                        header: "File",
+                        width: 30,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Line",
+                        width: 6,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Sev",
+                        width: 9,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Rule",
+                        width: 18,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Category",
+                        width: 16,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Context",
+                        width: 40,
+                        align_right: false,
+                    },
                 ];
                 print_table_header(&cols);
                 for f in &all_findings {
-                    print_table_row(&cols, &[
-                        &truncate(&f.file, 30),
-                        &f.line.to_string(),
-                        &f.severity,
-                        &truncate(&f.rule_id, 18),
-                        &truncate(&f.category, 16),
-                        &truncate(&f.context, 40),
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&f.file, 30),
+                            &f.line.to_string(),
+                            &f.severity,
+                            &truncate(&f.rule_id, 18),
+                            &truncate(&f.category, 16),
+                            &truncate(&f.context, 40),
+                        ],
+                    );
                 }
             }
-            let status = if total <= cli.max_findings { "PASS" } else { "FAIL" };
-            println!("\nSummary: {} findings ({} critical, {} high, {} medium) — {}", total, critical, high, medium, status);
+            let status = if total <= cli.max_findings {
+                "PASS"
+            } else {
+                "FAIL"
+            };
+            println!(
+                "\nSummary: {} findings ({} critical, {} high, {} medium) — {}",
+                total, critical, high, medium, status
+            );
         }
     }
 
@@ -330,7 +393,11 @@ mod tests {
     fn test_detect_tls_disabled() {
         use std::io::Write;
         let mut f = tempfile::NamedTempFile::with_suffix(".rs").unwrap();
-        writeln!(f, "let client = Client::builder().danger_accept_invalid_certs(true).build();").unwrap();
+        writeln!(
+            f,
+            "let client = Client::builder().danger_accept_invalid_certs(true).build();"
+        )
+        .unwrap();
         let findings = scan_file(f.path().to_str().unwrap());
         assert!(findings.iter().any(|f| f.category == "tls_config"));
     }

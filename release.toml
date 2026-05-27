@@ -1,6 +1,6 @@
 [package]
-name = "CodeMetrics"
-version = "0.1.0"
+name = "Cogent"
+version = "1.1.0"
 # Allowed version increments: major, minor, patch
 tag-name = "v{{version}}"
 tag-message = "Release v{{version}}"
@@ -28,4 +28,4 @@ post-release-hook = ["git", "push", "--follow-tags"]
 
 [package."*"]
 # All crates use the same version from workspace
-version = "0.1.0"
+version = "1.1.0"

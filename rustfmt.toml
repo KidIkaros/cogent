@@ -1,4 +1,4 @@
-# Rust formatting configuration for codemetrics
+# Rust formatting configuration for cogent
 # 100-character line width for readability
 max_width = 100
 

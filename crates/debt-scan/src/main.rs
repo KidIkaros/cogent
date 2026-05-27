@@ -4,7 +4,7 @@ use clap::Parser;
 use serde::Serialize;
 use std::collections::HashMap;
 
-use codemetrics_common::{
+use cogent_common::{
     find_source_files, get_git_blame_batch, print_table_header, print_table_row, Column,
 };
 
@@ -330,7 +330,7 @@ fn output_table(items: &[DebtItem]) {
         ("FIXME:", format!("{} (should fix)", fixme)),
         ("HACK:", format!("{} (needs refactor)", hack)),
     ];
-    codemetrics_common::print_summary(&summary);
+    cogent_common::print_summary(&summary);
 
     if xxx > 0 {
         println!("  XXX:            {} (DANGER)", xxx);

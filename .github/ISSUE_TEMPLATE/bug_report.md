@@ -24,7 +24,7 @@ What actually happened (include error messages, stack traces, etc.)
 **Environment (please complete the following information):**
 - OS: [e.g., Ubuntu 22.04, macOS 14.0]
 - Rust version: [e.g., 1.75.0]
-- CodeMetrics version: [e.g., 0.1.0, or commit hash]
+- Cogent version: [e.g., 0.1.0, or commit hash]
 - Target language: [e.g., Rust, Python, JavaScript]
 
 **Additional context**

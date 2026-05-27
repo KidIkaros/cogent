@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/licenses-report.schema.json",
+  "title": "LicensesReport",
+  "description": "OSS license compliance report",
+  "type": "object",
+  "properties": {
+    "packages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/LicensePackage"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/LicenseSummary"
+    }
+  },
+  "$defs": {
+    "LicensePackage": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "license_id": {
+          "type": "string"
+        },
+        "compliant": {
+          "type": "boolean"
+        },
+        "severity": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "LicenseSummary": {
+      "type": "object",
+      "properties": {
+        "packages_scanned": {
+          "type": "integer"
+        },
+        "compliant_count": {
+          "type": "integer"
+        },
+        "violations": {
+          "type": "integer"
+        },
+        "forbidden": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

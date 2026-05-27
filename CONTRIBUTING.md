@@ -1,6 +1,6 @@
-# Contributing to CodeMetrics
+# Contributing to Cogent
 
-Thank you for your interest in contributing to CodeMetrics! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Cogent! This document provides guidelines and instructions for contributing.
 
 ## Development Setup
 
@@ -18,7 +18,7 @@ cargo build
 cargo build --release
 
 # If build path doesn't support exec permissions (e.g., FAT32)
-CARGO_TARGET_DIR=/tmp/CodeMetrics-build cargo build
+CARGO_TARGET_DIR=/tmp/Cogent-build cargo build
 ```
 
 ### Testing
@@ -33,7 +33,7 @@ CARGO_TARGET_DIR=/tmp/CodeMetrics-build cargo build
 ./scripts/test.sh -p crap-metric
 
 # Standard cargo test (for single crate development)
-cargo test -p codemetrics-common
+cargo test -p cogent-common
 ```
 
 ### Linting and Formatting
@@ -51,9 +51,9 @@ cargo clippy -- -D warnings
 ## How to Contribute
 
 ### Reporting Bugs
-- Use the [GitHub Issues](https://github.com/KidIkaros/codemetrics/issues) tracker
+- Use the [GitHub Issues](https://github.com/KidIkaros/cogent/issues) tracker
 - Include steps to reproduce, expected behavior, and actual behavior
-- Mention your OS, Rust version, and CodeMetrics version
+- Mention your OS, Rust version, and Cogent version
 
 ### Suggesting Enhancements
 - Open an issue with the "enhancement" label
@@ -98,7 +98,7 @@ feat: add new complexity threshold option
 fix: correct false positive in coupling analysis
 docs: update README with new examples
 test: add integration tests for taint-scan
-refactor: simplify error handling in codemetrics-cli
+refactor: simplify error handling in cogent-cli
 ```
 
 ## License

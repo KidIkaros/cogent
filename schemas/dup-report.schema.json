@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://codemetrics.dev/schemas/dup-report.schema.json",
+  "$id": "https://cogent.dev/schemas/dup-report.schema.json",
   "title": "DupReport",
   "description": "Code duplication report",
   "type": "object",
@@ -19,34 +19,69 @@
     "DuplicateGroup": {
       "type": "object",
       "properties": {
-        "fingerprint": { "type": "string" },
+        "fingerprint": {
+          "type": "string"
+        },
         "instances": {
           "type": "array",
-          "items": { "$ref": "#/$defs/DuplicateInstance" }
+          "items": {
+            "$ref": "#/$defs/DuplicateInstance"
+          }
         },
-        "similarity": { "type": "number" },
-        "suggested_fix": { "type": ["string", "null"] },
-        "auto_fix_available": { "type": ["boolean", "null"] }
+        "similarity": {
+          "type": "number"
+        },
+        "suggested_fix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "auto_fix_available": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
       },
-      "required": ["fingerprint", "instances", "similarity"]
+      "additionalProperties": true
     },
     "DuplicateInstance": {
       "type": "object",
       "properties": {
-        "file": { "type": "string" },
-        "function": { "type": "string" },
-        "line": { "type": "integer" },
-        "code_context": { "type": ["string", "null"] }
+        "file": {
+          "type": "string"
+        },
+        "function": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "code_context": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       },
-      "required": ["file", "function", "line"]
+      "additionalProperties": true
     },
     "DupSummary": {
       "type": "object",
       "properties": {
-        "total_groups": { "type": "integer" },
-        "total_instances": { "type": "integer" },
-        "files_affected": { "type": "integer" }
-      }
+        "total_groups": {
+          "type": "integer"
+        },
+        "total_instances": {
+          "type": "integer"
+        },
+        "files_affected": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
     }
-  }
+  },
+  "additionalProperties": true
 }

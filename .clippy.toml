@@ -1,4 +1,4 @@
-# Clippy configuration for codemetrics
+# Clippy configuration for cogent
 
 # Deny all clippy lints by default
 # Exceptions can be added with allow() attributes in code

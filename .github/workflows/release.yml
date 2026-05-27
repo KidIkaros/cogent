@@ -4,56 +4,140 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Build matrix: Linux x86_64, macOS x86_64 + ARM64, Windows x86_64
+  # ═══════════════════════════════════════════════════════════════════════════════
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: linux-x86_64
+            archive: tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: macos-x86_64
+            archive: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: macos-arm64
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: windows-x86_64
+            archive: zip
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release binaries
+        run: cargo build --release --workspace --target ${{ matrix.target }}
+        shell: bash
+
+      - name: Package release assets
+        run: |
+          mkdir -p cogent-${{ matrix.name }}
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            ext=".exe"
+          else
+            ext=""
+          fi
+          for bin in access-control cohesion comments coupling crap cryptocheck deadcode debt doccov dupfind errhandle fuzz halstead licenses linelen mutate propcov riskmap sast sbom secrets supply-chain taint typecov vulnscan cogent cogent-server; do
+            cp "target/${{ matrix.target }}/release/${bin}${ext}" "cogent-${{ matrix.name }}/" 2>/dev/null || true
+          done
+          cp README.md LICENSE cogent-${{ matrix.name }}/ 2>/dev/null || true
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a cogent-${{ matrix.name }}.zip cogent-${{ matrix.name }}/
+          else
+            tar czf cogent-${{ matrix.name }}.tar.gz cogent-${{ matrix.name }}/
+          fi
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cogent-${{ matrix.name }}
+          path: |
+            cogent-${{ matrix.name }}.${{ matrix.archive }}
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Create release and upload all artifacts
+  # ═══════════════════════════════════════════════════════════════════════════════
   release:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Cache cargo build
-        uses: Swatinem/rust-cache@v2
-        
-      - name: Build release binaries
-        run: cargo build --release --workspace
-        
-      - name: Prepare release assets
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Generate checksums
         run: |
-          mkdir -p release-assets
-          cp target/release/codemetrics release-assets/
-          cp target/release/codemetrics-server release-assets/
-          cp target/release/crap release-assets/
-          cp target/release/mutate release-assets/
-          cp target/release/debt release-assets/
-          cp target/release/doccov release-assets/
-          cp target/release/dupfind release-assets/
-          cp target/release/coupling release-assets/
-          cp target/release/riskmap release-assets/
-          cp target/release/fuzz release-assets/
-          cp target/release/taint release-assets/
-          cp target/release/propcov release-assets/
-          ls -la release-assets/
-        
+          cd artifacts
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-          
-      - name: Upload Release Assets
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./release-assets/
-          asset_name: codemetrics-bins
-          asset_content_type: application/octet-stream
+          files: artifacts/*
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            ### Linux (x86_64)
+            ```bash
+curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-linux-x86_64.tar.gz
+tar xzf cogent-linux-x86_64.tar.gz
+sudo cp cogent-linux-x86_64/cogent /usr/local/bin/
+            ```
+
+            ### macOS (Intel)
+            ```bash
+curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-macos-x86_64.tar.gz
+tar xzf cogent-macos-x86_64.tar.gz
+sudo cp cogent-macos-x86_64/cogent /usr/local/bin/
+            ```
+
+            ### macOS (Apple Silicon)
+            ```bash
+curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-macos-arm64.tar.gz
+tar xzf cogent-macos-arm64.tar.gz
+sudo cp cogent-macos-arm64/cogent /usr/local/bin/
+            ```
+
+            ### Windows (x86_64)
+            Download `cogent-windows-x86_64.zip`, extract, and add to PATH.
+
+            ## Docker
+            ```bash
+docker pull ghcr.io/${{ github.repository_owner }}/cogent:${{ github.ref_name }}
+            ```
+

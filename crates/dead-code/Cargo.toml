@@ -26,7 +26,8 @@ workspace = true
 [package.license]
 workspace = true
 
-[dependencies.codemetrics-common]
+[dependencies.cogent-common]
+path = "../cogent-common"
 version = "1.0.0"
 
 [dependencies.clap]

@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{print_table_header, print_table_row, truncate, Column};
+use cogent_common::{print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -63,14 +63,35 @@ struct LicenseSummary {
 /// Classify a license string into a category
 fn classify_license(lic: &str) -> &'static str {
     let l = lic.trim().to_uppercase();
-    if l.contains("AGPL") { return "copyleft-strong"; }
-    if l.contains("LGPL") { return "copyleft-weak"; }
-    if l.contains("GPL-3") || l.contains("GPL-2") || l.contains("GPL-1") || l == "GPL" { return "copyleft-strong"; }
-    if l.contains("MPL") || l.contains("EUPL") || l.contains("CDDL") || l.contains("EPL") { return "copyleft-weak"; }
-    if l.contains("MIT") || l.contains("BSD") || l.contains("APACHE") || l.contains("ISC")
-        || l.contains("ZLIB") || l.contains("WTFPL") || l.contains("PSF") || l.contains("CC0")
-        || l.contains("UNLICENSE") || l.contains("0BSD") || l.contains("BOOST") { return "permissive"; }
-    if l.is_empty() || l == "UNKNOWN" || l == "NONE" { return "unknown"; }
+    if l.contains("AGPL") {
+        return "copyleft-strong";
+    }
+    if l.contains("LGPL") {
+        return "copyleft-weak";
+    }
+    if l.contains("GPL-3") || l.contains("GPL-2") || l.contains("GPL-1") || l == "GPL" {
+        return "copyleft-strong";
+    }
+    if l.contains("MPL") || l.contains("EUPL") || l.contains("CDDL") || l.contains("EPL") {
+        return "copyleft-weak";
+    }
+    if l.contains("MIT")
+        || l.contains("BSD")
+        || l.contains("APACHE")
+        || l.contains("ISC")
+        || l.contains("ZLIB")
+        || l.contains("WTFPL")
+        || l.contains("PSF")
+        || l.contains("CC0")
+        || l.contains("UNLICENSE")
+        || l.contains("0BSD")
+        || l.contains("BOOST")
+    {
+        return "permissive";
+    }
+    if l.is_empty() || l == "UNKNOWN" || l == "NONE" {
+        return "unknown";
+    }
     "other"
 }
 
@@ -79,7 +100,9 @@ fn classify_license(lic: &str) -> &'static str {
 /// or fall back to a best-effort approach from Cargo.lock package entries.
 fn parse_cargo_lock(path: &Path) -> Vec<(String, String, String)> {
     let lock_path = path.join("Cargo.lock");
-    let Ok(content) = std::fs::read_to_string(&lock_path) else { return vec![] };
+    let Ok(content) = std::fs::read_to_string(&lock_path) else {
+        return vec![];
+    };
 
     let mut packages = Vec::new();
     let mut name = String::new();
@@ -105,15 +128,23 @@ fn parse_cargo_lock(path: &Path) -> Vec<(String, String, String)> {
     let mut license_map: HashMap<String, String> = HashMap::new();
     collect_workspace_licenses(path, &mut license_map);
 
-    packages.into_iter().map(|(n, v, _)| {
-        let lic = license_map.get(&n).cloned().unwrap_or_else(|| "unknown".to_string());
-        (n, v, lic)
-    }).collect()
+    packages
+        .into_iter()
+        .map(|(n, v, _)| {
+            let lic = license_map
+                .get(&n)
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
+            (n, v, lic)
+        })
+        .collect()
 }
 
 /// Walk all Cargo.toml files and extract package name + license fields.
 fn collect_workspace_licenses(root: &Path, map: &mut HashMap<String, String>) {
-    let Ok(entries) = std::fs::read_dir(root) else { return };
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return;
+    };
     for entry in entries.flatten() {
         let ep = entry.path();
         if ep.is_dir() {
@@ -124,9 +155,14 @@ fn collect_workspace_licenses(root: &Path, map: &mut HashMap<String, String>) {
                 let mut in_pkg = false;
                 for line in content.lines() {
                     let t = line.trim();
-                    if t == "[package]" { in_pkg = true; }
-                    else if t.starts_with('[') && t != "[package]" { in_pkg = false; }
-                    if !in_pkg { continue; }
+                    if t == "[package]" {
+                        in_pkg = true;
+                    } else if t.starts_with('[') && t != "[package]" {
+                        in_pkg = false;
+                    }
+                    if !in_pkg {
+                        continue;
+                    }
                     if let Some(v) = t.strip_prefix("name = \"") {
                         pkg_name = v.trim_end_matches('"').to_string();
                     } else if let Some(v) = t.strip_prefix("license = \"") {
@@ -147,8 +183,12 @@ fn parse_npm_licenses(path: &Path) -> Vec<(String, String, String)> {
     if !nm.exists() {
         // Fall back to parsing package.json dependencies if node_modules isn't present
         let pkg = path.join("package.json");
-        let Ok(content) = std::fs::read_to_string(&pkg) else { return vec![] };
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) else { return vec![] };
+        let Ok(content) = std::fs::read_to_string(&pkg) else {
+            return vec![];
+        };
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) else {
+            return vec![];
+        };
         let mut results = Vec::new();
         for section in &["dependencies", "devDependencies"] {
             if let Some(deps) = v.get(section).and_then(|d| d.as_object()) {
@@ -160,15 +200,29 @@ fn parse_npm_licenses(path: &Path) -> Vec<(String, String, String)> {
         return results;
     }
 
-    let Ok(entries) = std::fs::read_dir(&nm) else { return vec![] };
+    let Ok(entries) = std::fs::read_dir(&nm) else {
+        return vec![];
+    };
     let mut results = Vec::new();
     for entry in entries.flatten() {
         let pkg_json = entry.path().join("package.json");
         if let Ok(content) = std::fs::read_to_string(&pkg_json) {
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) {
-                let name = v.get("name").and_then(|n| n.as_str()).unwrap_or("?").to_string();
-                let ver = v.get("version").and_then(|n| n.as_str()).unwrap_or("?").to_string();
-                let lic = v.get("license").and_then(|l| l.as_str()).unwrap_or("unknown").to_string();
+                let name = v
+                    .get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("?")
+                    .to_string();
+                let ver = v
+                    .get("version")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("?")
+                    .to_string();
+                let lic = v
+                    .get("license")
+                    .and_then(|l| l.as_str())
+                    .unwrap_or("unknown")
+                    .to_string();
                 results.push((name, ver, lic));
             }
         }
@@ -179,12 +233,19 @@ fn parse_npm_licenses(path: &Path) -> Vec<(String, String, String)> {
 /// Parse requirements.txt — extract package names (no version info, license unknown without pip).
 fn parse_python_requirements(path: &Path) -> Vec<(String, String, String)> {
     let req = path.join("requirements.txt");
-    let Ok(content) = std::fs::read_to_string(&req) else { return vec![] };
-    content.lines()
+    let Ok(content) = std::fs::read_to_string(&req) else {
+        return vec![];
+    };
+    content
+        .lines()
         .map(|l| l.trim())
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .map(|l| {
-            let name = l.split(&['=', '>', '<', '!', '[', ';'][..]).next().unwrap_or(l).trim();
+            let name = l
+                .split(&['=', '>', '<', '!', '[', ';'][..])
+                .next()
+                .unwrap_or(l)
+                .trim();
             (name.to_string(), "?".to_string(), "unknown".to_string())
         })
         .collect()
@@ -192,7 +253,11 @@ fn parse_python_requirements(path: &Path) -> Vec<(String, String, String)> {
 
 fn run(cli: Cli) {
     let root = Path::new(&cli.path);
-    let deny_list: Vec<String> = cli.deny.split(',').map(|s| s.trim().to_uppercase()).collect();
+    let deny_list: Vec<String> = cli
+        .deny
+        .split(',')
+        .map(|s| s.trim().to_uppercase())
+        .collect();
 
     let mut all_packages: Vec<(String, String, String, &'static str)> = Vec::new(); // (name, ver, license, ecosystem)
 
@@ -251,9 +316,18 @@ fn run(cli: Cli) {
     });
 
     let violations = findings.iter().filter(|f| f.violation).count();
-    let unknown = all_packages.iter().filter(|(_, _, l, _)| classify_license(l) == "unknown").count();
-    let copyleft = findings.iter().filter(|f| f.license_category.starts_with("copyleft")).count();
-    let permissive = all_packages.iter().filter(|(_, _, l, _)| classify_license(l) == "permissive").count();
+    let unknown = all_packages
+        .iter()
+        .filter(|(_, _, l, _)| classify_license(l) == "unknown")
+        .count();
+    let copyleft = findings
+        .iter()
+        .filter(|f| f.license_category.starts_with("copyleft"))
+        .count();
+    let permissive = all_packages
+        .iter()
+        .filter(|(_, _, l, _)| classify_license(l) == "permissive")
+        .count();
 
     let summary = LicenseSummary {
         packages_scanned: all_packages.len(),
@@ -277,33 +351,71 @@ fn run(cli: Cli) {
         }
         _ => {
             if findings.is_empty() {
-                println!("No license compliance issues detected ({} packages scanned).", all_packages.len());
+                println!(
+                    "No license compliance issues detected ({} packages scanned).",
+                    all_packages.len()
+                );
             } else {
                 let cols = vec![
-                    Column { header: "Package", width: 28, align_right: false },
-                    Column { header: "Version", width: 12, align_right: false },
-                    Column { header: "License", width: 22, align_right: false },
-                    Column { header: "Category", width: 16, align_right: false },
-                    Column { header: "Ecosystem", width: 9, align_right: false },
-                    Column { header: "Status", width: 10, align_right: false },
+                    Column {
+                        header: "Package",
+                        width: 28,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Version",
+                        width: 12,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "License",
+                        width: 22,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Category",
+                        width: 16,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Ecosystem",
+                        width: 9,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Status",
+                        width: 10,
+                        align_right: false,
+                    },
                 ];
                 print_table_header(&cols);
                 for f in &findings {
                     let status = if f.violation { "VIOLATION" } else { "review" };
-                    print_table_row(&cols, &[
-                        &truncate(&f.package, 28),
-                        &truncate(&f.version, 12),
-                        &truncate(&f.license, 22),
-                        &truncate(&f.license_category, 16),
-                        &f.ecosystem,
-                        status,
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&f.package, 28),
+                            &truncate(&f.version, 12),
+                            &truncate(&f.license, 22),
+                            &truncate(&f.license_category, 16),
+                            &f.ecosystem,
+                            status,
+                        ],
+                    );
                 }
             }
-            let status = if violations <= cli.max_violations { "PASS" } else { "FAIL" };
+            let status = if violations <= cli.max_violations {
+                "PASS"
+            } else {
+                "FAIL"
+            };
             println!(
                 "\nSummary: {} packages  |  {} violations  |  {} copyleft  |  {} unknown  — {}",
-                all_packages.len(), violations, copyleft, unknown, status
+                all_packages.len(),
+                violations,
+                copyleft,
+                unknown,
+                status
             );
         }
     }

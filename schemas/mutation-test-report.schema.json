@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/mutation-test-report.schema.json",
+  "title": "MutationTestReport",
+  "description": "Mutation testing kill rate report",
+  "type": "object",
+  "properties": {
+    "mutants": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Mutant"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/MutationSummary"
+    }
+  },
+  "$defs": {
+    "Mutant": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "function": {
+          "type": "string"
+        },
+        "mutation": {
+          "type": "string"
+        },
+        "killed": {
+          "type": "boolean"
+        },
+        "test_that_killed": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "MutationSummary": {
+      "type": "object",
+      "properties": {
+        "total_mutants": {
+          "type": "integer"
+        },
+        "killed": {
+          "type": "integer"
+        },
+        "survived": {
+          "type": "integer"
+        },
+        "timed_out": {
+          "type": "integer"
+        },
+        "kill_rate": {
+          "type": "number"
+        },
+        "min_kill_rate_threshold": {
+          "type": "number"
+        },
+        "passed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,8 +1,8 @@
 <svg width="400" height="100" viewBox="0 0 400 100" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="brand-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6366f1"/>
-      <stop offset="100%" stop-color="#06b6d4"/>
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
     </linearGradient>
     <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
       <feGaussianBlur stdDeviation="2" result="blur"/>
@@ -10,23 +10,18 @@
     </filter>
   </defs>
 
-  <!-- Background transparent -->
-
-  <!-- Octahedron-inspired code icon: two overlapping triangles + braces -->
-  <g transform="translate(25,50)" filter="url(#glow)">
-    <!-- Left triangle (playful geometry) -->
-    <polygon points="-10,-18 10,0 -10,18" fill="none" stroke="url(#brand-gradient)" stroke-width="2.5"/>
-    <!-- Right triangle -->
-    <polygon points="10,-18 -10,0 10,18" fill="none" stroke="url(#brand-gradient)" stroke-width="2.5"/>
-    <!-- Braces as brackets around the form -->
-    <text x="-22" y="8" font-family="monospace" font-size="24" fill="url(#brand-gradient)" font-weight="bold">{</text>
-    <text x="14" y="8" font-family="monospace" font-size="24" fill="url(#brand-gradient)" font-weight="bold">}</text>
+  <!-- Geometric mark: hexagonal frame with angular C negative space -->
+  <g transform="translate(30,50)" filter="url(#glow)">
+    <!-- Outer hexagon -->
+    <polygon points="0,-22 19,-11 19,11 0,22 -19,11 -19,-11"
+             fill="none" stroke="url(#brand-gradient)" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- Inner angular C stroke -->
+    <polyline points="8,-14 -6,0 8,14" fill="none" stroke="url(#brand-gradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
   <!-- Wordmark -->
-  <text x="70" y="45" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="700" fill="#e2e8f0">Code</text>
-  <text x="70" y="82" font-family="Inter, system-ui, sans-serif" font-size="32" font-weight="700" fill="url(#brand-gradient)">Metrics</text>
+  <text x="70" y="62" font-family="Inter, system-ui, sans-serif" font-size="36" font-weight="700" fill="#f8fafc" letter-spacing="-0.02em">Cogent</text>
 
-  <!-- Subtle dot separator -->
-  <circle cx="68" cy="82" r="2" fill="url(#brand-gradient)"/>
+  <!-- Subtle accent dot -->
+  <circle cx="70" cy="74" r="2.5" fill="url(#brand-gradient)"/>
 </svg>

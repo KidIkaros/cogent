@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::path::Path;
@@ -64,7 +64,8 @@ struct CohesionSummary {
 
 /// Parse a Rust source file for struct definitions and their method bodies.
 /// Returns (struct_name, start_line, Vec<(method_name, fields_accessed)>)
-fn parse_rust_structs(source: &str) -> Vec<(String, usize, Vec<(String, Vec<String>)>)> {
+type MethodInfo = Vec<(String, Vec<String>)>;
+fn parse_rust_structs(source: &str) -> Vec<(String, usize, MethodInfo)> {
     let mut result = Vec::new();
     let lines: Vec<&str> = source.lines().collect();
     let mut i = 0;
@@ -74,15 +75,22 @@ fn parse_rust_structs(source: &str) -> Vec<(String, usize, Vec<(String, Vec<Stri
 
         // Detect `struct Foo {` or `pub struct Foo {`
         let struct_name = if let Some(rest) = line.strip_prefix("pub struct ") {
-            rest.split(|c: char| !c.is_alphanumeric() && c != '_').next().map(|s| s.to_string())
+            rest.split(|c: char| !c.is_alphanumeric() && c != '_')
+                .next()
+                .map(|s| s.to_string())
         } else if let Some(rest) = line.strip_prefix("struct ") {
-            rest.split(|c: char| !c.is_alphanumeric() && c != '_').next().map(|s| s.to_string())
+            rest.split(|c: char| !c.is_alphanumeric() && c != '_')
+                .next()
+                .map(|s| s.to_string())
         } else {
             None
         };
 
         if let Some(name) = struct_name {
-            if name.is_empty() { i += 1; continue; }
+            if name.is_empty() {
+                i += 1;
+                continue;
+            }
             let struct_line = i + 1;
 
             // Collect struct fields by scanning until `}`
@@ -94,12 +102,26 @@ fn parse_rust_structs(source: &str) -> Vec<(String, usize, Vec<(String, Vec<Stri
                 depth += l.chars().filter(|&c| c == '{').count();
                 depth = depth.saturating_sub(l.chars().filter(|&c| c == '}').count());
                 // field: `name: Type,`
-                if depth == 1 && l.contains(':') && !l.starts_with("//") && !l.starts_with("pub fn") && !l.starts_with("fn ") {
-                    let field_name = l.split(':').next().unwrap_or("").trim()
+                if depth == 1
+                    && l.contains(':')
+                    && !l.starts_with("//")
+                    && !l.starts_with("pub fn")
+                    && !l.starts_with("fn ")
+                {
+                    let field_name = l
+                        .split(':')
+                        .next()
+                        .unwrap_or("")
+                        .trim()
                         .trim_start_matches("pub ")
                         .trim_start_matches("pub(crate) ")
-                        .split_whitespace().next().unwrap_or("").to_string();
-                    if !field_name.is_empty() && field_name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("")
+                        .to_string();
+                    if !field_name.is_empty()
+                        && field_name.chars().all(|c| c.is_alphanumeric() || c == '_')
+                    {
                         fields.push(field_name);
                     }
                 }
@@ -111,7 +133,8 @@ fn parse_rust_structs(source: &str) -> Vec<(String, usize, Vec<(String, Vec<Stri
             let mut k = i + 1;
             while k < lines.len() {
                 let impl_line = lines[k].trim();
-                let is_impl = (impl_line.starts_with(&format!("impl {}", name)) || impl_line.starts_with(&format!("impl<")))
+                let is_impl = (impl_line.starts_with(&format!("impl {name}"))
+                    || impl_line.starts_with("impl<"))
                     && impl_line.contains(&name);
                 if is_impl {
                     // Scan impl block
@@ -126,13 +149,23 @@ fn parse_rust_structs(source: &str) -> Vec<(String, usize, Vec<(String, Vec<Stri
                         depth2 = depth2.saturating_sub(ml.chars().filter(|&c| c == '}').count());
 
                         // Detect method start
-                        if (ml.starts_with("fn ") || ml.starts_with("pub fn ") || ml.starts_with("pub(crate) fn ") || ml.starts_with("async fn "))
-                            && ml.contains('(') {
+                        if (ml.starts_with("fn ")
+                            || ml.starts_with("pub fn ")
+                            || ml.starts_with("pub(crate) fn ")
+                            || ml.starts_with("async fn "))
+                            && ml.contains('(')
+                        {
                             if let Some((mn, mf)) = current_method.take() {
                                 methods.push((mn, mf));
                             }
-                            let method_name = ml.split('(').next().unwrap_or("")
-                                .split_whitespace().last().unwrap_or("").to_string();
+                            let method_name = ml
+                                .split('(')
+                                .next()
+                                .unwrap_or("")
+                                .split_whitespace()
+                                .last()
+                                .unwrap_or("")
+                                .to_string();
                             current_method = Some((method_name, Vec::new()));
                             method_depth = depth2;
                         }
@@ -175,7 +208,9 @@ fn parse_rust_structs(source: &str) -> Vec<(String, usize, Vec<(String, Vec<Stri
 /// Compute LCOM4: number of connected components in the method-field graph.
 /// Two methods are connected if they share a field access or one calls the other.
 fn compute_lcom4(methods: &[(String, Vec<String>)]) -> usize {
-    if methods.is_empty() { return 1; }
+    if methods.is_empty() {
+        return 1;
+    }
 
     // Build adjacency: methods[i] and methods[j] connected if they share a field
     let n = methods.len();
@@ -187,7 +222,7 @@ fn compute_lcom4(methods: &[(String, Vec<String>)]) -> usize {
             let fields_j: HashSet<&String> = methods[j].1.iter().collect();
             if !fields_i.is_disjoint(&fields_j) || !fields_i.is_empty() && !fields_j.is_empty() {
                 // Only connect if they share at least one field
-                if !fields_i.intersection(&fields_j).next().is_none() {
+                if fields_i.intersection(&fields_j).next().is_some() {
                     adj[i].insert(j);
                     adj[j].insert(i);
                 }
@@ -217,8 +252,13 @@ fn compute_lcom4(methods: &[(String, Vec<String>)]) -> usize {
 }
 
 fn scan_file(path: &str, max_lcom: usize, violations_only: bool) -> Vec<StructCohesion> {
-    let Ok(source) = std::fs::read_to_string(path) else { return vec![] };
-    let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
+    let Ok(source) = std::fs::read_to_string(path) else {
+        return vec![];
+    };
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
 
     let structs = match ext {
         "rs" => parse_rust_structs(&source),
@@ -228,9 +268,14 @@ fn scan_file(path: &str, max_lcom: usize, violations_only: bool) -> Vec<StructCo
     let mut results = Vec::new();
     for (name, line, methods) in structs {
         let lcom4 = compute_lcom4(&methods);
-        let fields_accessed: HashSet<String> = methods.iter().flat_map(|(_, f)| f.iter().cloned()).collect();
+        let fields_accessed: HashSet<String> = methods
+            .iter()
+            .flat_map(|(_, f)| f.iter().cloned())
+            .collect();
 
-        if violations_only && lcom4 <= max_lcom { continue; }
+        if violations_only && lcom4 <= max_lcom {
+            continue;
+        }
 
         results.push(StructCohesion {
             file: path.to_string(),
@@ -264,10 +309,12 @@ fn run(cli: Cli) {
         all.extend(scan_file(file, cli.max_lcom, cli.violations_only));
     }
 
-    all.sort_by(|a, b| b.lcom4.cmp(&a.lcom4));
+    all.sort_by_key(|b| std::cmp::Reverse(b.lcom4));
 
     let violations = all.iter().filter(|s| s.lcom4 > cli.max_lcom).count();
-    let avg_lcom = if all.is_empty() { 1.0 } else {
+    let avg_lcom = if all.is_empty() {
+        1.0
+    } else {
         all.iter().map(|s| s.lcom4 as f64).sum::<f64>() / all.len() as f64
     };
 
@@ -281,7 +328,10 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = CohesionReport { structs: all, summary };
+            let report = CohesionReport {
+                structs: all,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -294,22 +344,45 @@ fn run(cli: Cli) {
                 println!("No structs with cohesion issues found.");
             } else {
                 let cols = vec![
-                    Column { header: "File", width: 35, align_right: false },
-                    Column { header: "Struct", width: 25, align_right: false },
-                    Column { header: "LCOM4", width: 7, align_right: true },
-                    Column { header: "Methods", width: 8, align_right: true },
-                    Column { header: "Fields", width: 7, align_right: true },
+                    Column {
+                        header: "File",
+                        width: 35,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Struct",
+                        width: 25,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "LCOM4",
+                        width: 7,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Methods",
+                        width: 8,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Fields",
+                        width: 7,
+                        align_right: true,
+                    },
                 ];
                 print_table_header(&cols);
                 for s in &all {
                     let flag = if s.lcom4 > cli.max_lcom { "!" } else { " " };
-                    print_table_row(&cols, &[
-                        &truncate(&s.file, 35),
-                        &truncate(&s.name, 25),
-                        &format!("{}{}", flag, s.lcom4),
-                        &s.methods.to_string(),
-                        &s.fields_accessed.to_string(),
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&s.file, 35),
+                            &truncate(&s.name, 25),
+                            &format!("{}{}", flag, s.lcom4),
+                            &s.methods.to_string(),
+                            &s.fields_accessed.to_string(),
+                        ],
+                    );
                 }
             }
             println!(

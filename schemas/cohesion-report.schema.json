@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/cohesion-report.schema.json",
+  "title": "CohesionReport",
+  "description": "LCOM4 cohesion analysis report",
+  "type": "object",
+  "properties": {
+    "structs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CohesionStruct"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/CohesionSummary"
+    }
+  },
+  "$defs": {
+    "CohesionStruct": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "lcom4": {
+          "type": "number"
+        },
+        "methods": {
+          "type": "integer"
+        },
+        "below_threshold": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "CohesionSummary": {
+      "type": "object",
+      "properties": {
+        "files_scanned": {
+          "type": "integer"
+        },
+        "structs_analyzed": {
+          "type": "integer"
+        },
+        "below_threshold_count": {
+          "type": "integer"
+        },
+        "average_lcom4": {
+          "type": "number"
+        },
+        "max_lcom4_threshold": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::path::Path;
 
@@ -62,21 +62,61 @@ struct ErrSummary {
 /// Patterns to detect and their severity/fix metadata.
 const ERR_PATTERNS: &[(&str, &str, &str, &str)] = &[
     // (substring, kind, severity, fix_hint)
-    (".unwrap()",  "unwrap",       "medium", "Replace `.unwrap()` with `?`, `.unwrap_or_default()`, or proper error handling."),
-    (".expect(",   "expect",       "low",    "Replace `.expect(msg)` with `?` or match the error explicitly."),
-    ("panic!(",    "panic",        "high",   "Replace `panic!()` with a `Result` return or logged error."),
-    ("panic!(\"",  "panic",        "high",   "Replace `panic!()` with a `Result` return or logged error."),
-    ("unreachable!(", "unreachable", "low",  "Ensure this branch is truly unreachable or handle it explicitly."),
-    ("todo!()",    "todo",         "medium", "Replace `todo!()` with a real implementation before production."),
-    ("unimplemented!()", "unimplemented", "medium", "Replace `unimplemented!()` with a real implementation."),
+    (
+        ".unwrap()",
+        "unwrap",
+        "medium",
+        "Replace `.unwrap()` with `?`, `.unwrap_or_default()`, or proper error handling.",
+    ),
+    (
+        ".expect(",
+        "expect",
+        "low",
+        "Replace `.expect(msg)` with `?` or match the error explicitly.",
+    ),
+    (
+        "panic!(",
+        "panic",
+        "high",
+        "Replace `panic!()` with a `Result` return or logged error.",
+    ),
+    (
+        "panic!(\"",
+        "panic",
+        "high",
+        "Replace `panic!()` with a `Result` return or logged error.",
+    ),
+    (
+        "unreachable!(",
+        "unreachable",
+        "low",
+        "Ensure this branch is truly unreachable or handle it explicitly.",
+    ),
+    (
+        "todo!()",
+        "todo",
+        "medium",
+        "Replace `todo!()` with a real implementation before production.",
+    ),
+    (
+        "unimplemented!()",
+        "unimplemented",
+        "medium",
+        "Replace `unimplemented!()` with a real implementation.",
+    ),
 ];
 
 /// Detect `let _ = expr` patterns that silently discard Results/Options.
 const DISCARD_PATTERN: &str = "let _ =";
 
 fn scan_file(path: &str, include_tests: bool) -> Vec<ErrFinding> {
-    let Ok(source) = std::fs::read_to_string(path) else { return vec![] };
-    let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
+    let Ok(source) = std::fs::read_to_string(path) else {
+        return vec![];
+    };
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
 
     // Only scan Rust files for now (language-specific patterns)
     if !matches!(ext, "rs" | "go" | "py" | "js" | "ts" | "tsx") {
@@ -111,7 +151,10 @@ fn scan_file(path: &str, include_tests: bool) -> Vec<ErrFinding> {
                 for &(pattern, kind, severity, fix) in ERR_PATTERNS {
                     if line.contains(pattern) && !trimmed.starts_with("//") {
                         // Deduplicate: don't add both unwrap and expect for same line
-                        if findings.iter().any(|f: &ErrFinding| f.line == lineno && f.file == path) {
+                        if findings
+                            .iter()
+                            .any(|f: &ErrFinding| f.line == lineno && f.file == path)
+                        {
                             continue;
                         }
                         findings.push(ErrFinding {
@@ -133,36 +176,47 @@ fn scan_file(path: &str, include_tests: bool) -> Vec<ErrFinding> {
                         kind: "discard".to_string(),
                         context: truncate(trimmed, 80).to_string(),
                         severity: "low".to_string(),
-                        suggested_fix: Some("Handle or log the discarded value instead of `let _ = ...`.".to_string()),
+                        suggested_fix: Some(
+                            "Handle or log the discarded value instead of `let _ = ...`."
+                                .to_string(),
+                        ),
                     });
                 }
             }
-            "py" => {
-                // Python: bare `except:` or `except Exception:` with only `pass`
-                if trimmed == "except:" || trimmed == "except Exception:" || trimmed == "except Exception as e:" {
-                    let next = lines.get(i + 1).map(|l| l.trim()).unwrap_or("");
-                    if next == "pass" || next.is_empty() {
-                        findings.push(ErrFinding {
-                            file: path.to_string(),
-                            line: lineno,
-                            kind: "bare_except".to_string(),
-                            context: truncate(trimmed, 80).to_string(),
-                            severity: "high".to_string(),
-                            suggested_fix: Some("Catch specific exceptions and handle or log them properly.".to_string()),
-                        });
-                    }
+            "py" if trimmed == "except:"
+                || trimmed == "except Exception:"
+                || trimmed == "except Exception as e:" =>
+            {
+                let next = lines.get(i + 1).map(|l| l.trim()).unwrap_or("");
+                if next == "pass" || next.is_empty() {
+                    findings.push(ErrFinding {
+                        file: path.to_string(),
+                        line: lineno,
+                        kind: "bare_except".to_string(),
+                        context: truncate(trimmed, 80).to_string(),
+                        severity: "high".to_string(),
+                        suggested_fix: Some(
+                            "Catch specific exceptions and handle or log them properly."
+                                .to_string(),
+                        ),
+                    });
                 }
             }
             "js" | "ts" | "tsx" => {
                 // JS/TS: `.catch(() => {})` or empty catch blocks
-                if trimmed.contains(".catch(") && (trimmed.contains("{}") || trimmed.ends_with(".catch()")) {
+                if trimmed.contains(".catch(")
+                    && (trimmed.contains("{}") || trimmed.ends_with(".catch()"))
+                {
                     findings.push(ErrFinding {
                         file: path.to_string(),
                         line: lineno,
                         kind: "empty_catch".to_string(),
                         context: truncate(trimmed, 80).to_string(),
                         severity: "medium".to_string(),
-                        suggested_fix: Some("Handle or log errors in `.catch()` instead of swallowing them.".to_string()),
+                        suggested_fix: Some(
+                            "Handle or log errors in `.catch()` instead of swallowing them."
+                                .to_string(),
+                        ),
                     });
                 }
                 // console.error that immediately ignores the error
@@ -175,7 +229,9 @@ fn scan_file(path: &str, include_tests: bool) -> Vec<ErrFinding> {
                             kind: "empty_catch".to_string(),
                             context: truncate(trimmed, 80).to_string(),
                             severity: "high".to_string(),
-                            suggested_fix: Some("Add error handling inside the empty catch block.".to_string()),
+                            suggested_fix: Some(
+                                "Add error handling inside the empty catch block.".to_string(),
+                            ),
                         });
                     }
                 }
@@ -189,7 +245,9 @@ fn scan_file(path: &str, include_tests: bool) -> Vec<ErrFinding> {
                         kind: "discard".to_string(),
                         context: truncate(trimmed, 80).to_string(),
                         severity: "medium".to_string(),
-                        suggested_fix: Some("Check and handle the discarded return value.".to_string()),
+                        suggested_fix: Some(
+                            "Check and handle the discarded return value.".to_string(),
+                        ),
                     });
                 }
                 // `if err != nil { }` with empty body
@@ -202,7 +260,10 @@ fn scan_file(path: &str, include_tests: bool) -> Vec<ErrFinding> {
                             kind: "empty_error_handler".to_string(),
                             context: truncate(trimmed, 80).to_string(),
                             severity: "high".to_string(),
-                            suggested_fix: Some("Handle the error rather than leaving an empty `if err != nil {}`.".to_string()),
+                            suggested_fix: Some(
+                                "Handle the error rather than leaving an empty `if err != nil {}`."
+                                    .to_string(),
+                            ),
                         });
                     }
                 }
@@ -246,7 +307,10 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = ErrReport { findings: all_findings, summary };
+            let report = ErrReport {
+                findings: all_findings,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -259,24 +323,51 @@ fn run(cli: Cli) {
                 println!("No error handling issues detected.");
             } else {
                 let cols = vec![
-                    Column { header: "File", width: 35, align_right: false },
-                    Column { header: "Line", width: 6, align_right: true },
-                    Column { header: "Sev", width: 8, align_right: false },
-                    Column { header: "Kind", width: 14, align_right: false },
-                    Column { header: "Context", width: 55, align_right: false },
+                    Column {
+                        header: "File",
+                        width: 35,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Line",
+                        width: 6,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Sev",
+                        width: 8,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Kind",
+                        width: 14,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Context",
+                        width: 55,
+                        align_right: false,
+                    },
                 ];
                 print_table_header(&cols);
                 for f in &all_findings {
-                    print_table_row(&cols, &[
-                        &truncate(&f.file, 35),
-                        &f.line.to_string(),
-                        &f.severity,
-                        &truncate(&f.kind, 14),
-                        &truncate(&f.context, 55),
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&f.file, 35),
+                            &f.line.to_string(),
+                            &f.severity,
+                            &truncate(&f.kind, 14),
+                            &truncate(&f.context, 55),
+                        ],
+                    );
                 }
             }
-            let threshold_status = if summary.total_findings <= cli.max_unwraps { "PASS" } else { "FAIL" };
+            let threshold_status = if summary.total_findings <= cli.max_unwraps {
+                "PASS"
+            } else {
+                "FAIL"
+            };
             println!(
                 "\nSummary: {} findings ({} unwrap, {} expect, {} discard, {} panic) — {}",
                 summary.total_findings, unwrap_c, expect_c, discard_c, panic_c, threshold_status

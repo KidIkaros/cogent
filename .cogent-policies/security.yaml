@@ -1,0 +1,26 @@
+policy:
+  name: "Production Security Gate"
+  description: "Minimum security requirements for production code"
+  controls:
+    - id: SEC-001
+      name: "No hardcoded secrets"
+      tool: secrets
+      threshold: 0
+      severity: critical
+    - id: SEC-002
+      name: "No SQL injection patterns"
+      tool: sast
+      filter: "rule_id contains 'sqli'"
+      threshold: 0
+      severity: critical
+    - id: SEC-003
+      name: "Dependency vulnerability scan"
+      tool: vulnscan
+      threshold: 0
+      severity: high
+    - id: CQ-001
+      name: "CRAP score limit"
+      tool: crap
+      threshold: 30
+      scope: "functions only"
+      severity: medium

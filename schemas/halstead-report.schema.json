@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/halstead-report.schema.json",
+  "title": "HalsteadReport",
+  "description": "Halstead complexity metrics report",
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HalsteadFile"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/HalsteadSummary"
+    }
+  },
+  "$defs": {
+    "HalsteadFile": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "operators": {
+          "type": "integer"
+        },
+        "operands": {
+          "type": "integer"
+        },
+        "unique_operators": {
+          "type": "integer"
+        },
+        "unique_operands": {
+          "type": "integer"
+        },
+        "program_length": {
+          "type": "integer"
+        },
+        "vocabulary": {
+          "type": "integer"
+        },
+        "volume": {
+          "type": "number"
+        },
+        "difficulty": {
+          "type": "number"
+        },
+        "effort": {
+          "type": "number"
+        },
+        "time_seconds": {
+          "type": "number"
+        },
+        "bugs_estimated": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    },
+    "HalsteadSummary": {
+      "type": "object",
+      "properties": {
+        "files_scanned": {
+          "type": "integer"
+        },
+        "total_bugs_estimated": {
+          "type": "number"
+        },
+        "max_bugs_threshold": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

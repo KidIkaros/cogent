@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::path::Path;
 
@@ -61,34 +61,36 @@ struct SecretsSummary {
 
 /// Secret detection patterns: (pattern_name, substring/keyword to search for, severity)
 const PATTERNS: &[(&str, &str, &str)] = &[
-    ("password_assign",   "password",      "high"),
-    ("passwd_assign",     "passwd",        "high"),
-    ("secret_key",        "secret_key",    "high"),
-    ("api_key",           "api_key",       "high"),
-    ("apikey",            "apikey",        "high"),
-    ("api_secret",        "api_secret",    "high"),
-    ("auth_token",        "auth_token",    "high"),
-    ("access_token",      "access_token",  "high"),
-    ("private_key",       "private_key",   "high"),
-    ("aws_secret",        "aws_secret",    "high"),
-    ("aws_access_key",    "aws_access_key","high"),
-    ("gh_token",          "gh_token",      "high"),
-    ("github_token",      "github_token",  "high"),
-    ("slack_token",       "slack_token",   "high"),
-    ("stripe_key",        "stripe_key",    "high"),
-    ("twilio_auth",       "twilio_auth",   "high"),
-    ("pem_header",        "-----BEGIN",    "high"),
-    ("database_url",      "database_url",  "medium"),
-    ("db_password",       "db_password",   "medium"),
+    ("password_assign", "password", "high"),
+    ("passwd_assign", "passwd", "high"),
+    ("secret_key", "secret_key", "high"),
+    ("api_key", "api_key", "high"),
+    ("apikey", "apikey", "high"),
+    ("api_secret", "api_secret", "high"),
+    ("auth_token", "auth_token", "high"),
+    ("access_token", "access_token", "high"),
+    ("private_key", "private_key", "high"),
+    ("aws_secret", "aws_secret", "high"),
+    ("aws_access_key", "aws_access_key", "high"),
+    ("gh_token", "gh_token", "high"),
+    ("github_token", "github_token", "high"),
+    ("slack_token", "slack_token", "high"),
+    ("stripe_key", "stripe_key", "high"),
+    ("twilio_auth", "twilio_auth", "high"),
+    ("pem_header", "-----BEGIN", "high"),
+    ("database_url", "database_url", "medium"),
+    ("db_password", "db_password", "medium"),
     ("connection_string", "connection_string", "medium"),
-    ("jdbc_url",          "jdbc:",         "medium"),
-    ("smtp_password",     "smtp_password", "medium"),
-    ("bearer_token",      "bearer ",       "medium"),
+    ("jdbc_url", "jdbc:", "medium"),
+    ("smtp_password", "smtp_password", "medium"),
+    ("bearer_token", "bearer ", "medium"),
 ];
 
 /// Compute Shannon entropy of a string.
 fn shannon_entropy(s: &str) -> f64 {
-    if s.is_empty() { return 0.0; }
+    if s.is_empty() {
+        return 0.0;
+    }
     let len = s.len() as f64;
     let mut freq = [0usize; 256];
     for b in s.bytes() {
@@ -117,8 +119,13 @@ fn extract_string_literals(line: &str) -> Vec<String> {
             while i < chars.len() {
                 let lc = chars[i];
                 i += 1;
-                if lc == quote { break; }
-                if lc == '\\' { i += 1; continue; }
+                if lc == quote {
+                    break;
+                }
+                if lc == '\\' {
+                    i += 1;
+                    continue;
+                }
                 lit.push(lc);
             }
             if lit.len() >= 8 {
@@ -146,7 +153,9 @@ fn is_likely_test_or_example(line: &str) -> bool {
 }
 
 fn scan_file(path: &str, min_entropy: f64) -> Vec<SecretFinding> {
-    let Ok(source) = std::fs::read_to_string(path) else { return vec![] };
+    let Ok(source) = std::fs::read_to_string(path) else {
+        return vec![];
+    };
     let mut findings = Vec::new();
 
     for (lineno, line) in source.lines().enumerate() {
@@ -161,7 +170,9 @@ fn scan_file(path: &str, min_entropy: f64) -> Vec<SecretFinding> {
             if line_lower.contains(keyword) {
                 // Must look like an assignment or key-value, not just a variable name in code
                 let has_value = line.contains('=') || line.contains(':');
-                if !has_value { continue; }
+                if !has_value {
+                    continue;
+                }
 
                 let context = line.trim().chars().take(80).collect::<String>();
                 findings.push(SecretFinding {
@@ -183,7 +194,9 @@ fn scan_file(path: &str, min_entropy: f64) -> Vec<SecretFinding> {
 
         // Entropy-based detection: high-entropy string literals
         for literal in extract_string_literals(line) {
-            if literal.len() < 12 { continue; }
+            if literal.len() < 12 {
+                continue;
+            }
             let entropy = shannon_entropy(&literal);
             if entropy >= min_entropy {
                 let context = line.trim().chars().take(80).collect::<String>();
@@ -208,8 +221,8 @@ fn scan_file(path: &str, min_entropy: f64) -> Vec<SecretFinding> {
 
 fn run(cli: Cli) {
     let mut extensions: Vec<&str> = vec![
-        "rs", "py", "pyi", "js", "mjs", "ts", "tsx", "go",
-        "c", "h", "cpp", "cc", "hpp", "java", "rb", "swift", "php",
+        "rs", "py", "pyi", "js", "mjs", "ts", "tsx", "go", "c", "h", "cpp", "cc", "hpp", "java",
+        "rb", "swift", "php",
     ];
     if cli.include_config {
         extensions.extend_from_slice(&["env", "json", "yaml", "yml", "toml", "xml", "ini", "cfg"]);
@@ -229,7 +242,10 @@ fn run(cli: Cli) {
     all_findings.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
 
     let high = all_findings.iter().filter(|f| f.severity == "high").count();
-    let medium = all_findings.iter().filter(|f| f.severity == "medium").count();
+    let medium = all_findings
+        .iter()
+        .filter(|f| f.severity == "medium")
+        .count();
 
     let summary = SecretsSummary {
         files_scanned: files.len(),
@@ -240,7 +256,10 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = SecretsReport { findings: all_findings, summary };
+            let report = SecretsReport {
+                findings: all_findings,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -253,26 +272,51 @@ fn run(cli: Cli) {
                 println!("No hardcoded secrets detected.");
             } else {
                 let cols = vec![
-                    Column { header: "File", width: 35, align_right: false },
-                    Column { header: "Line", width: 6, align_right: true },
-                    Column { header: "Sev", width: 7, align_right: false },
-                    Column { header: "Pattern", width: 22, align_right: false },
-                    Column { header: "Context", width: 50, align_right: false },
+                    Column {
+                        header: "File",
+                        width: 35,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Line",
+                        width: 6,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Sev",
+                        width: 7,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Pattern",
+                        width: 22,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Context",
+                        width: 50,
+                        align_right: false,
+                    },
                 ];
                 print_table_header(&cols);
                 for f in &all_findings {
-                    print_table_row(&cols, &[
-                        &truncate(&f.file, 35),
-                        &f.line.to_string(),
-                        &f.severity,
-                        &truncate(&f.pattern, 22),
-                        &truncate(&f.context, 50),
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&f.file, 35),
+                            &f.line.to_string(),
+                            &f.severity,
+                            &truncate(&f.pattern, 22),
+                            &truncate(&f.context, 50),
+                        ],
+                    );
                 }
             }
             println!(
                 "\nSummary: {} findings ({} high, {} medium) in {} files scanned",
-                summary.findings_count, summary.high_severity, summary.medium_severity,
+                summary.findings_count,
+                summary.high_severity,
+                summary.medium_severity,
                 summary.files_scanned
             );
         }
@@ -309,22 +353,15 @@ mod tests {
 
     #[test]
     fn test_pattern_detection() {
-        let findings = scan_file_lines(
-            "test.rs",
-            &["let api_key = \"AKIA1234567890ABCDEF\";"],
-            4.5,
-        );
+        let findings =
+            scan_file_lines("test.rs", &["let api_key = \"AKIA1234567890ABCDEF\";"], 4.5);
         assert!(!findings.is_empty());
         assert_eq!(findings[0].severity, "high");
     }
 
     #[test]
     fn test_skip_comment_lines() {
-        let findings = scan_file_lines(
-            "test.rs",
-            &["// api_key = \"some_value\""],
-            4.5,
-        );
+        let findings = scan_file_lines("test.rs", &["// api_key = \"some_value\""], 4.5);
         assert!(findings.is_empty(), "comment lines should be skipped");
     }
 
@@ -334,11 +371,15 @@ mod tests {
         let mut findings = Vec::new();
         for (lineno, line) in source.lines().enumerate() {
             let line_lower = line.to_lowercase();
-            if is_likely_test_or_example(line) { continue; }
+            if is_likely_test_or_example(line) {
+                continue;
+            }
             for &(pattern_name, keyword, severity) in PATTERNS {
                 if line_lower.contains(keyword) {
                     let has_value = line.contains('=') || line.contains(':');
-                    if !has_value { continue; }
+                    if !has_value {
+                        continue;
+                    }
                     findings.push(SecretFinding {
                         file: path.to_string(),
                         line: lineno + 1,
@@ -353,7 +394,9 @@ mod tests {
                 }
             }
             for literal in extract_string_literals(line) {
-                if literal.len() < 12 { continue; }
+                if literal.len() < 12 {
+                    continue;
+                }
                 let entropy = shannon_entropy(&literal);
                 if entropy >= min_entropy {
                     findings.push(SecretFinding {

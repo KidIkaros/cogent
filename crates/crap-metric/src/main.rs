@@ -4,8 +4,8 @@ use clap::Parser;
 use serde::Serialize;
 
 use ast_parse_ts::parse_complexity_file;
-use codemetrics_common::{crap_category, crap_score, parse_lcov, CoverageRecord};
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, Column};
+use cogent_common::{crap_category, crap_score, parse_lcov, CoverageRecord};
+use cogent_common::{find_source_files, print_table_header, print_table_row, Column};
 
 #[derive(Parser)]
 #[command(
@@ -277,7 +277,7 @@ fn output_table(reports: &[FunctionReport]) {
             format!("{:.1}", total_crap / total as f64),
         ),
     ];
-    codemetrics_common::print_summary(&summary);
+    cogent_common::print_summary(&summary);
 
     println!();
     println!(

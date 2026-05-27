@@ -1,0 +1,1022 @@
+{
+  "info": {
+    "name": "cogent",
+    "version": "1.1.0",
+    "description": "AI-native code quality audit toolkit - 32 tools for automated code analysis, security scanning, and compliance auditing. Designed for CI/CD pipelines and AI agents.",
+    "documentation": "https://github.com/KidIkaros/cogent",
+    "license": "Apache-2.0 OR OPL-1.1",
+    "tags": ["code-quality", "static-analysis", "rust", "metrics", "security"]
+  },
+  "parameters": {
+    "path": {
+      "type": "string",
+      "description": "Path to analyze (file or directory)",
+      "required": true
+    },
+    "recursive": {
+      "type": "boolean",
+      "description": "Recursively scan directories",
+      "default": false
+    },
+    "format": {
+      "type": "string",
+      "enum": ["text", "json", "ndjson", "sarif"],
+      "default": "text",
+      "description": "Output format"
+    },
+    "minScore": {
+      "type": "number",
+      "description": "Minimum score threshold for filtering results"
+    }
+  },
+  "tools": [
+    {
+      "name": "crap",
+      "description": "Calculate CRAP (Change Risk Anti-Patterns) risk scores for functions. CRAP = comp² × (1 - coverage/100)³ + comp. Scores above 30 indicate high-risk code needing tests.",
+      "tags": ["metrics", "risk", "maintenance", "complexity", "testing"],
+      "average_response_size": 1024,
+      "call": {
+        "syntax": "cogent crap {path} --recursive --format {format} --min-score {minScore}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"},
+        "minScore": {"type": "number", "default": 15},
+        "coverage": {"type": "string", "description": "Path to coverage file (lcov format)"},
+        "coveragePct": {"type": "number", "description": "Override coverage percentage"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "function": {"type": "string"},
+            "file": {"type": "string"},
+            "line": {"type": "number"},
+            "complexity": {"type": "number"},
+            "crap": {"type": "number"},
+            "category": {"type": "string"}
+          }
+        }
+      },
+      "error_handling": {
+        "exit_codes": {
+          "0": "Success - analysis complete",
+          "1": "Error - check stderr for details"
+        }
+      }
+    },
+    {
+      "name": "mutate",
+      "description": "Mutation testing to evaluate test suite quality. Introduces deliberate code changes (mutants) and checks if tests detect them. Low mutation score = weak tests.",
+      "tags": ["testing", "mutation", "test-quality"],
+      "average_response_size": 2048,
+      "call": {
+        "syntax": "cogent mutate {path} -p {package} --max-mutants {maxMutants} --timeout {timeout} --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "description": "Path to Rust crate", "required": true},
+        "package": {"type": "string", "description": "Package name to test (auto-detected if not specified)", "required": false},
+        "maxMutants": {"type": "number", "default": 5, "max": 50},
+        "timeout": {"type": "number", "default": 30, "description": "Seconds per test run"},
+        "files": {"type": "string", "description": "Comma-separated file filter"},
+        "strategy": {"type": "string", "enum": ["all", "standard", "bitwise", "arithmetic"], "default": "all"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "total_mutants": {"type": "number"},
+          "killed": {"type": "number"},
+          "survived": {"type": "number"},
+          "mutation_score": {"type": "number"},
+          "results": {
+            "type": "array",
+            "items": {
+              "properties": {
+                "id": {"type": "number"},
+                "file": {"type": "string"},
+                "line": {"type": "number"},
+                "status": {"type": "string", "enum": ["killed", "survived", "timeout", "error"]}
+              }
+            }
+          }
+        }
+      },
+      "error_handling": {
+        "exit_codes": {
+          "0": "Success - all tests catch mutants",
+          "1": "Tests fail on original code or mutants survive"
+        }
+      },
+      "notes": "Requires cargo test to pass on original code first. Won't work on crates with failing tests."
+    },
+    {
+      "name": "debt",
+      "description": "Scan for technical debt markers: TODO, FIXME, HACK, XXX. Shows who created them (via git blame) and urgency.",
+      "tags": ["technical-debt", "todos", "cleanup"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent debt {path} --recursive --format {format} --marker {marker}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "marker": {"type": "string", "default": "TODO,FIXME,HACK,XXX", "description": "Comma-separated markers to find"},
+        "sort": {"type": "string", "enum": ["file", "author", "date"], "default": "file"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "marker": {"type": "string"},
+            "file": {"type": "string"},
+            "line": {"type": "number"},
+            "content": {"type": "string"},
+            "author": {"type": "string"},
+            "date": {"type": "string"}
+          }
+        }
+      }
+    },
+    {
+      "name": "riskmap",
+      "description": "Cross-reference git churn (changes) with code complexity. Identifies files that change often AND are complex - the highest risk for bugs.",
+      "tags": ["risk", "churn", "complexity", "maintenance"],
+      "average_response_size": 1024,
+      "call": {
+        "syntax": "cogent riskmap {path} --min-risk {minRisk} --since {since}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "minRisk": {"type": "number", "default": 30, "description": "Minimum risk score threshold"},
+        "since": {"type": "string", "default": "3 months ago", "description": "Git history timeframe"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "file": {"type": "string"},
+            "changes": {"type": "number"},
+            "complexity": {"type": "number"},
+            "risk_score": {"type": "number"}
+          }
+        }
+      }
+    },
+    {
+      "name": "doccov",
+      "description": "Calculate documentation coverage for public APIs. Shows percentage of functions/types with doc comments.",
+      "tags": ["documentation", "docs", "api"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent doccov {path} --recursive --format {format} --min {minCoverage}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "minCoverage": {"type": "number", "default": 80, "description": "Minimum coverage percentage"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "total_items": {"type": "number"},
+          "documented": {"type": "number"},
+          "coverage_percent": {"type": "number"},
+          "status": {"type": "string", "enum": ["excellent", "good", "low", "critical"]}
+        }
+      }
+    },
+    {
+      "name": "taint",
+      "description": "Detect taint/sensitive data flow. Tracks potentially sensitive data (passwords, keys, PII) from sources to sinks.",
+      "tags": ["security", "taint", "data-flow", "secrets"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent taint {path} --recursive --format {format} --rule {rule}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "rule": {"type": "string", "description": "Specific taint rule to check"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "severity": {"type": "string", "enum": ["high", "medium", "low"]},
+            "file": {"type": "string"},
+            "line": {"type": "number"},
+            "source": {"type": "string"},
+            "sink": {"type": "string"},
+            "description": {"type": "string"}
+          }
+        }
+      }
+    },
+    {
+      "name": "coupling",
+      "description": "Analyze module dependency graphs. Shows fan-in (dependencies) and fan-out (dependents) to identify tight coupling.",
+      "tags": ["coupling", "dependencies", "architecture"],
+      "average_response_size": 768,
+      "call": {
+        "syntax": "cogent coupling {path} --format {format} --min-coupling {minCoupling}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "minCoupling": {"type": "number", "default": 5, "description": "Minimum coupling threshold"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "modules": {
+            "type": "array",
+            "items": {
+              "properties": {
+                "module": {"type": "string"},
+                "fan_in": {"type": "number"},
+                "fan_out": {"type": "number"}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "dupfind",
+      "description": "Find code duplication using AST-based structural fingerprinting. Identical code blocks across files.",
+      "tags": ["duplication", "refactoring", "dry"],
+      "average_response_size": 1024,
+      "call": {
+        "syntax": "cogent dupfind {path} --recursive --format {format} --min-lines {minLines}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "minLines": {"type": "number", "default": 5, "description": "Minimum duplicate lines"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "fingerprint": {"type": "string"},
+            "locations": {
+              "type": "array",
+              "items": {"properties": {"file": {"type": "string"}, "line": {"type": "number"}}}
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "fuzz",
+      "description": "Identify fuzzable functions that take simple inputs (strings, numbers, arrays). Helps prioritize fuzzing targets.",
+      "tags": ["fuzzing", "testing", "security"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent fuzz {path} --recursive --format {format} --min-score {minScore}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "minScore": {"type": "number", "default": 10, "description": "Minimum fuzzability score"},
+        "top": {"type": "number", "description": "Show top N functions"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "function": {"type": "string"},
+            "file": {"type": "string"},
+            "line": {"type": "number"},
+            "score": {"type": "number"},
+            "params": {"type": "number"},
+            "has_harness": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    {
+      "name": "propcov",
+      "description": "Detect property-based tests and unit tests. Shows test coverage strategy gaps.",
+      "tags": ["testing", "property-based", "coverage"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent propcov {path} --recursive --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "property_tests": {"type": "number"},
+          "unit_tests": {"type": "number"},
+          "total_functions": {"type": "number"},
+          "coverage_percent": {"type": "number"},
+          "status": {"type": "string", "enum": ["excellent", "good", "low", "critical"]}
+        }
+      }
+    },
+    {
+      "name": "quality",
+      "description": "Run all quality tools in one batch. Unified CLI that runs debt, crap, doccov, coupling, riskmap, dupfind, propcov, taint, fuzz, and mutate.",
+      "tags": ["batch", "full-audit", "ci"],
+      "average_response_size": 4096,
+      "call": {
+        "syntax": "cogent run {path} --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "format": {"type": "string", "default": "sarif", "enum": ["text", "json", "sarif", "ndjson"]},
+        "checks": {"type": "string", "description": "Comma-separated tool list (default: all)"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "results": {"type": "array"},
+          "summary": {
+            "properties": {
+              "total_tools": {"type": "number"},
+              "passed": {"type": "number"},
+              "failed": {"type": "number"}
+            }
+          }
+        }
+      },
+      "notes": "Recommended for CI/CD. Outputs SARIF format compatible with GitHub Security tab."
+    },
+    {
+      "name": "complexity",
+      "description": "Cyclomatic complexity violations. Flags functions exceeding the threshold.",
+      "tags": ["complexity", "quality", "maintainability"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent complexity {path} --recursive --format {format} --min-complexity {minComplexity} --max-violations {maxViolations}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"},
+        "minComplexity": {"type": "number", "default": 10},
+        "maxViolations": {"type": "number", "default": 0}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"name": {"type": "string"}, "file": {"type": "string"}, "line": {"type": "number"}, "complexity": {"type": "number"}, "severity": {"type": "string"}}}
+      }
+    },
+    {
+      "name": "linelen",
+      "description": "Line length violations. Flags lines exceeding the configured maximum.",
+      "tags": ["style", "quality"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent linelen {path} --recursive --format {format} --max-length {maxLength}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"},
+        "maxLength": {"type": "number", "default": 120}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "line": {"type": "number"}, "length": {"type": "number"}}}
+      }
+    },
+    {
+      "name": "halstead",
+      "description": "Halstead complexity metrics — estimated bugs, effort, volume, vocabulary.",
+      "tags": ["complexity", "metrics", "quality"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent halstead {path} --recursive --format {format} --max-bugs {maxBugs}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"},
+        "maxBugs": {"type": "number", "default": 1.0}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "bugs": {"type": "number"}, "volume": {"type": "number"}, "effort": {"type": "number"}}}
+      }
+    },
+    {
+      "name": "secrets",
+      "description": "Hardcoded secret and credential detection. Finds API keys, tokens, passwords in source.",
+      "tags": ["security", "secrets", "credentials"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent secrets {path} --recursive --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "line": {"type": "number"}, "rule_id": {"type": "string"}, "severity": {"type": "string"}, "message": {"type": "string"}}}
+      },
+      "error_handling": {"exit_codes": {"0": "No secrets found", "1": "Secrets detected"}}
+    },
+    {
+      "name": "deadcode",
+      "description": "Dead code and unreachable branch detection.",
+      "tags": ["quality", "dead-code", "cleanup"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent deadcode {path} --recursive --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "line": {"type": "number"}, "item": {"type": "string"}, "severity": {"type": "string"}}}
+      }
+    },
+    {
+      "name": "cohesion",
+      "description": "LCOM4 cohesion analysis. Low cohesion = struct/class doing too many things.",
+      "tags": ["quality", "architecture", "cohesion"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent cohesion {path} --recursive --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "item": {"type": "string"}, "lcom": {"type": "number"}, "severity": {"type": "string"}}}
+      }
+    },
+    {
+      "name": "comments",
+      "description": "Comment ratio analysis. Flags files below the minimum comment-to-code ratio.",
+      "tags": ["quality", "documentation", "comments"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent comments {path} --recursive --format {format} --min-ratio {minRatio}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"},
+        "minRatio": {"type": "number", "default": 0.1}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {"ratio": {"type": "number"}, "comment_lines": {"type": "number"}, "code_lines": {"type": "number"}, "status": {"type": "string"}}
+      }
+    },
+    {
+      "name": "errhandle",
+      "description": "Error handling pattern checker. Flags unsafe .unwrap()/.expect()/panic! in Rust.",
+      "tags": ["quality", "error-handling", "reliability"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent errhandle {path} --recursive --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "line": {"type": "number"}, "pattern": {"type": "string"}, "severity": {"type": "string"}}}
+      }
+    },
+    {
+      "name": "typecov",
+      "description": "Type annotation coverage for Python, JavaScript, and TypeScript.",
+      "tags": ["quality", "types", "coverage"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent typecov {path} --recursive --format {format} --min-pct {minPct}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"},
+        "minPct": {"type": "number", "default": 80}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {"coverage_percent": {"type": "number"}, "annotated": {"type": "number"}, "total": {"type": "number"}, "status": {"type": "string"}}
+      }
+    },
+    {
+      "name": "vulnscan",
+      "description": "CVE vulnerability scanner. Checks dependencies against known vulnerability databases.",
+      "tags": ["security", "cve", "dependencies"],
+      "average_response_size": 1024,
+      "call": {
+        "syntax": "cogent vulnscan {path} --format {format} --max-critical {maxCritical} --max-high {maxHigh}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "format": {"type": "string", "default": "json"},
+        "maxCritical": {"type": "number", "default": 0},
+        "maxHigh": {"type": "number", "default": 0}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"cve": {"type": "string"}, "package": {"type": "string"}, "version": {"type": "string"}, "severity": {"type": "string"}, "description": {"type": "string"}}}
+      },
+      "error_handling": {"exit_codes": {"0": "No vulnerabilities above threshold", "1": "Vulnerabilities found"}}
+    },
+    {
+      "name": "sast",
+      "description": "Static application security testing. Detects SQLi, XSS, path traversal, command injection, reentrancy, missing auth.",
+      "tags": ["security", "sast", "injection"],
+      "average_response_size": 1024,
+      "call": {
+        "syntax": "cogent sast {path} --recursive --format {format} --max-findings {maxFindings}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"},
+        "maxFindings": {"type": "number", "default": 0}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "line": {"type": "number"}, "rule_id": {"type": "string"}, "severity": {"type": "string"}, "message": {"type": "string"}}}
+      },
+      "error_handling": {"exit_codes": {"0": "No findings", "1": "Security issues found"}}
+    },
+    {
+      "name": "crypto",
+      "description": "Weak cryptography checker. Detects MD5/SHA1 hashes, ECB mode, insecure RNG.",
+      "tags": ["security", "cryptography"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent crypto {path} --recursive --format {format} --max-findings {maxFindings}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"},
+        "maxFindings": {"type": "number", "default": 0}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "line": {"type": "number"}, "rule_id": {"type": "string"}, "severity": {"type": "string"}, "message": {"type": "string"}}}
+      }
+    },
+    {
+      "name": "access-control",
+      "description": "Access control checker — missing auth guards, hardcoded credentials, permissive IAM policies, insecure CORS.",
+      "tags": ["security", "auth", "access-control"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent access-control {path} --recursive --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "recursive": {"type": "boolean", "default": true},
+        "format": {"type": "string", "default": "json"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"file": {"type": "string"}, "line": {"type": "number"}, "rule_id": {"type": "string"}, "severity": {"type": "string"}, "message": {"type": "string"}}}
+      }
+    },
+    {
+      "name": "supply-chain",
+      "description": "Supply chain checker — dependency integrity, typosquatting, abandoned packages, unpinned deps.",
+      "tags": ["security", "supply-chain", "dependencies"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent supply-chain {path} --format {format} --max-risks {maxRisks}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "format": {"type": "string", "default": "json"},
+        "maxRisks": {"type": "number", "default": 0}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {"properties": {"package": {"type": "string"}, "version": {"type": "string"}, "rule_id": {"type": "string"}, "severity": {"type": "string"}, "message": {"type": "string"}}}
+      }
+    },
+    {
+      "name": "sbom",
+      "description": "Software bill of materials — generate CycloneDX or SPDX SBOM from Cargo.lock, package-lock.json, or go.sum.",
+      "tags": ["compliance", "sbom", "dependencies"],
+      "average_response_size": 2048,
+      "call": {
+        "syntax": "cogent sbom {path} --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "format": {"type": "string", "default": "json", "enum": ["json", "text"]}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "components": {"type": "array"},
+          "format": {"type": "string"},
+          "version": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "policy",
+      "description": "Validate or enforce audit policies in .cogent-policies/. Subcommands: validate (check YAML schema), check <path> (run policy-gated tools).",
+      "tags": ["audit", "policy", "governance"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent policy validate | cogent policy check {path}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "subcommand": {"type": "string", "enum": ["validate", "check"], "required": true},
+        "path": {"type": "string", "description": "Required for check subcommand"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {"valid": {"type": "boolean"}, "warnings": {"type": "array"}}
+      }
+    },
+    {
+      "name": "exception",
+      "description": "Manage approved exceptions (false positive overrides). Subcommands: add, list, approve, revoke.",
+      "tags": ["audit", "exceptions", "governance"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent exception add --finding-id {id} --rule-id {ruleId} --file {file} --reason {reason} --reviewer {reviewer}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "subcommand": {"type": "string", "enum": ["add", "list", "approve", "revoke"], "required": true},
+        "finding_id": {"type": "string"},
+        "rule_id": {"type": "string"},
+        "file": {"type": "string"},
+        "reason": {"type": "string"},
+        "reviewer": {"type": "string"},
+        "id": {"type": "string", "description": "Exception UUID for approve/revoke"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {"id": {"type": "string"}, "status": {"type": "string"}}
+      }
+    },
+    {
+      "name": "remediate",
+      "description": "Track remediation status of audit findings. Use --verify to confirm previously flagged issues are now resolved.",
+      "tags": ["audit", "remediation", "tracking"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent remediate {path} [--verify]",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "verify": {"type": "boolean", "default": false, "description": "Re-scan and confirm fixes applied"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {"open": {"type": "number"}, "resolved": {"type": "number"}, "overdue": {"type": "number"}}
+      }
+    },
+    {
+      "name": "audit-trail",
+      "description": "Query and verify the signed JSONL audit trail. Use --verify to detect tampering, --since for time-bounded queries.",
+      "tags": ["audit", "trail", "compliance", "governance"],
+      "average_response_size": 512,
+      "call": {
+        "syntax": "cogent audit-trail [--verify] [--since {since}] [--command {command}]",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "verify": {"type": "boolean", "default": false},
+        "since": {"type": "string", "description": "ISO date filter, e.g. 2025-01-01"},
+        "command": {"type": "string", "description": "Filter by command name"}
+      },
+      "outputs": {
+        "type": "array",
+        "items": {
+          "properties": {
+            "timestamp": {"type": "string"},
+            "actor": {"type": "string"},
+            "command": {"type": "string"},
+            "scope": {"type": "string"},
+            "findings_count": {"type": "number"}
+          }
+        }
+      }
+    },
+    {
+      "name": "audit",
+      "description": "Full DIY auditor: runs all checks, enriches every finding with suggested_fix + SOC2/ISO27001 controls, writes audit trail. --format agent emits NDJSON (one self-contained finding per line) for direct agent/LLM consumption.",
+      "tags": ["agent", "batch", "audit", "ci", "compliance"],
+      "average_response_size": 8192,
+      "call": {
+        "syntax": "cogent audit {path} --format {format} [--evidence] [--framework {framework}] [--only {only}] [--skip {skip}]",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "format": {"type": "string", "default": "agent", "enum": ["agent", "json", "markdown"]},
+        "evidence": {"type": "boolean", "default": false, "description": "Attach code snippets, file hashes, git blame to each finding"},
+        "framework": {"type": "string", "enum": ["soc2", "iso27001", "both"], "description": "Map findings to compliance controls"},
+        "only": {"type": "string", "enum": ["security", "quality", "compliance"], "description": "Limit to a category"},
+        "skip": {"type": "string", "description": "Comma-separated checks to skip"},
+        "checks": {"type": "string", "description": "Run only these checks (comma-separated)"},
+        "ci": {"type": "boolean", "default": false, "description": "CI mode: exit 1 on any finding"}
+      },
+      "outputs": {
+        "type": "object",
+        "description": "With --format agent: NDJSON stream. Each finding line contains: type, rule_id, severity, file, line, message, suggested_fix {description, diff, confidence}, controls [SOC2/ISO ids], suppressed, evidence (if --evidence).",
+        "properties": {
+          "finding_line": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string", "enum": ["finding"]},
+              "rule_id": {"type": "string"},
+              "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
+              "file": {"type": "string"},
+              "line": {"type": "number"},
+              "message": {"type": "string"},
+              "suggested_fix": {
+                "type": "object",
+                "properties": {
+                  "description": {"type": "string"},
+                  "diff": {"type": "string"},
+                  "confidence": {"type": "string", "enum": ["high", "medium", "low"]}
+                }
+              },
+              "controls": {"type": "array", "items": {"type": "string"}},
+              "suppressed": {"type": "boolean"},
+              "evidence": {
+                "type": "object",
+                "properties": {
+                  "snippet": {"type": "string"},
+                  "file_hash": {"type": "string"},
+                  "context": {"type": "string"}
+                }
+              }
+            }
+          },
+          "summary_line": {
+            "type": "object",
+            "properties": {
+              "type": {"type": "string", "enum": ["summary"]},
+              "passed": {"type": "boolean"},
+              "score": {"type": "number"},
+              "grade": {"type": "string"},
+              "total_findings": {"type": "number"},
+              "critical": {"type": "number"},
+              "high": {"type": "number"},
+              "medium": {"type": "number"},
+              "low": {"type": "number"},
+              "controls_affected": {"type": "array", "items": {"type": "string"}},
+              "checks_run": {"type": "number"},
+              "duration_ms": {"type": "number"}
+            }
+          }
+        }
+      },
+      "error_handling": {
+        "exit_codes": {
+          "0": "No findings (or all suppressed)",
+          "1": "Findings present or checks failed",
+          "2": "Unknown format or configuration error"
+        }
+      },
+      "notes": "Primary agent entry point. Pipe output to an LLM: cogent audit . --format agent | llm-cli. Use --evidence for maximum context per finding."
+    },
+    {
+      "name": "init",
+      "description": "Auto-detect project ecosystem and write language-tuned .quality.toml thresholds. With --ci also writes GitHub Actions workflow, installs pre-commit hook, seeds baseline SARIF, and records history.",
+      "tags": ["setup", "config", "ci", "zero-config"],
+      "average_response_size": 256,
+      "call": {
+        "syntax": "cogent init [--ci] [--output {output}]",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "ci": {"type": "boolean", "default": false, "description": "Full CI bootstrap: GHA workflow + pre-commit hook + baseline SARIF + history"},
+        "output": {"type": "string", "default": ".quality.toml", "description": "Output path for config file"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "ecosystem": {"type": "string", "enum": ["Rust", "JavaScript", "TypeScript", "Python", "Go", "Unknown"]},
+          "config_path": {"type": "string"}
+        }
+      }
+    },
+    {
+      "name": "check",
+      "description": "Run all quality checks in one call. Automatically loads thresholds from .quality.toml if present. CLI flags override file values. Returns structured JSON with per-check pass/fail, score, and threshold.",
+      "tags": ["gate", "ci", "agent", "json"],
+      "average_response_size": 2048,
+      "call": {
+        "syntax": "cogent check {path} --format {format}",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "required": true},
+        "format": {"type": "string", "default": "json", "enum": ["text", "json"]},
+        "skip": {"type": "string", "description": "Comma-separated checks to skip (e.g. taint,fuzz)"},
+        "coverage": {"type": "string", "description": "Path to lcov coverage file for accurate CRAP scores"},
+        "max_crap": {"type": "number", "description": "Override CRAP threshold (overrides .quality.toml)"},
+        "max_debt": {"type": "number", "description": "Override max debt markers"},
+        "min_doc": {"type": "number", "description": "Override min documentation coverage %"}
+      },
+      "outputs": {
+        "type": "object",
+        "properties": {
+          "passed": {"type": "boolean"},
+          "checks": {
+            "type": "array",
+            "items": {
+              "properties": {
+                "name": {"type": "string"},
+                "passed": {"type": "boolean"},
+                "score": {"type": "number"},
+                "threshold": {"type": "number"},
+                "message": {"type": "string"}
+              }
+            }
+          },
+          "summary": {
+            "properties": {
+              "total": {"type": "number"},
+              "passed": {"type": "number"},
+              "failed": {"type": "number"}
+            }
+          }
+        }
+      },
+      "error_handling": {
+        "exit_codes": {
+          "0": "All checks passed",
+          "1": "One or more checks failed",
+          "2": "Error (parse failure, missing binary)"
+        }
+      },
+      "notes": "Auto-loads .quality.toml. Run `cogent init` first to generate it. Fastest agent quality gate."
+    },
+    {
+      "name": "watch",
+      "description": "Watch for file changes and re-run checks. Auto-detects project ecosystem, test runner, and coverage command. Feeds live coverage into CRAP scores.",
+      "tags": ["watch", "live", "dev-loop"],
+      "average_response_size": 0,
+      "call": {
+        "syntax": "cogent watch {path} [--no-tests] [--debounce-ms {debounceMs}]",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "path": {"type": "string", "default": "."},
+        "no_tests": {"type": "boolean", "default": false, "description": "Skip test + coverage run; metrics-only mode"},
+        "debounce_ms": {"type": "number", "default": 500, "description": "Debounce delay in ms after file change"},
+        "checks": {"type": "string", "default": "debt,doc,crap", "description": "Comma-separated checks to run on change"}
+      },
+      "notes": "Runs continuously. Use --no-tests for a fast feedback loop without waiting for test suite."
+    },
+    {
+      "name": "install-hooks",
+      "description": "Install a Cogent pre-commit git hook. Default hook runs tests, collects coverage, then runs cogent check. --fast skips tests for a lightweight metrics-only hook.",
+      "tags": ["hooks", "git", "pre-commit", "ci"],
+      "average_response_size": 128,
+      "call": {
+        "syntax": "cogent install-hooks [--fast] [{repo}]",
+        "protocol": "cli",
+        "cwd": "{project_root}"
+      },
+      "inputs": {
+        "repo": {"type": "string", "default": ".", "description": "Git repo root"},
+        "fast": {"type": "boolean", "default": false, "description": "Install lightweight hook that skips test execution"}
+      }
+    }
+  ],
+  "examples": [
+    {
+      "name": "Zero-config setup",
+      "command": "cogent init"
+    },
+    {
+      "name": "CI bootstrap",
+      "command": "cogent init --ci"
+    },
+    {
+      "name": "Quick quality gate (agent)",
+      "command": "cogent check . --format json"
+    },
+    {
+      "name": "Full audit",
+      "command": "cogent run . --format sarif > results.sarif"
+    },
+    {
+      "name": "CRAP score check",
+      "command": "cogent crap ./src --recursive --format json"
+    },
+    {
+      "name": "Mutation testing",
+      "command": "cogent mutate . -p ast-parse-ts --max-mutants 5 --format json"
+    },
+    {
+      "name": "Risk map",
+      "command": "cogent riskmap . --format json"
+    },
+    {
+      "name": "MCP server",
+      "command": "cogent-server --mode stdio"
+    },
+    {
+      "name": "Agent audit (NDJSON)",
+      "command": "cogent audit . --format agent"
+    },
+    {
+      "name": "Agent audit with evidence + SOC2 controls",
+      "command": "cogent audit . --format agent --evidence --framework soc2"
+    },
+    {
+      "name": "Security-only audit",
+      "command": "cogent audit . --format agent --only security"
+    },
+    {
+      "name": "Policy validate",
+      "command": "cogent policy validate"
+    },
+    {
+      "name": "Exception list",
+      "command": "cogent exception list"
+    },
+    {
+      "name": "Audit trail query",
+      "command": "cogent audit-trail --since 2025-01-01"
+    }
+  ]
+}

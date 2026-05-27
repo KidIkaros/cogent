@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/prop-cov-report.schema.json",
+  "title": "PropCovReport",
+  "description": "Property test coverage report",
+  "type": "object",
+  "properties": {
+    "property_tests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PropertyTest"
+      }
+    },
+    "function_coverage": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FunctionCoverage"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/PropCovSummary"
+    }
+  },
+  "$defs": {
+    "PropertyTest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "target_function": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "FunctionCoverage": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "has_property_test": {
+          "type": "boolean"
+        },
+        "has_unit_test": {
+          "type": "boolean"
+        },
+        "property_tests": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "PropCovSummary": {
+      "type": "object",
+      "properties": {
+        "files_scanned": {
+          "type": "integer"
+        },
+        "functions_total": {
+          "type": "integer"
+        },
+        "functions_with_property_tests": {
+          "type": "integer"
+        },
+        "coverage_pct": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,164 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CogentCheckReport",
+  "description": "Schema for cogent check output report",
+  "type": "object",
+  "required": ["passed", "path", "checks", "summary"],
+  "properties": {
+    "passed": {
+      "type": "boolean",
+      "description": "Whether all checks passed"
+    },
+    "path": {
+      "type": "string",
+      "description": "Path that was analyzed"
+    },
+    "checks": {
+      "type": "array",
+      "description": "Individual check results",
+      "items": {
+        "$ref": "#/definitions/CheckResult"
+      }
+    },
+    "summary": {
+      "$ref": "#/definitions/CheckSummary"
+    },
+    "file_summary": {
+      "type": "array",
+      "description": "Per-file issue aggregation across all tools",
+      "items": {
+        "$ref": "#/definitions/FileSummary"
+      }
+    }
+  },
+  "definitions": {
+    "CheckResult": {
+      "type": "object",
+      "required": ["name", "passed", "message", "details"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the check (e.g., crap, debt, complexity)"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "score": {
+          "type": ["number", "null"],
+          "description": "Current metric value"
+        },
+        "threshold": {
+          "type": ["number", "null"],
+          "description": "Configured threshold"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable summary"
+        },
+        "details": {
+          "type": "object",
+          "description": "Tool-specific raw JSON details"
+        },
+        "severity": {
+          "type": ["string", "null"],
+          "description": "info, warning, error, critical"
+        },
+        "help": {
+          "type": ["string", "null"],
+          "description": "Remediation guidance"
+        },
+        "rule_id": {
+          "type": ["string", "null"],
+          "description": "Stable rule identifier"
+        },
+        "findings": {
+          "type": "array",
+          "description": "Structured per-issue findings",
+          "items": {
+            "$ref": "#/definitions/Finding"
+          }
+        }
+      }
+    },
+    "CheckSummary": {
+      "type": "object",
+      "required": ["total_checks", "passed_checks", "failed_checks", "functions_analyzed", "avg_complexity", "avg_crap"],
+      "properties": {
+        "total_checks": {
+          "type": "integer"
+        },
+        "passed_checks": {
+          "type": "integer"
+        },
+        "failed_checks": {
+          "type": "integer"
+        },
+        "functions_analyzed": {
+          "type": "integer"
+        },
+        "avg_complexity": {
+          "type": "number"
+        },
+        "avg_crap": {
+          "type": "number"
+        }
+      }
+    },
+    "Finding": {
+      "type": "object",
+      "required": ["file", "severity", "message", "rule_id"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "File path where the issue was found"
+        },
+        "line": {
+          "type": ["integer", "null"]
+        },
+        "column": {
+          "type": ["integer", "null"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info", "error", "warning"]
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable issue description"
+        },
+        "rule_id": {
+          "type": "string",
+          "description": "Stable rule identifier"
+        },
+        "fix_hint": {
+          "type": "string",
+          "description": "One-line remediation suggestion"
+        }
+      }
+    },
+    "FileSummary": {
+      "type": "object",
+      "required": ["file", "issue_count", "severity_score", "findings_by_severity"],
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "issue_count": {
+          "type": "integer",
+          "description": "Total number of findings in this file"
+        },
+        "severity_score": {
+          "type": "integer",
+          "description": "Weighted severity score (critical=4, high=3, medium=2, low=1)"
+        },
+        "findings_by_severity": {
+          "type": "object",
+          "description": "Count of findings per severity level",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

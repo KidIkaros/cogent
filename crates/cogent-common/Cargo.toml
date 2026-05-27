@@ -1,0 +1,38 @@
+[package]
+name = "cogent-common"
+description = "Shared utilities for Cogent -- file scanning, output formatting, CLI patterns"
+
+[dependencies]
+serde_json = "1"
+
+[package.version]
+workspace = true
+
+[package.edition]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.license]
+workspace = true
+
+[dependencies.serde]
+version = "1"
+features = [ "derive",]
+
+[dependencies.clap]
+version = "4"
+features = [ "derive",]
+
+[dependencies.chrono]
+version = "0.4"
+default-features = false
+features = [ "now",]
+
+[dependencies.uuid]
+version = "1"
+features = [ "v4", "serde",]
+
+[dependencies.unicode-width]
+version = "0.2"

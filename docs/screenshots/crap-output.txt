@@ -1,30 +1,30 @@
 FUNCTION                  FILE                           LINE COMP      LINES       CRAP CATEGORY     HINT
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-get_git_blame_batch       …codemetrics-common/src/lib.rs  410   21         94      462.0 ✗ crappy     CRAP score 462.0 exceeds threshold (3
-parse_lcov                …codemetrics-common/src/lib.rs  890   11         36      132.0 ✗ crappy     CRAP score 132.0 exceeds threshold (3
+get_git_blame_batch       …cogent-common/src/lib.rs  410   21         94      462.0 ✗ crappy     CRAP score 462.0 exceeds threshold (3
+parse_lcov                …cogent-common/src/lib.rs  890   11         36      132.0 ✗ crappy     CRAP score 132.0 exceeds threshold (3
 check                     …emetrics-common/src/memory.rs   90    9         52       90.0 ✗ crappy     CRAP score 90.0 exceeds threshold (30
-scan_dir                  …codemetrics-common/src/lib.rs  180    7         14       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
-get_git_blame             …codemetrics-common/src/lib.rs  372    7         34       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
-get_rule_details          …codemetrics-common/src/lib.rs  699    7         33       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
-crap_category             …codemetrics-common/src/lib.rs  959    7         10       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
+scan_dir                  …cogent-common/src/lib.rs  180    7         14       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
+get_git_blame             …cogent-common/src/lib.rs  372    7         34       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
+get_rule_details          …cogent-common/src/lib.rs  699    7         33       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
+crap_category             …cogent-common/src/lib.rs  959    7         10       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
 from_env                  …emetrics-common/src/memory.rs   55    7         29       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
 get_current_usage         …emetrics-common/src/memory.rs  145    7         23       56.0 ✗ crappy     CRAP score 56.0 exceeds threshold (30
-find_source_files         …codemetrics-common/src/lib.rs  145    6         16       42.0 ✗ crappy     CRAP score 42.0 exceeds threshold (30
-truncate                  …codemetrics-common/src/lib.rs  202    6         14       42.0 ✗ crappy     CRAP score 42.0 exceeds threshold (30
-find_rust_files           …codemetrics-common/src/lib.rs  130    5         12       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
-truncate_left             …codemetrics-common/src/lib.rs  219    5          8       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
-print_table_header        …codemetrics-common/src/lib.rs  295    5         12       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
-get_git_churn             …codemetrics-common/src/lib.rs  345    5         24       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
-sarif_level               …codemetrics-common/src/lib.rs  793    5          7       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
-print_table_row           …codemetrics-common/src/lib.rs  310    4         11       20.0 ○ good       Function has excellent CRAP score (20
-result_key                …codemetrics-common/src/lib.rs  817    4         21       20.0 ○ good       Function has excellent CRAP score (20
+find_source_files         …cogent-common/src/lib.rs  145    6         16       42.0 ✗ crappy     CRAP score 42.0 exceeds threshold (30
+truncate                  …cogent-common/src/lib.rs  202    6         14       42.0 ✗ crappy     CRAP score 42.0 exceeds threshold (30
+find_rust_files           …cogent-common/src/lib.rs  130    5         12       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
+truncate_left             …cogent-common/src/lib.rs  219    5          8       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
+print_table_header        …cogent-common/src/lib.rs  295    5         12       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
+get_git_churn             …cogent-common/src/lib.rs  345    5         24       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
+sarif_level               …cogent-common/src/lib.rs  793    5          7       30.0 … acceptable CRAP score 30.0 (threshold: 30). To i
+print_table_row           …cogent-common/src/lib.rs  310    4         11       20.0 ○ good       Function has excellent CRAP score (20
+result_key                …cogent-common/src/lib.rs  817    4         21       20.0 ○ good       Function has excellent CRAP score (20
 get_system_memory_kb      …emetrics-common/src/memory.rs  171    4         11       20.0 ○ good       Function has excellent CRAP score (20
-estimate_line             …codemetrics-common/src/lib.rs  234    3          7       12.0 ○ good       Function has excellent CRAP score (12
-print_verdict             …codemetrics-common/src/lib.rs  332    3          6       12.0 ○ good       Function has excellent CRAP score (12
-sarif_run                 …codemetrics-common/src/lib.rs  747    3         42       12.0 ○ good       Function has excellent CRAP score (12
-find_lcov_file            …codemetrics-common/src/lib.rs  929    3          8       12.0 ○ good       Function has excellent CRAP score (12
-should_include_file       …codemetrics-common/src/lib.rs  164    2          3        6.0 …✓ excellent Function has excellent CRAP score (6.
-print_summary             …codemetrics-common/src/lib.rs  324    2          5        6.0 …✓ excellent Function has excellent CRAP score (6.
-diff_results              …codemetrics-common/src/lib.rs  807    2          8        6.0 …✓ excellent Function has excellent CRAP score (6.
-run_tests                 …codemetrics-common/src/lib.rs  862    2         11        6.0 …✓ excellent Function has excellent CRAP score (6.
-wrap_tool_response        …codemetrics-common/src/lib.rs   87    1         20        2.0 …✓ excellent Function has excellent CRAP score (2.
+estimate_line             …cogent-common/src/lib.rs  234    3          7       12.0 ○ good       Function has excellent CRAP score (12
+print_verdict             …cogent-common/src/lib.rs  332    3          6       12.0 ○ good       Function has excellent CRAP score (12
+sarif_run                 …cogent-common/src/lib.rs  747    3         42       12.0 ○ good       Function has excellent CRAP score (12
+find_lcov_file            …cogent-common/src/lib.rs  929    3          8       12.0 ○ good       Function has excellent CRAP score (12
+should_include_file       …cogent-common/src/lib.rs  164    2          3        6.0 …✓ excellent Function has excellent CRAP score (6.
+print_summary             …cogent-common/src/lib.rs  324    2          5        6.0 …✓ excellent Function has excellent CRAP score (6.
+diff_results              …cogent-common/src/lib.rs  807    2          8        6.0 …✓ excellent Function has excellent CRAP score (6.
+run_tests                 …cogent-common/src/lib.rs  862    2         11        6.0 …✓ excellent Function has excellent CRAP score (6.
+wrap_tool_response        …cogent-common/src/lib.rs   87    1         20        2.0 …✓ excellent Function has excellent CRAP score (2.

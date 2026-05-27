@@ -1,6 +1,6 @@
 # Known Issues
 
-This document tracks known issues and intentional design decisions in the CodeMetrics codebase.
+This document tracks known issues and intentional design decisions in the Cogent codebase.
 
 ## Slow Integration Tests (mutation-test)
 

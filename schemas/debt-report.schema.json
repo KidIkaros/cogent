@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://codemetrics.dev/schemas/debt-report.schema.json",
+  "$id": "https://cogent.dev/schemas/debt-report.schema.json",
   "title": "DebtReport",
   "description": "Technical debt scan report",
   "type": "object",
@@ -19,31 +19,78 @@
     "DebtItem": {
       "type": "object",
       "properties": {
-        "file": { "type": "string" },
-        "line": { "type": "integer" },
-        "marker_type": { "type": "string" },
-        "text": { "type": "string" },
-        "author": { "type": ["string", "null"] },
-        "date": { "type": ["string", "null"] },
-        "code_context": { "type": ["string", "null"] },
-        "suggested_fix": { "type": ["string", "null"] },
-        "auto_fix_available": { "type": ["boolean", "null"] }
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "marker_type": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "code_context": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "suggested_fix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "auto_fix_available": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
       },
-      "required": ["file", "line", "marker_type", "text"]
+      "additionalProperties": true
     },
     "DebtSummary": {
       "type": "object",
       "properties": {
-        "total": { "type": "integer" },
-        "todo": { "type": "integer" },
-        "fixme": { "type": "integer" },
-        "hack": { "type": "integer" },
-        "xxx": { "type": "integer" },
+        "total": {
+          "type": "integer"
+        },
+        "todo": {
+          "type": "integer"
+        },
+        "fixme": {
+          "type": "integer"
+        },
+        "hack": {
+          "type": "integer"
+        },
+        "xxx": {
+          "type": "integer"
+        },
         "by_author": {
           "type": "object",
-          "additionalProperties": { "type": "integer" }
+          "additionalProperties": {
+            "type": "integer"
+          }
         }
-      }
+      },
+      "additionalProperties": true
     }
-  }
+  },
+  "additionalProperties": true
 }

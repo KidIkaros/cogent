@@ -5,7 +5,7 @@ use rayon::prelude::*;
 use serde::Serialize;
 
 use ast_parse_ts::{fingerprint_similarity, parse_fingerprints_file};
-use codemetrics_common::{find_source_files, truncate};
+use cogent_common::{find_source_files, truncate};
 
 #[derive(Parser)]
 #[command(

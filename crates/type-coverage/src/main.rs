@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::path::Path;
 
@@ -77,9 +77,11 @@ fn analyze_python(source: &str) -> (usize, usize, Vec<String>) {
         total += 1;
 
         // Extract function name
-        let name = t.trim_start_matches("async ")
+        let name = t
+            .trim_start_matches("async ")
             .trim_start_matches("def ")
-            .split('(').next()
+            .split('(')
+            .next()
             .unwrap_or("?")
             .to_string();
 
@@ -95,8 +97,12 @@ fn analyze_python(source: &str) -> (usize, usize, Vec<String>) {
                         let p = p.trim();
                         !p.is_empty() && p != "self" && p != "cls" && p.contains(':')
                     })
-                } else { false }
-            } else { false }
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
         };
 
         if has_return || has_param_annot {
@@ -126,23 +132,40 @@ fn analyze_js_ts(source: &str, is_ts: bool) -> (usize, usize, Vec<String>) {
             || t.contains("=> {")
             || t.contains("=> (")
             || (t.starts_with("async ") && t.contains("function "))
-            || (t.contains("): ") && (t.starts_with("public ") || t.starts_with("private ") || t.starts_with("protected ")));
+            || (t.contains("): ")
+                && (t.starts_with("public ")
+                    || t.starts_with("private ")
+                    || t.starts_with("protected ")));
 
-        if !is_fn { continue; }
+        if !is_fn {
+            continue;
+        }
         // Skip arrow functions assigned to variables — too noisy; focus on named ones
         let is_named = t.starts_with("function ")
             || t.starts_with("async function ")
             || (t.contains("): ") && is_ts);
-        if !is_named { continue; }
+        if !is_named {
+            continue;
+        }
 
         total += 1;
 
         // Extract name
         let name = if t.starts_with("function ") || t.starts_with("async function ") {
-            t.trim_start_matches("async ").trim_start_matches("function ")
-                .split('(').next().unwrap_or("?").to_string()
+            t.trim_start_matches("async ")
+                .trim_start_matches("function ")
+                .split('(')
+                .next()
+                .unwrap_or("?")
+                .to_string()
         } else {
-            t.split('(').next().unwrap_or("?").split_whitespace().last().unwrap_or("?").to_string()
+            t.split('(')
+                .next()
+                .unwrap_or("?")
+                .split_whitespace()
+                .last()
+                .unwrap_or("?")
+                .to_string()
         };
 
         if is_ts {
@@ -154,9 +177,14 @@ fn analyze_js_ts(source: &str, is_ts: bool) -> (usize, usize, Vec<String>) {
                         let p = p.trim();
                         !p.is_empty() && p.contains(':') && p != "..."
                     })
-                } else { false }
-            } else { false };
-            let has_return_type = t.contains("): ") && !t.ends_with("): void {") || t.contains("): void");
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            let has_return_type =
+                t.contains("): ") && !t.ends_with("): void {") || t.contains("): void");
             if has_param_types || has_return_type {
                 typed += 1;
             } else {
@@ -181,8 +209,13 @@ fn analyze_js_ts(source: &str, is_ts: bool) -> (usize, usize, Vec<String>) {
 }
 
 fn analyze_file(path: &str, min_pct: f64) -> Option<FileTypeCov> {
-    let Ok(source) = std::fs::read_to_string(path) else { return None };
-    let ext = Path::new(path).extension().and_then(|e| e.to_str()).unwrap_or("");
+    let Ok(source) = std::fs::read_to_string(path) else {
+        return None;
+    };
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("");
 
     let (lang, total, typed, mut untyped) = match ext {
         "py" | "pyi" => {
@@ -200,7 +233,9 @@ fn analyze_file(path: &str, min_pct: f64) -> Option<FileTypeCov> {
         _ => return None, // Rust is 100% typed by definition
     };
 
-    if total == 0 { return None; }
+    if total == 0 {
+        return None;
+    }
 
     let pct = typed as f64 / total as f64 * 100.0;
     let below = pct < min_pct;
@@ -219,7 +254,9 @@ fn analyze_file(path: &str, min_pct: f64) -> Option<FileTypeCov> {
                 "Add type annotations to reach {:.0}% coverage (currently {:.1}%).",
                 min_pct, pct
             ))
-        } else { None },
+        } else {
+            None
+        },
     })
 }
 
@@ -240,12 +277,20 @@ fn run(cli: Cli) {
         }
     }
 
-    stats.sort_by(|a, b| a.coverage_pct.partial_cmp(&b.coverage_pct).unwrap_or(std::cmp::Ordering::Equal));
+    stats.sort_by(|a, b| {
+        a.coverage_pct
+            .partial_cmp(&b.coverage_pct)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let below = stats.iter().filter(|s| s.below_threshold).count();
     let total_fns: usize = stats.iter().map(|s| s.total_functions).sum();
     let typed_fns: usize = stats.iter().map(|s| s.typed_functions).sum();
-    let overall = if total_fns == 0 { 100.0 } else { typed_fns as f64 / total_fns as f64 * 100.0 };
+    let overall = if total_fns == 0 {
+        100.0
+    } else {
+        typed_fns as f64 / total_fns as f64 * 100.0
+    };
 
     let summary = TypeCovSummary {
         files_scanned: files.len(),
@@ -258,7 +303,10 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = TypeCovReport { files: stats, summary };
+            let report = TypeCovReport {
+                files: stats,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -271,30 +319,59 @@ fn run(cli: Cli) {
                 println!("No Python/JS/TS files found to analyze.");
             } else {
                 let cols = vec![
-                    Column { header: "File", width: 40, align_right: false },
-                    Column { header: "Lang", width: 11, align_right: false },
-                    Column { header: "Fns", width: 5, align_right: true },
-                    Column { header: "Typed", width: 7, align_right: true },
-                    Column { header: "Coverage", width: 9, align_right: true },
-                    Column { header: "Status", width: 7, align_right: false },
+                    Column {
+                        header: "File",
+                        width: 40,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Lang",
+                        width: 11,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Fns",
+                        width: 5,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Typed",
+                        width: 7,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Coverage",
+                        width: 9,
+                        align_right: true,
+                    },
+                    Column {
+                        header: "Status",
+                        width: 7,
+                        align_right: false,
+                    },
                 ];
                 print_table_header(&cols);
                 for s in &stats {
                     let status = if s.below_threshold { "LOW" } else { "ok" };
-                    print_table_row(&cols, &[
-                        &truncate(&s.file, 40),
-                        &s.language,
-                        &s.total_functions.to_string(),
-                        &s.typed_functions.to_string(),
-                        &format!("{:.1}%", s.coverage_pct),
-                        status,
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&s.file, 40),
+                            &s.language,
+                            &s.total_functions.to_string(),
+                            &s.typed_functions.to_string(),
+                            &format!("{:.1}%", s.coverage_pct),
+                            status,
+                        ],
+                    );
                 }
             }
             println!(
                 "\nSummary: {} files  |  overall {:.1}% typed  |  {} files below {:.0}% threshold",
-                summary.files_scanned, summary.overall_coverage_pct,
-                summary.files_below_threshold, summary.min_pct_threshold
+                summary.files_scanned,
+                summary.overall_coverage_pct,
+                summary.files_below_threshold,
+                summary.min_pct_threshold
             );
         }
     }

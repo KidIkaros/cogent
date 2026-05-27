@@ -7,13 +7,13 @@ license: OPL-1.1
 metadata:
   hermes:
     tags: [quality, agent-workflow, headless-cli, coverage, dogfood, ci]
-    related_skills: [codemetrics-workspace, headless-cli-for-agents, state-machine, agent-work-dag]
+    related_skills: [cogent-workspace, headless-cli-for-agents, state-machine, agent-work-dag]
 ---
 
 # Agent Quality Workflow
 
 Complete workflow for building, dogfooding, and using code quality tools as an AI agent.
-Developed building CodeMetrics (10 crates, 98 tests, 207 functions analyzed).
+Developed building Cogent (10 crates, 98 tests, 207 functions analyzed).
 
 ## The Dogfood Cycle
 
@@ -114,7 +114,7 @@ complexity to a dedicated function that exists only to hold the match.
 // Thresholds as CLI flags: --max-crap 30 --min-doc 50
 // Skip checks: --skip complexity,debt
 
-codemetrics run ./src --max-crap 25 --min-doc 80 --skip complexity
+cogent run ./src --max-crap 25 --min-doc 80 --skip complexity
 // stdout: JSON with structured results
 // exit: 0 if all checks pass, 1 if any fail
 ```
@@ -122,7 +122,7 @@ codemetrics run ./src --max-crap 25 --min-doc 80 --skip complexity
 **Agent consumption pattern:**
 ```bash
 # Agent calls this, parses JSON, checks exit code
-result=$(codemetrics run ./my-project --max-crap 25)
+result=$(cogent run ./my-project --max-crap 25)
 if [ $? -eq 0 ]; then
     echo "Quality passed"
 else
@@ -132,7 +132,7 @@ fi
 
 ## Applying Quality-Tool Findings (The Refactor Loop)
 
-After running codemetrics tools, convert findings into concrete fixes. This session pattern:
+After running cogent tools, convert findings into concrete fixes. This session pattern:
 
 ```
 1. Run: dupfind, mutate, riskmap, coupling
@@ -183,7 +183,7 @@ fn test_compute_audit_stats_missing_hmac() {
 
 ## Metric-Driven God Function Extraction
 
-When codemetrics tools flag a single function with extreme complexity (CC > 50, CRAP > 1000),
+When cogent tools flag a single function with extreme complexity (CC > 50, CRAP > 1000),
 the fastest remediation is extraction, not decomposition. Decomposition requires
 understanding domain logic; extraction is mechanical.
 
@@ -192,7 +192,7 @@ understanding domain logic; extraction is mechanical.
 Use the metrics together to pick the ONE function that matters most:
 
 ```
-1. codemetrics run ./src --max-crap 30          → lists violations
+1. cogent run ./src --max-crap 30          → lists violations
 2. riskmap ./src                              → shows churn × complexity heatmap
 3. coupling ./src                             → identifies pure orchestration files (I≈1.0)
 ```
@@ -247,13 +247,13 @@ the complexity OUT of the untestable binary entry point so it can be unit-tested
 
 ### Before/after measurement
 
-Re-run the same codemetrics runs after extraction to validate the delta:
+Re-run the same cogent runs after extraction to validate the delta:
 
 ```bash
 # Before
-codemetrics run -p origin-cli  # Avg CRAP 50.9, 18 complex functions
+cogent run -p origin-cli  # Avg CRAP 50.9, 18 complex functions
 # After
-codemetrics run -p origin-cli  # Avg CRAP 45.6, 18 complex functions
+cogent run -p origin-cli  # Avg CRAP 45.6, 18 complex functions
 ```
 
 Average CRAP drops even though the same 18 functions exist — because the worst one was
@@ -338,7 +338,7 @@ Five fixes applied, then 30-persona MiroFish simulation on diffs found:
 4. Address findings (repeat 1-3 if significant)
 5. cargo clippy --all-targets -- -D warnings
 6. cargo test --lib
-7. Run codemetrics-cli (CRAP, debt, doc, complexity)
+7. Run cogent-cli (CRAP, debt, doc, complexity)
 8. Commit only when all gates pass
 ```
 
@@ -346,10 +346,10 @@ Five fixes applied, then 30-persona MiroFish simulation on diffs found:
 `append_audit_entry()` broke 5 callers across 2 crates. Budget time for this.
 `cargo check` immediately after signature changes prevents surprise failures.
 
-## Building CodeMetrics Alongside Agent Work Management
+## Building Cogent Alongside Agent Work Management
 
 The agent work management system (state-machine, blocker-DAG, reply-verification, ratchet)
-was used to manage the CodeMetrics build itself:
+was used to manage the Cogent build itself:
 
 1. Created KG entities for each task (task-shared-ast, task-crap-tool, etc.)
 2. Added blocker edges (shared-ast blocks both tools, both tools block integration)
@@ -358,16 +358,16 @@ was used to manage the CodeMetrics build itself:
 
 This proved the system works under real development pressure.
 
-## CodeMetrics Integration Pipeline (Batch-First Approach)
+## Cogent Integration Pipeline (Batch-First Approach)
 
-When building a collection of codemetrics tools, shift from individual-tool validation to
+When building a collection of cogent tools, shift from individual-tool validation to
 **treating the entire suite as a single product** that must run cohesively. The goal:
 all tools execute from one entry point, produce machine-readable output, and are
 validated together.
 
 ### Pattern: Master Orchestration + E2E Batch Test
 
-**Step 1: Audit the existing batch orchestrator** (e.g., `codemetrics-cli`'s `run_batch`)
+**Step 1: Audit the existing batch orchestrator** (e.g., `cogent-cli`'s `run_batch`)
 
 ```rust
 // Before: only 7 of 9 tools wired up
@@ -411,7 +411,7 @@ workspace and validates structure:
 #[test]
 fn test_batch_runs_all_tools() {
     let output = Command::new("cargo")
-        .args(["run", "-p", "codemetrics-cli", "--", "run", ".", "--format", "json"])
+        .args(["run", "-p", "cogent-cli", "--", "run", ".", "--format", "json"])
         .output()
         .expect("batch must run");
 
@@ -443,17 +443,17 @@ set -euo pipefail
 
 # Build + test
 echo "=== cargo test --all-features ==="
-export CARGO_TARGET_DIR=/tmp/codemetrics-build
+export CARGO_TARGET_DIR=/tmp/cogent-build
 cargo test --all-features
 
 # Quality batch (JSON → summarization)
-echo "=== codemetrics run . --format json ==="
-cargo run -p codemetrics-cli -- run . --format json > /tmp/quality.json
+echo "=== cogent run . --format json ==="
+cargo run -p cogent-cli -- run . --format json > /tmp/quality.json
 
 # Exit non-zero if any check failed (mutation, taint, or tool panic)
 FAILED=$(jq -r '.results[] | select(.passed == false) | .tool' /tmp/quality.json | wc -l)
 if (( FAILED > 0 )); then
-    echo "FAIL: $FAILED codemetrics runs failed"
+    echo "FAIL: $FAILED cogent runs failed"
     exit 1
 fi
 
@@ -468,7 +468,7 @@ This is your **canonical quality gate**.
 On constrained or mounted filesystems:
 - `target-dir` MUST be `/tmp` or another exec-capable location (FAT32/VFAT cannot execute build scripts)
 - `threads = 1` in `.cargo/config.toml` to prevent OOM during parallel test runs
-- Use `CARGO_TARGET_DIR=/tmp/codemetrics-build` consistently across all commands
+- Use `CARGO_TARGET_DIR=/tmp/cogent-build` consistently across all commands
 
 ### Interpreting Batch Results
 

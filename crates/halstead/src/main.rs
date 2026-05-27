@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
+use cogent_common::{find_source_files, print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::collections::HashSet;
 use std::path::Path;
@@ -85,20 +85,70 @@ fn compute_halstead(source: &str) -> (usize, usize, usize, usize) {
     // Operator tokens: keywords + punctuation/symbols
     const OPERATORS: &[&str] = &[
         // common keywords across Rust/Python/JS/Go/C
-        "if", "else", "for", "while", "loop", "match", "switch", "case",
-        "return", "break", "continue", "fn", "func", "function", "def",
-        "let", "var", "const", "mut", "pub", "use", "import", "from",
-        "class", "struct", "enum", "impl", "trait", "type", "interface",
-        "new", "delete", "await", "async", "yield", "try", "catch",
-        "finally", "throw", "raise", "with", "in", "as", "is", "not",
-        "and", "or", "true", "false", "nil", "null", "None", "True", "False",
+        "if",
+        "else",
+        "for",
+        "while",
+        "loop",
+        "match",
+        "switch",
+        "case",
+        "return",
+        "break",
+        "continue",
+        "fn",
+        "func",
+        "function",
+        "def",
+        "let",
+        "var",
+        "const",
+        "mut",
+        "pub",
+        "use",
+        "import",
+        "from",
+        "class",
+        "struct",
+        "enum",
+        "impl",
+        "trait",
+        "type",
+        "interface",
+        "new",
+        "delete",
+        "await",
+        "async",
+        "yield",
+        "try",
+        "catch",
+        "finally",
+        "throw",
+        "raise",
+        "with",
+        "in",
+        "as",
+        "is",
+        "not",
+        "and",
+        "or",
+        "true",
+        "false",
+        "nil",
+        "null",
+        "None",
+        "True",
+        "False",
         // single-char operators (we scan for these below)
     ];
 
     let operator_syms: HashSet<char> = [
-        '+', '-', '*', '/', '%', '=', '<', '>', '!', '&', '|', '^',
-        '~', '?', ':', ';', ',', '.', '(', ')', '[', ']', '{', '}', '@',
-    ].iter().cloned().collect();
+        '+', '-', '*', '/', '%', '=', '<', '>', '!', '&', '|', '^', '~', '?', ':', ';', ',', '.',
+        '(', ')', '[', ']', '{', '}', '@',
+    ]
+    .iter()
+    .cloned()
+    .collect();
 
     let mut op_set: HashSet<String> = HashSet::new();
     let mut opd_set: HashSet<String> = HashSet::new();
@@ -108,9 +158,13 @@ fn compute_halstead(source: &str) -> (usize, usize, usize, usize) {
     // Tokenize: split on whitespace, strip comments (single-line), extract tokens
     for line in source.lines() {
         // strip single-line comments
-        let line = if let Some(pos) = line.find("//") { &line[..pos] }
-                   else if let Some(pos) = line.find('#') { &line[..pos] }
-                   else { line };
+        let line = if let Some(pos) = line.find("//") {
+            &line[..pos]
+        } else if let Some(pos) = line.find('#') {
+            &line[..pos]
+        } else {
+            line
+        };
 
         // Extract word tokens
         let mut word = String::new();
@@ -147,7 +201,9 @@ fn compute_halstead(source: &str) -> (usize, usize, usize, usize) {
                 if c == '"' || c == '\'' {
                     let mut lit = c.to_string();
                     for lc in chars.by_ref() {
-                        if lc == c { break; }
+                        if lc == c {
+                            break;
+                        }
                         lit.push(lc);
                     }
                     opd_set.insert("__literal__".into());
@@ -169,7 +225,13 @@ fn compute_halstead(source: &str) -> (usize, usize, usize, usize) {
     (op_set.len(), opd_set.len(), n1, n2)
 }
 
-fn halstead_from_counts(file: &str, eta1: usize, eta2: usize, n1: usize, n2: usize) -> HalsteadMetrics {
+fn halstead_from_counts(
+    file: &str,
+    eta1: usize,
+    eta2: usize,
+    n1: usize,
+    n2: usize,
+) -> HalsteadMetrics {
     let vocabulary = eta1 + eta2;
     let length = n1 + n2;
 
@@ -207,8 +269,8 @@ fn halstead_from_counts(file: &str, eta1: usize, eta2: usize, n1: usize, n2: usi
 
 fn run(cli: Cli) {
     let extensions = [
-        "rs", "py", "pyi", "js", "mjs", "ts", "tsx", "go",
-        "c", "h", "cpp", "cc", "hpp", "cs", "java", "rb", "swift",
+        "rs", "py", "pyi", "js", "mjs", "ts", "tsx", "go", "c", "h", "cpp", "cc", "hpp", "cs",
+        "java", "rb", "swift",
     ];
 
     let files = if Path::new(&cli.path).is_file() {
@@ -220,7 +282,9 @@ fn run(cli: Cli) {
     let mut metrics: Vec<HalsteadMetrics> = Vec::new();
 
     for file in &files {
-        let Ok(source) = std::fs::read_to_string(file) else { continue };
+        let Ok(source) = std::fs::read_to_string(file) else {
+            continue;
+        };
         let (eta1, eta2, n1, n2) = compute_halstead(&source);
         let m = halstead_from_counts(file, eta1, eta2, n1, n2);
         if !cli.violations_only || m.bugs_estimated > cli.max_bugs {
@@ -228,12 +292,27 @@ fn run(cli: Cli) {
         }
     }
 
-    metrics.sort_by(|a, b| b.bugs_estimated.partial_cmp(&a.bugs_estimated).unwrap_or(std::cmp::Ordering::Equal));
+    metrics.sort_by(|a, b| {
+        b.bugs_estimated
+            .partial_cmp(&a.bugs_estimated)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
-    let exceeding = metrics.iter().filter(|m| m.bugs_estimated > cli.max_bugs).count();
+    let exceeding = metrics
+        .iter()
+        .filter(|m| m.bugs_estimated > cli.max_bugs)
+        .count();
     let total_bugs: f64 = metrics.iter().map(|m| m.bugs_estimated).sum();
-    let avg_vol = if metrics.is_empty() { 0.0 } else { metrics.iter().map(|m| m.volume).sum::<f64>() / metrics.len() as f64 };
-    let avg_diff = if metrics.is_empty() { 0.0 } else { metrics.iter().map(|m| m.difficulty).sum::<f64>() / metrics.len() as f64 };
+    let avg_vol = if metrics.is_empty() {
+        0.0
+    } else {
+        metrics.iter().map(|m| m.volume).sum::<f64>() / metrics.len() as f64
+    };
+    let avg_diff = if metrics.is_empty() {
+        0.0
+    } else {
+        metrics.iter().map(|m| m.difficulty).sum::<f64>() / metrics.len() as f64
+    };
 
     let summary = HalsteadSummary {
         files_scanned: files.len(),
@@ -246,7 +325,10 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = HalsteadReport { files: metrics, summary };
+            let report = HalsteadReport {
+                files: metrics,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -256,22 +338,49 @@ fn run(cli: Cli) {
         }
         _ => {
             let cols = vec![
-                Column { header: "File", width: 40, align_right: false },
-                Column { header: "Vol", width: 8, align_right: true },
-                Column { header: "Diff", width: 7, align_right: true },
-                Column { header: "Bugs est.", width: 10, align_right: true },
-                Column { header: "Time(h)", width: 8, align_right: true },
+                Column {
+                    header: "File",
+                    width: 40,
+                    align_right: false,
+                },
+                Column {
+                    header: "Vol",
+                    width: 8,
+                    align_right: true,
+                },
+                Column {
+                    header: "Diff",
+                    width: 7,
+                    align_right: true,
+                },
+                Column {
+                    header: "Bugs est.",
+                    width: 10,
+                    align_right: true,
+                },
+                Column {
+                    header: "Time(h)",
+                    width: 8,
+                    align_right: true,
+                },
             ];
             print_table_header(&cols);
             for m in &metrics {
-                let flag = if m.bugs_estimated > cli.max_bugs { "!" } else { " " };
-                print_table_row(&cols, &[
-                    &truncate(&m.file, 40),
-                    &format!("{:.0}", m.volume),
-                    &format!("{:.1}", m.difficulty),
-                    &format!("{}{:.2}", flag, m.bugs_estimated),
-                    &format!("{:.1}", m.time_secs / 3600.0),
-                ]);
+                let flag = if m.bugs_estimated > cli.max_bugs {
+                    "!"
+                } else {
+                    " "
+                };
+                print_table_row(
+                    &cols,
+                    &[
+                        &truncate(&m.file, 40),
+                        &format!("{:.0}", m.volume),
+                        &format!("{:.1}", m.difficulty),
+                        &format!("{}{:.2}", flag, m.bugs_estimated),
+                        &format!("{:.1}", m.time_secs / 3600.0),
+                    ],
+                );
             }
             println!(
                 "\nSummary: {} files  |  {} exceed bugs threshold ({:.2})  |  total estimated bugs: {:.2}",

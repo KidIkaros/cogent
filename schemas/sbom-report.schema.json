@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/sbom-report.schema.json",
+  "title": "SbomReport",
+  "description": "Software bill of materials report",
+  "type": "object",
+  "properties": {
+    "packages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SbomPackage"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/SbomSummary"
+    }
+  },
+  "$defs": {
+    "SbomPackage": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "checksum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "SbomSummary": {
+      "type": "object",
+      "properties": {
+        "total_packages": {
+          "type": "integer"
+        },
+        "format": {
+          "type": "string"
+        },
+        "ecosystem": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

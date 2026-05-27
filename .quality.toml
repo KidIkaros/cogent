@@ -1,7 +1,7 @@
-# .quality.toml — CodeMetrics quality thresholds
+# .quality.toml — Cogent quality thresholds
 # Auto-generated for: Rust
-# Used by: codemetrics check . and codemetrics run .
-# Run `codemetrics init` at any time to regenerate with updated detection.
+# Used by: cogent check . and cogent run .
+# Run `cogent init` at any time to regenerate with updated detection.
 
 [project]
 ecosystem = "Rust"
@@ -26,6 +26,14 @@ max_violations = 0
 [duplication]
 max_duplicates = 0
 min_lines = 3
+
+[riskmap]
+# Risk = churn × complexity. Workspace crates have high churn during active development.
+max_risk = 100.0
+
+[mutate]
+# Mutation kill rate threshold. Lowered while test coverage is being expanded.
+min_kill_rate = 0.0
 
 [skip]
 checks = []

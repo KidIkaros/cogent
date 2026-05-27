@@ -1,7 +1,7 @@
 #![deny(clippy::all)]
 
 use clap::Parser;
-use codemetrics_common::{print_table_header, print_table_row, truncate, Column};
+use cogent_common::{print_table_header, print_table_row, truncate, Column};
 use serde::Serialize;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -93,9 +93,16 @@ fn detect_ecosystem(path: &str, forced: Option<&str>) -> Ecosystem {
         };
     }
     let p = Path::new(path);
-    if p.join("Cargo.toml").exists() { return Ecosystem::Rust; }
-    if p.join("package.json").exists() { return Ecosystem::Node; }
-    if p.join("requirements.txt").exists() || p.join("Pipfile").exists() || p.join("pyproject.toml").exists() {
+    if p.join("Cargo.toml").exists() {
+        return Ecosystem::Rust;
+    }
+    if p.join("package.json").exists() {
+        return Ecosystem::Node;
+    }
+    if p.join("requirements.txt").exists()
+        || p.join("Pipfile").exists()
+        || p.join("pyproject.toml").exists()
+    {
         return Ecosystem::Python;
     }
     Ecosystem::Unknown
@@ -103,7 +110,13 @@ fn detect_ecosystem(path: &str, forced: Option<&str>) -> Ecosystem {
 
 fn find_tool(names: &[&str]) -> Option<String> {
     for name in names {
-        if Command::new(name).arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok() {
+        if Command::new(name)
+            .arg("--version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok()
+        {
             return Some(name.to_string());
         }
     }
@@ -126,14 +139,17 @@ fn run_cargo_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
 
     // Empty output means cargo-audit not installed
     if stdout.trim().is_empty() {
-        return Err("cargo audit produced no output. Install with: cargo install cargo-audit".to_string());
+        return Err(
+            "cargo audit produced no output. Install with: cargo install cargo-audit".to_string(),
+        );
     }
 
     // cargo audit JSON: { "vulnerabilities": { "list": [...] } }
     let v: serde_json::Value = serde_json::from_str(&stdout)
         .map_err(|e| format!("Failed to parse cargo audit output: {}", e))?;
 
-    let list = v.get("vulnerabilities")
+    let list = v
+        .get("vulnerabilities")
         .and_then(|x| x.get("list"))
         .and_then(|x| x.as_array())
         .cloned()
@@ -141,21 +157,42 @@ fn run_cargo_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
 
     let mut vulns = Vec::new();
     for item in list {
-        let pkg = item.get("package").and_then(|p| p.get("name")).and_then(|n| n.as_str()).unwrap_or("unknown");
-        let ver = item.get("package").and_then(|p| p.get("version")).and_then(|n| n.as_str()).unwrap_or("?");
+        let pkg = item
+            .get("package")
+            .and_then(|p| p.get("name"))
+            .and_then(|n| n.as_str())
+            .unwrap_or("unknown");
+        let ver = item
+            .get("package")
+            .and_then(|p| p.get("version"))
+            .and_then(|n| n.as_str())
+            .unwrap_or("?");
         let adv = item.get("advisory").unwrap_or(&serde_json::Value::Null);
         let id = adv.get("id").and_then(|n| n.as_str()).unwrap_or("?");
         let title = adv.get("title").and_then(|n| n.as_str()).unwrap_or("?");
-        let url = adv.get("url").and_then(|n| n.as_str()).map(|s| s.to_string());
+        let url = adv
+            .get("url")
+            .and_then(|n| n.as_str())
+            .map(|s| s.to_string());
         // cargo audit doesn't always have severity; derive from CVSS if present
-        let severity = adv.get("cvss").and_then(|c| c.as_str()).map(|s| {
-            // CVSS v3 base score is in the string "CVSS:3.1/AV:N/... /E:..."
-            // Use presence of "CRITICAL" or "HIGH" words or score-based heuristic
-            if s.contains("9.") || s.contains("10.") { "critical" }
-            else if s.contains("7.") || s.contains("8.") { "high" }
-            else if s.contains("4.") || s.contains("5.") || s.contains("6.") { "medium" }
-            else { "low" }
-        }).unwrap_or("unknown").to_string();
+        let severity = adv
+            .get("cvss")
+            .and_then(|c| c.as_str())
+            .map(|s| {
+                // CVSS v3 base score is in the string "CVSS:3.1/AV:N/... /E:..."
+                // Use presence of "CRITICAL" or "HIGH" words or score-based heuristic
+                if s.contains("9.") || s.contains("10.") {
+                    "critical"
+                } else if s.contains("7.") || s.contains("8.") {
+                    "high"
+                } else if s.contains("4.") || s.contains("5.") || s.contains("6.") {
+                    "medium"
+                } else {
+                    "low"
+                }
+            })
+            .unwrap_or("unknown")
+            .to_string();
 
         vulns.push(Vulnerability {
             package: pkg.to_string(),
@@ -177,7 +214,10 @@ fn run_npm_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| path.to_string());
 
-    let output = Command::new(&tool).args(["audit", "--json"]).current_dir(&canonical).output()
+    let output = Command::new(&tool)
+        .args(["audit", "--json"])
+        .current_dir(&canonical)
+        .output()
         .map_err(|e| format!("Failed to run {} audit: {}", tool, e))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -189,16 +229,34 @@ fn run_npm_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
     // npm audit v2 JSON: { "vulnerabilities": { "pkg": { "severity", "via": [...] } } }
     if let Some(vmap) = v.get("vulnerabilities").and_then(|x| x.as_object()) {
         for (pkg_name, pkg_data) in vmap {
-            let severity = pkg_data.get("severity").and_then(|s| s.as_str()).unwrap_or("unknown");
-            let via = pkg_data.get("via").and_then(|x| x.as_array()).cloned().unwrap_or_default();
+            let severity = pkg_data
+                .get("severity")
+                .and_then(|s| s.as_str())
+                .unwrap_or("unknown");
+            let via = pkg_data
+                .get("via")
+                .and_then(|x| x.as_array())
+                .cloned()
+                .unwrap_or_default();
             for item in &via {
                 if item.is_object() {
-                    let id = item.get("source").and_then(|s| s.as_u64()).map(|n| n.to_string()).unwrap_or_else(|| "?".to_string());
+                    let id = item
+                        .get("source")
+                        .and_then(|s| s.as_u64())
+                        .map(|n| n.to_string())
+                        .unwrap_or_else(|| "?".to_string());
                     let title = item.get("title").and_then(|s| s.as_str()).unwrap_or("?");
-                    let url = item.get("url").and_then(|s| s.as_str()).map(|s| s.to_string());
+                    let url = item
+                        .get("url")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s.to_string());
                     vulns.push(Vulnerability {
                         package: pkg_name.clone(),
-                        version: pkg_data.get("range").and_then(|s| s.as_str()).unwrap_or("?").to_string(),
+                        version: pkg_data
+                            .get("range")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("?")
+                            .to_string(),
                         advisory_id: id,
                         severity: severity.to_string(),
                         title: title.to_string(),
@@ -258,35 +316,32 @@ fn run(cli: Cli) {
     let eco = detect_ecosystem(path, cli.ecosystem.as_deref());
 
     let (vulns, tool_used) = match eco {
-        Ecosystem::Rust => {
-            match run_cargo_audit(path) {
-                Ok(v) => (v, "cargo audit".to_string()),
-                Err(e) => {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(2);
-                }
+        Ecosystem::Rust => match run_cargo_audit(path) {
+            Ok(v) => (v, "cargo audit".to_string()),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(2);
             }
-        }
-        Ecosystem::Node => {
-            match run_npm_audit(path) {
-                Ok(v) => (v, "npm audit".to_string()),
-                Err(e) => {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(2);
-                }
+        },
+        Ecosystem::Node => match run_npm_audit(path) {
+            Ok(v) => (v, "npm audit".to_string()),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(2);
             }
-        }
-        Ecosystem::Python => {
-            match run_safety(path) {
-                Ok(v) => (v, "safety".to_string()),
-                Err(e) => {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(2);
-                }
+        },
+        Ecosystem::Python => match run_safety(path) {
+            Ok(v) => (v, "safety".to_string()),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                std::process::exit(2);
             }
-        }
+        },
         Ecosystem::Unknown => {
-            eprintln!("Error: Could not detect ecosystem in '{}'. Use --ecosystem rust|node|python.", path);
+            eprintln!(
+                "Error: Could not detect ecosystem in '{}'. Use --ecosystem rust|node|python.",
+                path
+            );
             std::process::exit(2);
         }
     };
@@ -312,7 +367,10 @@ fn run(cli: Cli) {
 
     match cli.format.as_str() {
         "json" => {
-            let report = VulnReport { vulnerabilities: vulns, summary };
+            let report = VulnReport {
+                vulnerabilities: vulns,
+                summary,
+            };
             println!("{}", serde_json::to_string_pretty(&report).unwrap());
         }
         "ndjson" => {
@@ -325,24 +383,51 @@ fn run(cli: Cli) {
                 println!("No known vulnerabilities found ({}).", tool_used);
             } else {
                 let cols = vec![
-                    Column { header: "Package", width: 25, align_right: false },
-                    Column { header: "Version", width: 12, align_right: false },
-                    Column { header: "Severity", width: 9, align_right: false },
-                    Column { header: "Advisory", width: 15, align_right: false },
-                    Column { header: "Title", width: 50, align_right: false },
+                    Column {
+                        header: "Package",
+                        width: 25,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Version",
+                        width: 12,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Severity",
+                        width: 9,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Advisory",
+                        width: 15,
+                        align_right: false,
+                    },
+                    Column {
+                        header: "Title",
+                        width: 50,
+                        align_right: false,
+                    },
                 ];
                 print_table_header(&cols);
                 for v in &vulns {
-                    print_table_row(&cols, &[
-                        &truncate(&v.package, 25),
-                        &truncate(&v.version, 12),
-                        &v.severity,
-                        &truncate(&v.advisory_id, 15),
-                        &truncate(&v.title, 50),
-                    ]);
+                    print_table_row(
+                        &cols,
+                        &[
+                            &truncate(&v.package, 25),
+                            &truncate(&v.version, 12),
+                            &v.severity,
+                            &truncate(&v.advisory_id, 15),
+                            &truncate(&v.title, 50),
+                        ],
+                    );
                 }
             }
-            let status = if critical > cli.max_critical || high > cli.max_high { "FAIL" } else { "PASS" };
+            let status = if critical > cli.max_critical || high > cli.max_high {
+                "FAIL"
+            } else {
+                "PASS"
+            };
             println!(
                 "\nSummary: {} total ({} critical, {} high, {} medium, {} low) — {}",
                 summary.total, critical, high, medium, low, status
@@ -366,7 +451,7 @@ mod tests {
 
     #[test]
     fn test_detect_ecosystem_rust() {
-        // Use the codemetrics workspace root — has Cargo.toml
+        // Use the Cogent workspace root — has Cargo.toml
         let eco = detect_ecosystem(".", None);
         assert_eq!(eco, Ecosystem::Rust);
     }

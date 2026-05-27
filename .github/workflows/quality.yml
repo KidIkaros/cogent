@@ -26,19 +26,35 @@ jobs:
       - name: Upload release binaries
         uses: actions/upload-artifact@v4
         with:
-          name: codemetrics-bins
+          name: cogent-bins
           path: |
+            target/release/access-control
+            target/release/cohesion
+            target/release/comments
+            target/release/coupling
+            target/release/crap
+            target/release/cryptocheck
+            target/release/deadcode
             target/release/debt
             target/release/doccov
-            target/release/crap
-            target/release/coupling
-            target/release/riskmap
             target/release/dupfind
-            target/release/propcov
-            target/release/codemetrics
-            target/release/mutate
+            target/release/errhandle
             target/release/fuzz
+            target/release/halstead
+            target/release/licenses
+            target/release/linelen
+            target/release/mutate
+            target/release/propcov
+            target/release/riskmap
+            target/release/sast
+            target/release/sbom
+            target/release/secrets
+            target/release/supply-chain
             target/release/taint
+            target/release/typecov
+            target/release/vulnscan
+            target/release/cogent
+            target/release/cogent-server
           retention-days: 1
 
   test:
@@ -71,7 +87,7 @@ jobs:
       - name: Download release binaries
         uses: actions/download-artifact@v4
         with:
-          name: codemetrics-bins
+          name: cogent-bins
           path: target/release/
       - name: Mark binaries executable
         run: chmod +x target/release/*
@@ -97,8 +113,8 @@ jobs:
       - name: Run quality self-audit
         run: |
           # Run batch audit; exit 1 if any tool regresses vs baseline
-          ./target/release/codemetrics run . --format sarif \
-            --baseline .quality-baseline.sarif \
+          ./target/release/cogent run . --format sarif \
+            --baseline .cogent-baseline.sarif \
             > quality-results.sarif
           # Check if SARIF indicates new issues (non-zero exit if regression)
           if [ $? -ne 0 ]; then
@@ -130,7 +146,7 @@ jobs:
               body += `- **${tool}**: ${count} issue(s)\n`;
             }
             body += '\n### How to Fix\n';
-            body += '1. Run `quality run .` locally to see detailed findings\n';
+            body += '1. Run `cogent run .` locally to see detailed findings\n';
             body += '2. See [docs/quality-standards.md](docs/quality-standards.md) for fix guidance\n';
             body += '3. View the [Security tab](../../security) for detailed SARIF results\n';
             github.rest.issues.createComment({
@@ -142,14 +158,45 @@ jobs:
       - name: Update baseline and history on main
         if: github.ref == 'refs/heads/main'
         run: |
-          mv quality-results.sarif .quality-baseline.sarif
+          mv quality-results.sarif .cogent-baseline.sarif
           # Also record metrics history
-          ./target/release/codemetrics history record
+          ./target/release/cogent history record
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .quality-baseline.sarif .quality-history/ || true
+          git add .cogent-baseline.sarif .cogent-history/ || true
           git commit -m "Update quality baseline and history [ci skip]" || true
           git push origin main || true
     permissions:
       security-events: write
       contents: write
+
+  benchmark:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+      - name: Download release binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: cogent-bins
+          path: target/release/
+      - name: Mark binaries executable
+        run: chmod +x target/release/*
+      - name: Add tools to PATH
+        run: echo "$(pwd)/target/release" >> $GITHUB_PATH
+      - name: Generate benchmark fixtures
+        run: |
+          cd crates/cogent-cli/benches/fixtures
+          python3 generate.py small --include-issues
+      - name: Run Criterion benchmarks
+        run: cargo bench -p cogent-cli
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: target/criterion/
+          retention-days: 30

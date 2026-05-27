@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cogent.dev/schemas/comment-ratio-report.schema.json",
+  "title": "CommentRatioReport",
+  "description": "Comment-to-code ratio analysis report",
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CommentFile"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/CommentSummary"
+    }
+  },
+  "$defs": {
+    "CommentFile": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "code_lines": {
+          "type": "integer"
+        },
+        "comment_lines": {
+          "type": "integer"
+        },
+        "blank_lines": {
+          "type": "integer"
+        },
+        "total_lines": {
+          "type": "integer"
+        },
+        "comment_ratio": {
+          "type": "number"
+        },
+        "below_threshold": {
+          "type": "boolean"
+        },
+        "suggested_fix": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "CommentSummary": {
+      "type": "object",
+      "properties": {
+        "files_scanned": {
+          "type": "integer"
+        },
+        "below_threshold_count": {
+          "type": "integer"
+        },
+        "overall_ratio": {
+          "type": "number"
+        },
+        "min_ratio_threshold": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

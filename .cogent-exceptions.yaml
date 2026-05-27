@@ -1,0 +1,8 @@
+exceptions:
+- id: EXC-1
+  finding_id: SAST-SQLI-001
+  rule_id: sast-sqli
+  file: src/main.rs
+  reason: sanitized upstream
+  reviewer: alice
+  status: pending

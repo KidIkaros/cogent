@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://codemetrics.dev/schemas/taint-report.schema.json",
+  "$id": "https://cogent.dev/schemas/taint-report.schema.json",
   "title": "TaintReport",
   "description": "Taint analysis report",
   "type": "object",
@@ -19,26 +19,57 @@
     "Violation": {
       "type": "object",
       "properties": {
-        "file": { "type": "string" },
-        "line": { "type": "integer" },
-        "variable": { "type": "string" },
-        "violation_type": { "type": "string" },
-        "severity": { "type": "string" },
-        "context": { "type": "string" },
-        "confidence": { "type": ["number", "null"] }
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "variable": {
+          "type": "string"
+        },
+        "violation_type": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
       },
-      "required": ["file", "line", "variable", "violation_type", "severity", "context"]
+      "additionalProperties": true
     },
     "TaintSummary": {
       "type": "object",
       "properties": {
-        "total_files_scanned": { "type": "integer" },
-        "sensitive_variables_found": { "type": "integer" },
-        "violations_count": { "type": "integer" },
-        "high_severity": { "type": "integer" },
-        "medium_severity": { "type": "integer" },
-        "low_severity": { "type": "integer" }
-      }
+        "total_files_scanned": {
+          "type": "integer"
+        },
+        "sensitive_variables_found": {
+          "type": "integer"
+        },
+        "violations_count": {
+          "type": "integer"
+        },
+        "high_severity": {
+          "type": "integer"
+        },
+        "medium_severity": {
+          "type": "integer"
+        },
+        "low_severity": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
     }
-  }
+  },
+  "additionalProperties": true
 }

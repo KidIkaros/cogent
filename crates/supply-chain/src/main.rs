@@ -152,6 +152,10 @@ fn levenshtein(a: &str, b: &str) -> usize {
 
 fn is_typosquat(name: &str) -> Option<&'static str> {
     for &popular in POPULAR_PACKAGES {
+        // Skip anchors that are too short — high false-positive rate (e.g. "anes" vs "aes")
+        if popular.len() <= 3 {
+            continue;
+        }
         let dist = levenshtein(name, popular);
         if dist == 1 && name != popular {
             return Some(popular);

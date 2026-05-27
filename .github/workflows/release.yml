@@ -114,23 +114,23 @@ jobs:
 
             ### Linux (x86_64)
             ```bash
-curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-linux-x86_64.tar.gz
-tar xzf cogent-linux-x86_64.tar.gz
-sudo cp cogent-linux-x86_64/cogent /usr/local/bin/
+            curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-linux-x86_64.tar.gz
+            tar xzf cogent-linux-x86_64.tar.gz
+            sudo cp cogent-linux-x86_64/cogent /usr/local/bin/
             ```
 
             ### macOS (Intel)
             ```bash
-curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-macos-x86_64.tar.gz
-tar xzf cogent-macos-x86_64.tar.gz
-sudo cp cogent-macos-x86_64/cogent /usr/local/bin/
+            curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-macos-x86_64.tar.gz
+            tar xzf cogent-macos-x86_64.tar.gz
+            sudo cp cogent-macos-x86_64/cogent /usr/local/bin/
             ```
 
             ### macOS (Apple Silicon)
             ```bash
-curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-macos-arm64.tar.gz
-tar xzf cogent-macos-arm64.tar.gz
-sudo cp cogent-macos-arm64/cogent /usr/local/bin/
+            curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/cogent-macos-arm64.tar.gz
+            tar xzf cogent-macos-arm64.tar.gz
+            sudo cp cogent-macos-arm64/cogent /usr/local/bin/
             ```
 
             ### Windows (x86_64)
@@ -138,6 +138,6 @@ sudo cp cogent-macos-arm64/cogent /usr/local/bin/
 
             ## Docker
             ```bash
-docker pull ghcr.io/${{ github.repository_owner }}/cogent:${{ github.ref_name }}
+            docker pull ghcr.io/${{ github.repository_owner }}/cogent:${{ github.ref_name }}
             ```
 

@@ -1021,9 +1021,14 @@ fn run_nextest_with_timeout(crate_root: &Path, timeout_secs: u64) -> TestOutcome
         }
         timed_out_clone.store(true, Ordering::Relaxed);
         // Kill the entire process group so cargo child procs die too
+        #[cfg(unix)]
         unsafe {
             libc::kill(-(child_id as libc::pid_t), libc::SIGKILL);
         }
+        #[cfg(not(unix))]
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &child_id.to_string()])
+            .output();
     });
 
     let output = child.wait_with_output();
@@ -1101,9 +1106,14 @@ fn run_cargo_test_with_timeout(
         }
         timed_out_clone.store(true, Ordering::Relaxed);
         // Kill the entire process group so cargo child procs die too
+        #[cfg(unix)]
         unsafe {
             libc::kill(-(child_id as libc::pid_t), libc::SIGKILL);
         }
+        #[cfg(not(unix))]
+        let _ = std::process::Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &child_id.to_string()])
+            .output();
     });
 
     let output = child.wait_with_output();

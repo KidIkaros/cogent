@@ -8,28 +8,8 @@ FROM rust:1.75-slim-bookworm AS builder
 
 WORKDIR /app
 
-# Copy workspace manifests first for layer caching
-COPY Cargo.toml Cargo.lock ./
-COPY crates/*/Cargo.toml crates/*/
-
-# Create dummy main.rs files to cache dependencies
-RUN set -e && \
-    mkdir -p crates/cogent-cli/src && \
-    echo "fn main() {}" > crates/cogent-cli/src/main.rs && \
-    for crate in crates/*/; do \
-        if [ -f "$crate/Cargo.toml" ] && [ ! -f "$crate/src/main.rs" ]; then \
-            mkdir -p "$crate/src" 2>/dev/null || true; \
-            echo "fn main() {}" > "$crate/src/main.rs" 2>/dev/null || true; \
-        fi; \
-    done
-
-# Build dependencies (cached layer)
-RUN cargo build --release --workspace 2>/dev/null || true
-
-# Copy actual source code
+# Copy everything and build in one shot
 COPY . .
-
-# Build everything
 RUN cargo build --release --workspace
 
 # Stage 2: Runtime

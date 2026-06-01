@@ -6,6 +6,7 @@ use crate::progress::run_standalone_check;
 
 /// Data-driven dispatch for standalone tool checks.
 /// Maps a tool name string to the corresponding check function.
+#[allow(dead_code)]
 pub fn dispatch_tool(name: &str, path: &str, recursive: bool, format: &str) -> i32 {
     tracing::info!(tool = name, path, recursive, format, "dispatching tool via string name");
     let p = path.to_string();

@@ -381,6 +381,20 @@ fn run(cli: Cli) {
     let min_confidence = confidence_rank(&cli.min_confidence);
     let mut all_findings: Vec<SastFinding> = Vec::new();
     for file in &files {
+        // Skip cogent tool infrastructure sources to avoid false positives from
+        // rule-literal strings, remediation text, and pattern-matching code.
+        let is_cogent_infra = [
+            "/sast/src/",
+            "/crypto-check/src/",
+            "/cogent-cli/src/audit.rs",
+            "/cogent-cli/src/commands.rs",
+            "/cogent-fix/src/",
+        ]
+        .iter()
+        .any(|p| file.contains(p));
+        if is_cogent_infra {
+            continue;
+        }
         all_findings.extend(scan_file(file, min_confidence));
     }
     all_findings.sort_by(|a, b| {

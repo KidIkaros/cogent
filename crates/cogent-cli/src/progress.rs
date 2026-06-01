@@ -418,6 +418,7 @@ where
 
 /// Run a standalone check (e.g. `cogent crap`, `cogent debt`) with optional
 /// spinner progress, format the result, and return the appropriate exit code.
+#[allow(dead_code)]
 pub fn run_standalone_check<F>(name: &str, format: &str, check_fn: F) -> i32
 where
     F: FnOnce() -> cogent_common::CheckResult,

@@ -14,6 +14,8 @@ tiny_http = "0.12"
 serde_yaml = "0.9"
 hex = "0.4"
 whoami = "1.5"
+tracing = { version = "0.1", features = ["max_level_debug"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dependencies.hmac]
 version = "0.12"
@@ -45,6 +47,14 @@ version = "1.0.0"
 
 [dependencies.cogent-common]
 path = "../cogent-common"
+version = "1.0.0"
+
+[dependencies.cogent-engine]
+path = "../cogent-engine"
+version = "1.0.0"
+
+[dependencies.cogent-report]
+path = "../cogent-report"
 version = "1.0.0"
 
 [dependencies.clap]

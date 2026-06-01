@@ -1,0 +1,42 @@
+[package]
+name = "cogent-fix"
+description = "Auto-fix engine for mechanical code issues — errhandle, deadcode, debt, secrets, crypto, doccov"
+
+[dependencies]
+cogent-common = { path = "../cogent-common", version = "1.0.0" }
+
+[dependencies.syn]
+version = "2"
+features = ["full", "parsing", "visit", "printing", "extra-traits"]
+
+[dependencies.proc-macro2]
+version = "1"
+features = ["span-locations"]
+
+[dependencies.quote]
+version = "1"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1"
+
+[package.version]
+workspace = true
+
+[package.edition]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.license]
+workspace = true
+
+[package.categories]
+workspace = true
+
+[package.keywords]
+workspace = true

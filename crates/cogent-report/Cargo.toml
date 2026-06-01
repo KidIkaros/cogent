@@ -1,0 +1,25 @@
+[package]
+name = "cogent-report"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+cogent-common = { path = "../cogent-common" }
+colored = "2"
+unicode-width = "0.1"
+thiserror = "2"
+chrono = "0.4"
+serde = { version = "1", features = ["derive"], default-features = false, optional = true }
+serde_json = { version = "1", default-features = false, optional = true }
+tracing = { version = "0.1", features = ["max_level_debug"] }
+
+[features]
+default = ["json"]
+json = ["dep:serde", "dep:serde_json"]
+text = []
+sarif = ["json"]

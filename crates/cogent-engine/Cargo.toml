@@ -1,0 +1,23 @@
+[package]
+name = "cogent-engine"
+description = "Audit orchestration engine — runs tools, aggregates results, manages the tool registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+colored = "2"
+chrono = "0.4"
+syn = { version = "2", features = ["full", "parsing", "visit", "extra-traits"] }
+tracing = { version = "0.1", features = ["max_level_debug"] }
+
+[dependencies.ast-parse-ts]
+path = "../ast-parse-ts"
+version = "1.0.0"
+
+[dependencies.cogent-common]
+path = "../cogent-common"
+version = "1.0.0"

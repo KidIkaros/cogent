@@ -2,22 +2,24 @@
 
 #![deny(clippy::all)]
 
+use crate::progress::{box_row, format_ms, Bar};
+use crate::types::{extract_findings_from_details, CheckResult, Finding};
+use ast_parse_ts::{parse_complexity_file, parse_doc_coverage_file, Language};
+use cogent_common::memory::MemoryMonitor;
+use cogent_common::{crap_score, find_source_files, parse_lcov, CoverageRecord, ToolResult};
 use colored::Colorize;
 use std::time::Instant;
-use ast_parse_ts::{parse_complexity_file, parse_doc_coverage_file, Language};
-use cogent_common::{crap_score, parse_lcov, CoverageRecord, find_source_files, ToolResult};
-use crate::types::{
-    extract_findings_from_details, CheckResult, Finding,
-};
-use crate::progress::{box_row, format_ms, Bar};
-use cogent_common::memory::MemoryMonitor;
 
 // CHECKS
 // ═══════════════════════════════════════════
 
 /// Scan all source files under `path`, invoking `predicate` on each function.
 /// Returns `(total_functions_count, collected_items)`.
-pub(crate) fn scan_source_functions<T, F>(path: &str, recursive: bool, mut predicate: F) -> (usize, Vec<T>)
+pub(crate) fn scan_source_functions<T, F>(
+    path: &str,
+    recursive: bool,
+    mut predicate: F,
+) -> (usize, Vec<T>)
 where
     F: FnMut(&ast_parse_ts::FunctionInfo) -> Option<T>,
 {
@@ -1446,7 +1448,11 @@ pub(crate) fn skipped_tool_check(
     }
 }
 
-pub(crate) fn check_access_control(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
+pub(crate) fn check_access_control(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+) -> CheckResult {
     let mut args = vec![path, "--format", "json"];
     if recursive {
         args.push("--recursive");
@@ -1556,8 +1562,12 @@ pub(crate) fn check_supply_chain(path: &str, max_risks: usize) -> CheckResult {
 // NEW 6 CHECK WRAPPERS & SETUP
 // ═══════════════════════════════════════════
 
-
-pub(crate) fn run_tool(crate_name: &str, bin_name: &str, args: &[&str], tool_start: Instant) -> ToolResult {
+pub(crate) fn run_tool(
+    crate_name: &str,
+    bin_name: &str,
+    args: &[&str],
+    tool_start: Instant,
+) -> ToolResult {
     use cogent_common::*;
     use std::process::{Command, Stdio};
 
@@ -1852,25 +1862,58 @@ pub(crate) fn run_batch(
 
             for tool in &results {
                 if !tool.success {
-                    sarif_results.push(SarifResult {
-                        rule_id: format!("{}-error", tool.tool),
-                        rule_index: None,
-                        level: "error".to_string(),
-                        message: SarifMessage {
-                            text: tool
-                                .error
-                                .clone()
-                                .unwrap_or_else(|| format!("{} failed", tool.tool)),
-                        },
-                        locations: vec![SarifLocation {
-                            physical_location: SarifPhysicalLocation {
-                                artifact_location: Some(SarifArtifactLocation {
-                                    uri: path.to_string(),
-                                }),
-                                region: None,
+                    let findings = extract_findings_from_details(
+                        &tool.data,
+                        &format!("{}-finding", tool.tool),
+                        "high",
+                    );
+                    if findings.is_empty() {
+                        sarif_results.push(SarifResult {
+                            rule_id: format!("{}-error", tool.tool),
+                            rule_index: None,
+                            level: "error".to_string(),
+                            message: SarifMessage {
+                                text: tool
+                                    .error
+                                    .clone()
+                                    .unwrap_or_else(|| format!("{} failed", tool.tool)),
                             },
-                        }],
-                    });
+                            locations: vec![SarifLocation {
+                                physical_location: SarifPhysicalLocation {
+                                    artifact_location: Some(SarifArtifactLocation {
+                                        uri: path.to_string(),
+                                    }),
+                                    region: None,
+                                },
+                            }],
+                        });
+                    } else {
+                        for finding in findings {
+                            sarif_results.push(SarifResult {
+                                rule_id: finding.rule_id,
+                                rule_index: None,
+                                level: sarif_level(&finding.severity).to_string(),
+                                message: SarifMessage {
+                                    text: finding.message,
+                                },
+                                locations: vec![SarifLocation {
+                                    physical_location: SarifPhysicalLocation {
+                                        artifact_location: Some(SarifArtifactLocation {
+                                            uri: finding.file,
+                                        }),
+                                        region: Some(SarifRegion {
+                                            start_line: finding.line.map(|line| line as usize),
+                                            start_column: finding
+                                                .column
+                                                .map(|column| column as usize),
+                                            end_line: None,
+                                            end_column: None,
+                                        }),
+                                    },
+                                }],
+                            });
+                        }
+                    }
                 }
             }
 
@@ -1967,4 +2010,608 @@ pub(crate) fn run_batch(
 }
 
 // ═══════════════════════════════════════════
+// HQSE LIFECYCLE CHECKS
 // ═══════════════════════════════════════════
+
+/// HQSE §Support/Debug: detects raw unstructured logging (println!, console.log, print(), fmt.Println)
+/// in non-test source files and checks for structured log crate imports.
+pub(crate) fn check_observability(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+) -> CheckResult {
+    let extensions = [
+        "rs", "py", "js", "ts", "go", "java", "cs", "rb", "php", "swift",
+    ];
+    let files = find_source_files(path, recursive, &extensions);
+
+    let raw_log_patterns: &[&str] = &[
+        "println!(",
+        "eprintln!(",
+        "console.log(",
+        "console.error(",
+        "console.warn(",
+        "fmt.Println(",
+        "fmt.Printf(",
+        "fmt.Fprintf(",
+        "System.out.println(",
+        "print(",
+        "puts(",
+    ];
+    let structured_log_imports: &[&str] = &[
+        "use tracing",
+        "use log",
+        "use slog",
+        "use env_logger",
+        "use log4rs",
+        "import winston",
+        "import pino",
+        "import bunyan",
+        "import structlog",
+        "\"go.uber.org/zap\"",
+        "\"github.com/sirupsen/logrus\"",
+        "import logging",
+        "import structlog",
+        "org.slf4j",
+        "org.apache.logging",
+    ];
+
+    let mut violations = Vec::new();
+    let mut files_with_structured_log = 0usize;
+    let mut total_non_test_files = 0usize;
+
+    for file in &files {
+        // Skip test files
+        if file.contains("test") || file.contains("spec") || file.contains("bench") {
+            continue;
+        }
+        total_non_test_files += 1;
+        let source = match std::fs::read_to_string(file) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let has_structured = structured_log_imports
+            .iter()
+            .any(|pat| source.contains(pat));
+        if has_structured {
+            files_with_structured_log += 1;
+        }
+        for (line_num, line) in source.lines().enumerate() {
+            let trimmed = line.trim();
+            // Skip commented lines
+            if trimmed.starts_with("//") || trimmed.starts_with('#') || trimmed.starts_with('*') {
+                continue;
+            }
+            for pat in raw_log_patterns {
+                if line.contains(pat) {
+                    violations.push(serde_json::json!({
+                        "file": file,
+                        "line": line_num + 1,
+                        "pattern": pat,
+                    }));
+                    break;
+                }
+            }
+        }
+    }
+
+    let count = violations.len();
+    let passed = count <= max_violations;
+    let (severity, rule_id, help) = if passed {
+        (
+            "info".to_string(),
+            "observability-pass".to_string(),
+            "Logging observability is acceptable.".to_string(),
+        )
+    } else {
+        (
+            "warning".to_string(),
+            "observability-raw-log".to_string(),
+            "Replace raw println!/console.log with a structured logging crate (tracing, log, winston, zap). \
+             Structured logs are machine-parseable and essential for production observability.".to_string(),
+        )
+    };
+
+    let findings: Vec<Finding> = violations
+        .iter()
+        .take(50)
+        .map(|v| {
+            let f = v
+                .get("file")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            let line = v.get("line").and_then(|x| x.as_u64());
+            let pat = v
+                .get("pattern")
+                .and_then(|x| x.as_str())
+                .unwrap_or("print")
+                .to_string();
+            Finding {
+                file: f.clone(),
+                line,
+                column: None,
+                severity: severity.clone(),
+                message: format!(
+                    "Unstructured log call '{}' in {}",
+                    pat.trim_end_matches('('),
+                    f
+                ),
+                rule_id: "observability-raw-log".to_string(),
+                fix_hint:
+                    "Replace with a structured logging macro (e.g. tracing::info!, log::warn!)."
+                        .to_string(),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            }
+        })
+        .collect();
+
+    let unstructured_files = total_non_test_files.saturating_sub(files_with_structured_log);
+    CheckResult {
+        name: "observability".to_string(),
+        passed,
+        score: Some(count as f64),
+        threshold: Some(max_violations as f64),
+        message: if passed {
+            format!(
+                "{} raw log calls (≤ {} allowed); {}/{} files use structured logging",
+                count, max_violations, files_with_structured_log, total_non_test_files
+            )
+        } else {
+            format!(
+                "{} raw log calls > {} allowed; {} files lack structured logging imports",
+                count, max_violations, unstructured_files
+            )
+        },
+        details: serde_json::json!({
+            "raw_log_calls": count,
+            "total_non_test_files": total_non_test_files,
+            "files_with_structured_log": files_with_structured_log,
+            "violations": violations.iter().take(20).collect::<Vec<_>>(),
+        }),
+        severity: Some(severity),
+        help: Some(help),
+        rule_id: Some(rule_id),
+        findings,
+    }
+}
+
+/// HQSE §Test: scans test files for non-determinism patterns (SystemTime::now, thread::sleep, etc.)
+/// and optionally integrates mutation score from the mutate binary.
+pub(crate) fn check_test_quality(
+    path: &str,
+    recursive: bool,
+    max_nondeterminism: usize,
+) -> CheckResult {
+    let extensions = ["rs", "py", "js", "ts", "go", "java", "cs", "rb"];
+    let files = find_source_files(path, recursive, &extensions);
+
+    let nondeterminism_patterns: &[&str] = &[
+        "SystemTime::now()",
+        "Instant::now()",
+        "thread::sleep(",
+        "time.sleep(",
+        "Time.now",
+        "Date.now()",
+        "new Date()",
+        "Math.random()",
+        "random.random()",
+        "rand()",
+        "time.Now()",
+        "os.Getpid()",
+    ];
+
+    let mut violations = Vec::new();
+
+    for file in &files {
+        // Only scan test files and all .rs files (for inline #[cfg(test)] blocks)
+        let is_test = file.contains("test")
+            || file.contains("spec")
+            || file.contains("_test.")
+            || file.ends_with("_test.rs");
+        if !is_test {
+            // Also scan inline #[cfg(test)] blocks in Rust
+            let is_rs = file.ends_with(".rs");
+            if !is_rs {
+                continue;
+            }
+        }
+        let source = match std::fs::read_to_string(file) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        for (line_num, line) in source.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("//") || trimmed.starts_with('#') {
+                continue;
+            }
+            for pat in nondeterminism_patterns {
+                if line.contains(pat) {
+                    violations.push(serde_json::json!({
+                        "file": file,
+                        "line": line_num + 1,
+                        "pattern": pat,
+                    }));
+                    break;
+                }
+            }
+        }
+    }
+
+    // Attempt to read mutation score from the mutate binary (graceful skip on absence)
+    let mutation_score: Option<f64> = {
+        let mut args = vec![path, "--format", "json"];
+        if recursive {
+            args.push("--recursive");
+        }
+        let res = run_tool("mutation-test", "mutate", &args, std::time::Instant::now());
+        if res.data.is_null() {
+            None
+        } else {
+            res.data
+                .get("score")
+                .or_else(|| res.data.get("mutation_score"))
+                .and_then(|v| v.as_f64())
+        }
+    };
+
+    let count = violations.len();
+    let passed = count <= max_nondeterminism;
+    let (severity, rule_id, help) = if passed {
+        (
+            "info".to_string(),
+            "test-quality-pass".to_string(),
+            "Test quality is acceptable.".to_string(),
+        )
+    } else {
+        (
+            "warning".to_string(),
+            "test-quality-nondeterminism".to_string(),
+            "Remove time/random dependencies from tests; use mocks or fixed seeds for deterministic results.".to_string(),
+        )
+    };
+
+    let mut details = serde_json::json!({
+        "nondeterminism_violations": count,
+        "violations": violations.iter().take(20).collect::<Vec<_>>(),
+    });
+    if let Some(ms) = mutation_score {
+        details
+            .as_object_mut()
+            .unwrap()
+            .insert("mutation_score".to_string(), serde_json::json!(ms));
+    }
+
+    let findings: Vec<Finding> = violations
+        .iter()
+        .take(50)
+        .map(|v| {
+            let f = v
+                .get("file")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            let line = v.get("line").and_then(|x| x.as_u64());
+            let pat = v
+                .get("pattern")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            Finding {
+                file: f.clone(),
+                line,
+                column: None,
+                severity: severity.clone(),
+                message: format!("Non-deterministic pattern '{}' in test file {}", pat, f),
+                rule_id: "test-quality-nondeterminism".to_string(),
+                fix_hint: "Replace with a mock, fixed seed, or deterministic alternative."
+                    .to_string(),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            }
+        })
+        .collect();
+
+    let msg_suffix = mutation_score
+        .map(|ms| format!("; mutation score: {:.1}%", ms))
+        .unwrap_or_default();
+    CheckResult {
+        name: "test-quality".to_string(),
+        passed,
+        score: Some(count as f64),
+        threshold: Some(max_nondeterminism as f64),
+        message: if passed {
+            format!(
+                "{} non-determinism patterns detected (≤ {} allowed){}",
+                count, max_nondeterminism, msg_suffix
+            )
+        } else {
+            format!(
+                "{} non-determinism patterns > {} allowed{}",
+                count, max_nondeterminism, msg_suffix
+            )
+        },
+        details,
+        severity: Some(severity),
+        help: Some(help),
+        rule_id: Some(rule_id),
+        findings,
+    }
+}
+
+/// HQSE §Design: checks for ADR directory, ARCHITECTURE/DESIGN doc, and CHANGELOG presence.
+/// Score = number of pillars present (0–3); passes if ≥1.
+pub(crate) fn check_design_docs(path: &str) -> CheckResult {
+    let base = std::path::Path::new(path);
+    let mut pillars_present = 0u32;
+    let mut missing = Vec::new();
+    let mut present = Vec::new();
+
+    // Pillar 1: ADR directory with ≥1 .md file
+    let adr_dirs = [
+        "docs/adr",
+        "doc/adr",
+        "docs/decisions",
+        "doc/decisions",
+        "adr",
+    ];
+    let has_adr = adr_dirs.iter().any(|d| {
+        let dir = base.join(d);
+        if dir.is_dir() {
+            let count = std::fs::read_dir(&dir)
+                .map(|e| {
+                    e.filter_map(|x| x.ok())
+                        .filter(|x| x.file_name().to_string_lossy().ends_with(".md"))
+                        .count()
+                })
+                .unwrap_or(0);
+            count > 0
+        } else {
+            false
+        }
+    });
+    if has_adr {
+        pillars_present += 1;
+        present.push("ADR directory");
+    } else {
+        missing.push("ADR directory (docs/adr/ or doc/decisions/ with ≥1 .md)");
+    }
+
+    // Pillar 2: ARCHITECTURE or DESIGN doc at root or docs/
+    let arch_candidates = [
+        "ARCHITECTURE.md",
+        "DESIGN.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DESIGN.md",
+        "docs/architecture/README.md",
+        "docs/design/README.md",
+    ];
+    let has_arch = arch_candidates.iter().any(|f| base.join(f).exists());
+    if has_arch {
+        pillars_present += 1;
+        present.push("Architecture/Design doc");
+    } else {
+        missing.push("ARCHITECTURE.md or DESIGN.md");
+    }
+
+    // Pillar 3: CHANGELOG or CHANGES
+    let changelog_candidates = [
+        "CHANGELOG.md",
+        "CHANGES.md",
+        "CHANGELOG",
+        "CHANGES",
+        "HISTORY.md",
+    ];
+    let has_changelog = changelog_candidates.iter().any(|f| base.join(f).exists());
+    if has_changelog {
+        pillars_present += 1;
+        present.push("CHANGELOG");
+    } else {
+        missing.push("CHANGELOG.md or CHANGES.md");
+    }
+
+    let passed = pillars_present >= 1;
+    let (severity, rule_id, help) = if pillars_present == 3 {
+        (
+            "info".to_string(),
+            "design-docs-pass".to_string(),
+            "All design documentation pillars present.".to_string(),
+        )
+    } else if pillars_present >= 1 {
+        (
+            "warning".to_string(),
+            "design-docs-partial".to_string(),
+            format!(
+                "Missing design documentation: {}. Add these to improve HQSE §Design coverage.",
+                missing.join(", ")
+            ),
+        )
+    } else {
+        (
+            "warning".to_string(),
+            "design-docs-missing".to_string(),
+            "No design documentation found. Add ARCHITECTURE.md, ADRs, and CHANGELOG.md for HQSE §Design compliance.".to_string(),
+        )
+    };
+
+    let findings: Vec<Finding> = if !passed {
+        missing
+            .iter()
+            .map(|m| Finding {
+                file: path.to_string(),
+                line: None,
+                column: None,
+                severity: severity.clone(),
+                message: format!("Missing design documentation: {}", m),
+                rule_id: rule_id.clone(),
+                fix_hint: format!("Create {} at the project root or docs/ directory.", m),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    CheckResult {
+        name: "design-docs".to_string(),
+        passed,
+        score: Some(pillars_present as f64),
+        threshold: Some(1.0),
+        message: if passed {
+            format!(
+                "{}/3 design doc pillars present: {}",
+                pillars_present,
+                present.join(", ")
+            )
+        } else {
+            format!(
+                "0/3 design doc pillars present — missing: {}",
+                missing.join(", ")
+            )
+        },
+        details: serde_json::json!({
+            "pillars_present": pillars_present,
+            "present": present,
+            "missing": missing,
+        }),
+        severity: Some(severity),
+        help: Some(help),
+        rule_id: Some(rule_id),
+        findings,
+    }
+}
+
+/// HQSE §Support/Debug/Code: finds contextless .unwrap() calls in library source (non-test) files.
+/// Distinguished from errhandle: this specifically targets *contextless* unwraps
+/// (no preceding SAFETY comment, no .context()/.with_context() wrapping).
+pub(crate) fn check_debuggability(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+) -> CheckResult {
+    let extensions = ["rs"];
+    let files = find_source_files(path, recursive, &extensions);
+
+    let mut violations = Vec::new();
+
+    for file in &files {
+        // Skip test files and benches
+        if file.contains("test") || file.contains("bench") || file.contains("spec") {
+            continue;
+        }
+        let source = match std::fs::read_to_string(file) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let lines: Vec<&str> = source.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            if !line.contains(".unwrap()") && !line.contains(".expect(\"") {
+                continue;
+            }
+            // Check if the preceding line(s) contain a SAFETY comment
+            let prev = if i > 0 { lines[i - 1].trim() } else { "" };
+            let has_safety = prev.contains("SAFETY") || prev.contains("safety");
+            // Check if the call is wrapped with .context( or .with_context(
+            let has_context = line.contains(".context(") || line.contains(".with_context(");
+            if !has_safety && !has_context {
+                let call = if line.contains(".unwrap()") {
+                    ".unwrap()"
+                } else {
+                    ".expect()"
+                };
+                violations.push(serde_json::json!({
+                    "file": file,
+                    "line": i + 1,
+                    "call": call,
+                }));
+            }
+        }
+    }
+
+    let count = violations.len();
+    let passed = count <= max_violations;
+    let (severity, rule_id, help) = if passed {
+        (
+            "info".to_string(),
+            "debuggability-pass".to_string(),
+            "Contextless unwrap count is within acceptable limits.".to_string(),
+        )
+    } else if count > max_violations * 2 {
+        (
+            "error".to_string(),
+            "debuggability-contextless-unwrap".to_string(),
+            "Many contextless .unwrap() calls make debugging hard. Use .context(\"what failed\") \
+             from the anyhow or thiserror crate, or propagate with `?`."
+                .to_string(),
+        )
+    } else {
+        (
+            "warning".to_string(),
+            "debuggability-contextless-unwrap".to_string(),
+            "Contextless .unwrap() calls reduce debuggability. Wrap with .context(\"description\") \
+             or annotate with a // SAFETY comment.".to_string(),
+        )
+    };
+
+    let findings: Vec<Finding> = violations
+        .iter()
+        .take(50)
+        .map(|v| {
+            let f = v
+                .get("file")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            let line = v.get("line").and_then(|x| x.as_u64());
+            let call = v
+                .get("call")
+                .and_then(|x| x.as_str())
+                .unwrap_or(".unwrap()")
+                .to_string();
+            Finding {
+                file: f.clone(),
+                line,
+                column: None,
+                severity: severity.clone(),
+                message: format!("Contextless {} in {}", call, f),
+                rule_id: "debuggability-contextless-unwrap".to_string(),
+                fix_hint: "Add .context(\"description\") or use `?` with a // SAFETY comment."
+                    .to_string(),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            }
+        })
+        .collect();
+
+    CheckResult {
+        name: "debuggability".to_string(),
+        passed,
+        score: Some(count as f64),
+        threshold: Some(max_violations as f64),
+        message: if passed {
+            format!(
+                "{} contextless unwrap calls (≤ {} allowed)",
+                count, max_violations
+            )
+        } else {
+            format!(
+                "{} contextless unwrap calls > {} allowed",
+                count, max_violations
+            )
+        },
+        details: serde_json::json!({
+            "contextless_unwraps": count,
+            "violations": violations.iter().take(20).collect::<Vec<_>>(),
+        }),
+        severity: Some(severity),
+        help: Some(help),
+        rule_id: Some(rule_id),
+        findings,
+    }
+}

@@ -13,8 +13,24 @@ env:
   RUST_TEST_THREADS: "4"
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+      - name: Run clippy (workspace, deny warnings)
+        run: cargo clippy --workspace -- -D warnings
+      - name: Check formatting
+        run: cargo fmt -- --check
+
   build:
     runs-on: ubuntu-latest
+    needs: lint
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
@@ -70,6 +86,20 @@ jobs:
         run: |
           chmod +x ./scripts/test.sh
           ./scripts/test.sh
+      - name: Install cargo-tarpaulin
+        run: cargo install --locked cargo-tarpaulin
+      - name: Generate code coverage (lib only)
+        run: |
+          cargo tarpaulin --lib --workspace \
+            --out Xml --out Html \
+            --output-dir target/coverage \
+            --fail-under 70
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/coverage/
+          retention-days: 30
 
   audit:
     runs-on: ubuntu-latest

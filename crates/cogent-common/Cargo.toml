@@ -36,3 +36,6 @@ features = [ "v4", "serde",]
 
 [dependencies.unicode-width]
 version = "0.2"
+
+[dependencies.thiserror]
+version = "2"

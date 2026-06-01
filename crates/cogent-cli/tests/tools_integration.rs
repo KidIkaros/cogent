@@ -272,16 +272,16 @@ fn test_licenses_runs() {
 }
 
 #[test]
-#[ignore = "sbom binary not present in this workspace"]
 fn test_sbom_runs() {
-    // SBOM outputs XML by default, test that it runs and produces valid XML
+    // SBOM outputs XML by default, test that it runs via cogent CLI
     let fixture = fixture_path();
-    let mut cmd = Command::cargo_bin("sbom").expect("sbom binary not found");
+    let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
 
     let output = cmd
+        .arg("sbom")
         .arg(fixture.to_str().unwrap())
         .output()
-        .expect("sbom should run");
+        .expect("cogent sbom should run");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(

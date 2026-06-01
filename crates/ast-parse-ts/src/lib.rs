@@ -295,11 +295,11 @@ fn node_text<'a>(node: Node<'_>, source: &'a [u8]) -> &'a str {
 }
 
 fn node_start_line(node: Node<'_>) -> usize {
-    node.start_position().row + 1
+    node.start_position().row.saturating_add(1)
 }
 
 fn node_end_line(node: Node<'_>) -> usize {
-    node.end_position().row + 1
+    node.end_position().row.saturating_add(1)
 }
 
 // ═══════════════════════════════════════════
@@ -604,6 +604,7 @@ fn has_doc_comment_before(source: &str, line: usize, lang: Language) -> bool {
         return false;
     }
     let lines: Vec<&str> = source.lines().collect();
+    let line = line.min(lines.len().saturating_add(1));
     // Look at up to 5 lines above the node start (attributes like #[derive] may sit between)
     let start = line.saturating_sub(5);
     for prev in (start..line.saturating_sub(1)).rev() {

@@ -9,7 +9,6 @@ use colored::Colorize;
 
 use crate::audit;
 use crate::check_runners::*;
-use crate::checks_cmd::dispatch_tool;
 use crate::cli::{Commands, ExceptionAction, PolicyAction, hqse_phase_for};
 use crate::config::{detect_project, generate_config, load_config_thresholds};
 use crate::diff::diff_command;
@@ -505,16 +504,58 @@ pub fn dispatch(command: Commands) -> i32 {
             if passed { 0 } else { 1 }
         }
 
-        Commands::Crap { path, recursive, coverage: _, format } => {
-            dispatch_tool("crap", &path, recursive, &format)
+        Commands::Crap { path, recursive, coverage, format } => {
+            let result = if format == "text" {
+                run_with_spinner("crap", || check_crap(&path, recursive, &coverage, 30.0))
+            } else {
+                check_crap(&path, recursive, &coverage, 30.0)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => {
+                    let icon = if passed { "✓".green().bold() } else { "✗".red().bold() };
+                    eprintln!("  {} crap  {}", icon, result.message.bright_black());
+                    println!("{}", result.message);
+                }
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
         Commands::Debt { path, recursive, marker: _, format } => {
-            dispatch_tool("debt", &path, recursive, &format)
+            let result = if format == "text" {
+                run_with_spinner("debt", || check_debt(&path, recursive, 1000))
+            } else {
+                check_debt(&path, recursive, 1000)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => {
+                    let icon = if passed { "✓".green().bold() } else { "✗".red().bold() };
+                    eprintln!("  {} debt  {}", icon, result.message.bright_black());
+                    println!("{}", result.message);
+                }
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
         Commands::Doccov { path, recursive, format } => {
-            dispatch_tool("doccov", &path, recursive, &format)
+            let result = if format == "text" {
+                run_with_spinner("doccov", || check_doc_coverage(&path, recursive, 0.0))
+            } else {
+                check_doc_coverage(&path, recursive, 0.0)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => {
+                    let icon = if passed { "✓".green().bold() } else { "✗".red().bold() };
+                    eprintln!("  {} doccov  {}", icon, result.message.bright_black());
+                    println!("{}", result.message);
+                }
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
         Commands::Dupfind { path, recursive, min_lines, format } => {
@@ -553,8 +594,18 @@ pub fn dispatch(command: Commands) -> i32 {
             if passed { 0 } else { 1 }
         }
 
-        Commands::Taint { path, recursive, max_taint: _, format } => {
-            dispatch_tool("taint", &path, recursive, &format)
+        Commands::Taint { path, recursive, max_taint, format } => {
+            let result = if format == "text" {
+                run_with_spinner("taint", || check_taint(&path, recursive, max_taint))
+            } else {
+                check_taint(&path, recursive, max_taint)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
         Commands::Coupling { path, max_coupling, format } => {
@@ -604,44 +655,144 @@ pub fn dispatch(command: Commands) -> i32 {
             if passed { 0 } else { 1 }
         }
 
-        Commands::Fuzz { path, recursive, max_fuzz_risk: _, format } => {
-            dispatch_tool("fuzz", &path, recursive, &format)
+        Commands::Fuzz { path, recursive, max_fuzz_risk, format } => {
+            let result = if format == "text" {
+                run_with_spinner("fuzz", || check_fuzz(&path, recursive, max_fuzz_risk))
+            } else {
+                check_fuzz(&path, recursive, max_fuzz_risk)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Propcov { path, recursive, min_propcov: _, format } => {
-            dispatch_tool("propcov", &path, recursive, &format)
+        Commands::Propcov { path, recursive, min_propcov, format } => {
+            let result = if format == "text" {
+                run_with_spinner("propcov", || check_propcov(&path, recursive, min_propcov))
+            } else {
+                check_propcov(&path, recursive, min_propcov)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Linelen { path, recursive, max_violations: _, format } => {
-            dispatch_tool("linelen", &path, recursive, &format)
+        Commands::Linelen { path, recursive, max_violations, format } => {
+            let result = if format == "text" {
+                run_with_spinner("linelen", || check_linelen(&path, recursive, max_violations))
+            } else {
+                check_linelen(&path, recursive, max_violations)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Halstead { path, recursive, max_bugs: _, format } => {
-            dispatch_tool("halstead", &path, recursive, &format)
+        Commands::Halstead { path, recursive, max_bugs, format } => {
+            let result = if format == "text" {
+                run_with_spinner("halstead", || check_halstead(&path, recursive, max_bugs))
+            } else {
+                check_halstead(&path, recursive, max_bugs)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Secrets { path, recursive, max_findings: _, format } => {
-            dispatch_tool("secrets", &path, recursive, &format)
+        Commands::Secrets { path, recursive, max_findings, format } => {
+            let result = if format == "text" {
+                run_with_spinner("secrets", || check_secrets(&path, recursive, max_findings))
+            } else {
+                check_secrets(&path, recursive, max_findings)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Deadcode { path, recursive, max_findings: _, format } => {
-            dispatch_tool("deadcode", &path, recursive, &format)
+        Commands::Deadcode { path, recursive, max_findings, format } => {
+            let result = if format == "text" {
+                run_with_spinner("deadcode", || check_deadcode(&path, recursive, max_findings))
+            } else {
+                check_deadcode(&path, recursive, max_findings)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Cohesion { path, recursive, max_violations: _, format } => {
-            dispatch_tool("cohesion", &path, recursive, &format)
+        Commands::Cohesion { path, recursive, max_violations, format } => {
+            let result = if format == "text" {
+                run_with_spinner("cohesion", || check_cohesion(&path, recursive, max_violations))
+            } else {
+                check_cohesion(&path, recursive, max_violations)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Comments { path, recursive, min_ratio: _, format } => {
-            dispatch_tool("comments", &path, recursive, &format)
+        Commands::Comments { path, recursive, min_ratio, format } => {
+            let result = if format == "text" {
+                run_with_spinner("comments", || check_comments(&path, recursive, min_ratio))
+            } else {
+                check_comments(&path, recursive, min_ratio)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Errhandle { path, recursive, max_violations: _, format } => {
-            dispatch_tool("errhandle", &path, recursive, &format)
+        Commands::Errhandle { path, recursive, max_violations, format } => {
+            let result = if format == "text" {
+                run_with_spinner("errhandle", || check_errhandle(&path, recursive, max_violations))
+            } else {
+                check_errhandle(&path, recursive, max_violations)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Typecov { path, recursive, min_pct: _, format } => {
-            dispatch_tool("typecov", &path, recursive, &format)
+        Commands::Typecov { path, recursive, min_pct, format } => {
+            let result = if format == "text" {
+                run_with_spinner("typecov", || check_typecov(&path, recursive, min_pct))
+            } else {
+                check_typecov(&path, recursive, min_pct)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
         Commands::Vulnscan { path, max_critical, max_high, format } => {
@@ -658,12 +809,32 @@ pub fn dispatch(command: Commands) -> i32 {
             if passed { 0 } else { 1 }
         }
 
-        Commands::Sast { path, recursive, max_findings: _, format } => {
-            dispatch_tool("sast", &path, recursive, &format)
+        Commands::Sast { path, recursive, max_findings, format } => {
+            let result = if format == "text" {
+                run_with_spinner("sast", || check_sast(&path, recursive, max_findings))
+            } else {
+                check_sast(&path, recursive, max_findings)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
-        Commands::Crypto { path, recursive, max_findings: _, format } => {
-            dispatch_tool("crypto", &path, recursive, &format)
+        Commands::Crypto { path, recursive, max_findings, format } => {
+            let result = if format == "text" {
+                run_with_spinner("crypto", || check_crypto(&path, recursive, max_findings))
+            } else {
+                check_crypto(&path, recursive, max_findings)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
         Commands::Licenses { path, max_violations, format } => {
@@ -694,8 +865,18 @@ pub fn dispatch(command: Commands) -> i32 {
             if passed { 0 } else { 1 }
         }
 
-        Commands::AccessControl { path, recursive, max_violations: _, format } => {
-            dispatch_tool("access-control", &path, recursive, &format)
+        Commands::AccessControl { path, recursive, max_violations, format } => {
+            let result = if format == "text" {
+                run_with_spinner("access-control", || check_access_control(&path, recursive, max_violations))
+            } else {
+                check_access_control(&path, recursive, max_violations)
+            };
+            let passed = result.passed;
+            match format.as_str() {
+                "text" => println!("{}", result.message),
+                _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
+            }
+            if passed { 0 } else { 1 }
         }
 
         Commands::SupplyChain { path, max_risks, format } => {
@@ -710,6 +891,22 @@ pub fn dispatch(command: Commands) -> i32 {
                 _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
             }
             if passed { 0 } else { 1 }
+        }
+
+        Commands::Sbom { path, format, output } => {
+            let args = vec![&path, "--format", &format];
+            let res = run_tool("sbom", "sbom", &args, Instant::now());
+            let stdout = res.data.get("raw").and_then(|v| v.as_str()).unwrap_or("");
+            if let Some(out_path) = output {
+                if let Err(e) = std::fs::write(&out_path, stdout) {
+                    eprintln!("Failed to write SBOM to {}: {}", out_path, e);
+                    return 1;
+                }
+                println!("SBOM written to {}", out_path);
+            } else {
+                println!("{}", stdout);
+            }
+            if res.success { 0 } else { 1 }
         }
 
         Commands::Setup => {

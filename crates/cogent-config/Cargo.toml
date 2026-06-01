@@ -1,0 +1,28 @@
+[package]
+name = "cogent-config"
+description = "Configuration management for Cogent — project detection, thresholds, TOML parsing"
+
+[dependencies]
+serde_json = "1"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[package.version]
+workspace = true
+
+[package.edition]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.license]
+workspace = true
+
+[package.categories]
+workspace = true
+
+[package.keywords]
+workspace = true

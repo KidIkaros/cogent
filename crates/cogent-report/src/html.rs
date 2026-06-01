@@ -1,301 +1,13 @@
-//! Report and setup commands for cogent-cli.
+//! HTML and Markdown report generation for Cogent.
+//! Extracted from cogent-cli/src/main.rs.
 
 #![deny(clippy::all)]
 
-use colored::Colorize;
-use crate::types::{CheckReport, CheckResult};
-use crate::progress::health_score;
-use crate::serve::open_in_browser;
+use crate::html_escape;
+use cogent_common::{CheckReport, CheckResult, health_score};
+use tracing::info;
 
-pub(crate) fn report_command(
-    path: &str,
-    format: &str,
-    output: Option<&str>,
-    project: Option<&str>,
-    from_json: Option<&str>,
-    skip: Option<&str>,
-    open: bool,
-) -> i32 {
-    // --- 1. Gather check data ---
-    let check_report: CheckReport = if let Some(json_path) = from_json {
-        let content = match std::fs::read_to_string(json_path) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("Error reading {}: {}", json_path, e);
-                return 2;
-            }
-        };
-        match serde_json::from_str(&content) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("Error parsing JSON: {}", e);
-                return 2;
-            }
-        }
-    } else {
-        // Run cogent check internally
-        eprintln!("  {} Running checks…", "·".bright_black());
-        let mut args = vec![path, "--format", "json"];
-        if let Some(s) = skip {
-            args.push("--skip");
-            args.push(s);
-        }
-        let output_bytes =
-            std::process::Command::new(std::env::current_exe().unwrap_or_else(|_| "cogent".into()))
-                .arg("check")
-                .args(&args)
-                .output();
-        match output_bytes {
-            Ok(o) => {
-                let stdout = String::from_utf8_lossy(&o.stdout);
-                match serde_json::from_str(&stdout) {
-                    Ok(r) => r,
-                    Err(e) => {
-                        eprintln!("Failed to parse check output: {}", e);
-                        return 2;
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to run checks: {}", e);
-                return 2;
-            }
-        }
-    };
-
-    let project_name = project
-        .map(|s| s.to_string())
-        .or_else(|| {
-            std::fs::canonicalize(path)
-                .ok()
-                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
-        })
-        .unwrap_or_else(|| path.to_string());
-
-    let now = {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let secs = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let hh = (secs % 86400) / 3600;
-        let mm = (secs % 3600) / 60;
-        // Correct Gregorian calendar from Unix timestamp
-        let mut days = (secs / 86400) as i64;
-        let mut year = 1970i64;
-        loop {
-            let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-            let y_days = if leap { 366 } else { 365 };
-            if days < y_days {
-                break;
-            }
-            days -= y_days;
-            year += 1;
-        }
-        let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-        let month_days = [
-            31i64,
-            if leap { 29 } else { 28 },
-            31,
-            30,
-            31,
-            30,
-            31,
-            31,
-            30,
-            31,
-            30,
-            31,
-        ];
-        let mut month = 0usize;
-        for &md in &month_days {
-            if days < md {
-                break;
-            }
-            days -= md;
-            month += 1;
-        }
-        format!(
-            "{:04}-{:02}-{:02} {:02}:{:02} UTC",
-            year,
-            month + 1,
-            days + 1,
-            hh,
-            mm
-        )
-    };
-
-    let passed = check_report.passed;
-    let total = check_report.summary.total_checks;
-    let passed_n = check_report.summary.passed_checks;
-    let failed_n = check_report.summary.failed_checks;
-
-    // Categorise checks by domain
-    let security_tools = [
-        "secrets",
-        "vulnscan",
-        "taint",
-        "errhandle",
-        "sast",
-        "crypto",
-    ];
-    let compliance_tools = ["licenses", "sbom"];
-    let quality_tools = [
-        "crap",
-        "debt",
-        "doc_coverage",
-        "complexity",
-        "duplication",
-        "cohesion",
-        "coupling",
-        "riskmap",
-        "linelen",
-        "halstead",
-        "deadcode",
-        "comments",
-        "propcov",
-        "fuzz",
-        "typecov",
-    ];
-
-    match format {
-        "markdown" | "md" => {
-            let md = render_markdown_report(
-                &check_report,
-                &project_name,
-                &now,
-                &security_tools,
-                &quality_tools,
-                &compliance_tools,
-                "",
-            );
-            let out_path = output.unwrap_or("cogent-report.md");
-            std::fs::write(out_path, &md).expect("Failed to write report");
-            eprintln!("  {} Report written to {}", "✓".green().bold(), out_path);
-            if open {
-                open_in_browser(out_path);
-            }
-        }
-        "pdf" => {
-            // Render HTML first, then convert via headless Chrome/Chromium
-            let html = render_html_report(
-                &check_report,
-                &project_name,
-                &now,
-                &security_tools,
-                &quality_tools,
-                &compliance_tools,
-            );
-            let html_tmp = "/tmp/cogent-report-tmp.html";
-            std::fs::write(html_tmp, &html).expect("Failed to write temp HTML");
-            let pdf_path = output.unwrap_or("cogent-report.pdf");
-            let browser = [
-                "chromium",
-                "chromium-browser",
-                "google-chrome",
-                "google-chrome-stable",
-            ]
-            .iter()
-            .find(|b| {
-                std::process::Command::new(b)
-                    .arg("--version")
-                    .output()
-                    .map(|o| o.status.success())
-                    .unwrap_or(false)
-            })
-            .copied();
-            match browser {
-                Some(bin) => {
-                    let abs_html = std::fs::canonicalize(html_tmp)
-                        .map(|p| format!("file://{}", p.display()))
-                        .unwrap_or_else(|_| format!("file://{}", html_tmp));
-                    let result = std::process::Command::new(bin)
-                        .args([
-                            "--headless",
-                            "--disable-gpu",
-                            "--no-sandbox",
-                            &format!("--print-to-pdf={}", pdf_path),
-                            &abs_html,
-                        ])
-                        .output();
-                    match result {
-                        Ok(o) if o.status.success() => {
-                            eprintln!("  {} Report written to {}", "✓".green().bold(), pdf_path);
-                            if open {
-                                open_in_browser(pdf_path);
-                            }
-                        }
-                        Ok(o) => {
-                            let err = String::from_utf8_lossy(&o.stderr);
-                            eprintln!(
-                                "  {} PDF conversion failed: {}",
-                                "✗".red().bold(),
-                                err.lines().next().unwrap_or("unknown error")
-                            );
-                            eprintln!("  {} HTML saved to {}", "ℹ".cyan(), html_tmp);
-                        }
-                        Err(e) => eprintln!("  {} Could not run {}: {}", "✗".red().bold(), bin, e),
-                    }
-                }
-                None => {
-                    eprintln!(
-                        "  {} No Chromium/Chrome found — falling back to HTML",
-                        "!".yellow().bold()
-                    );
-                    let out_path = output.unwrap_or("cogent-report.html");
-                    std::fs::write(out_path, &html).expect("Failed to write HTML report");
-                    eprintln!("  {} Report written to {}", "✓".green().bold(), out_path);
-                    if open {
-                        open_in_browser(out_path);
-                    }
-                }
-            }
-        }
-        _ => {
-            let html = render_html_report(
-                &check_report,
-                &project_name,
-                &now,
-                &security_tools,
-                &quality_tools,
-                &compliance_tools,
-            );
-            let out_path = output.unwrap_or("cogent-report.html");
-            std::fs::write(out_path, &html).expect("Failed to write report");
-            eprintln!("  {} Report written to {}", "✓".green().bold(), out_path);
-            eprintln!(
-                "  {} {} checks: {}/{} passed",
-                if passed {
-                    "✓".green().bold()
-                } else {
-                    "✗".red().bold()
-                },
-                total,
-                passed_n,
-                total
-            );
-            if open {
-                open_in_browser(out_path);
-            }
-        }
-    }
-
-    let _ = (passed_n, failed_n);
-    if passed {
-        0
-    } else {
-        1
-    }
-}
-
-pub(crate) fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
-
-pub(crate) fn severity_color_html(sev: &str) -> &'static str {
+fn severity_color_html(sev: &str) -> &'static str {
     match sev {
         "high" | "critical" | "error" => "#ef4444",
         "medium" | "warning" => "#f59e0b",
@@ -304,7 +16,7 @@ pub(crate) fn severity_color_html(sev: &str) -> &'static str {
     }
 }
 
-pub(crate) fn severity_badge(sev: &str) -> String {
+fn severity_badge(sev: &str) -> String {
     let color = severity_color_html(sev);
     format!(
         r#"<span style="background:{c};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">{s}</span>"#,
@@ -314,7 +26,7 @@ pub(crate) fn severity_badge(sev: &str) -> String {
 }
 
 /// Build a collapsible offender list from CheckResult.details JSON
-pub(crate) fn offender_rows_html(c: &CheckResult) -> String {
+fn offender_rows_html(c: &CheckResult) -> String {
     let arrays = [
         "items",
         "functions",
@@ -387,7 +99,7 @@ pub(crate) fn offender_rows_html(c: &CheckResult) -> String {
     String::new()
 }
 
-pub(crate) fn check_row_html(c: &CheckResult) -> String {
+fn check_row_html(c: &CheckResult) -> String {
     let icon = if c.passed { "&#10003;" } else { "&#10007;" };
     let icon_color = if c.passed { "#22c55e" } else { "#ef4444" };
     let row_bg = if c.passed { "#fff" } else { "#fef2f2" };
@@ -416,7 +128,7 @@ pub(crate) fn check_row_html(c: &CheckResult) -> String {
 }
 
 /// SVG donut ring showing pass percentage. r=44 → circumference≈276.
-pub(crate) fn donut_svg(pct: f64, color: &str) -> String {
+fn donut_svg(pct: f64, color: &str) -> String {
     let circ = 276.46f64;
     let dash = circ * pct / 100.0;
     let gap = circ - dash;
@@ -442,7 +154,7 @@ pub(crate) fn donut_svg(pct: f64, color: &str) -> String {
 }
 
 /// Inline horizontal mini-bar for a category (e.g. "6/8 ██████░░")
-pub(crate) fn mini_bar(pass: usize, total: usize, color: &str) -> String {
+fn mini_bar(pass: usize, total: usize, color: &str) -> String {
     if total == 0 {
         return String::new();
     }
@@ -456,7 +168,7 @@ pub(crate) fn mini_bar(pass: usize, total: usize, color: &str) -> String {
 }
 
 /// Semi-circle gauge SVG for health score 0-100.
-pub(crate) fn gauge_svg(score: u32, color: &str) -> String {
+fn gauge_svg(score: u32, color: &str) -> String {
     let radius = 80f64;
     let cx = 100f64;
     let cy = 100f64;
@@ -492,7 +204,7 @@ pub(crate) fn gauge_svg(score: u32, color: &str) -> String {
 }
 
 /// Horizontal bar chart SVG for severity distribution.
-pub(crate) fn severity_bar_chart_svg(counts: &[(String, usize, &str)]) -> String {
+fn severity_bar_chart_svg(counts: &[(String, usize, &str)]) -> String {
     let total: usize = counts.iter().map(|(_, c, _)| *c).sum();
     if total == 0 {
         return String::new();
@@ -526,7 +238,7 @@ pub(crate) fn severity_bar_chart_svg(counts: &[(String, usize, &str)]) -> String
 }
 
 /// Sparkline SVG from a series of health scores.
-pub(crate) fn sparkline_svg(scores: &[u32], width: usize, height: usize) -> String {
+pub fn sparkline_svg(scores: &[u32], width: usize, height: usize) -> String {
     if scores.len() < 2 {
         return String::new();
     }
@@ -577,7 +289,7 @@ pub(crate) fn sparkline_svg(scores: &[u32], width: usize, height: usize) -> Stri
 }
 
 /// Read `.cogent-history/` and return last N health scores.
-pub(crate) fn history_health_scores(dir: &str, last: usize) -> Vec<u32> {
+fn history_health_scores(dir: &str, last: usize) -> Vec<u32> {
     let mut scores: Vec<(u64, u32)> = Vec::new();
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -609,7 +321,7 @@ pub(crate) fn history_health_scores(dir: &str, last: usize) -> Vec<u32> {
     result
 }
 
-pub(crate) fn render_html_report(
+pub fn render_html_report(
     report: &CheckReport,
     project: &str,
     date: &str,
@@ -617,6 +329,7 @@ pub(crate) fn render_html_report(
     quality_tools: &[&str],
     compliance_tools: &[&str],
 ) -> String {
+    info!(checks = report.checks.len(), project, "rendering HTML report");
     let (health, grade) = health_score(&report.checks);
     let overall_color = if report.passed { "#22c55e" } else { "#ef4444" };
     let overall_label = if report.passed { "PASSED" } else { "FAILED" };
@@ -1076,15 +789,15 @@ pub(crate) fn render_html_report(
         .replace("__COMP_SECTION__", &comp_section)
 }
 
-pub(crate) fn render_markdown_report(
+pub fn render_markdown_report(
     report: &CheckReport,
     project: &str,
     date: &str,
     security_tools: &[&str],
     quality_tools: &[&str],
     compliance_tools: &[&str],
-    framework: &str,
 ) -> String {
+    info!(checks = report.checks.len(), project, "rendering Markdown report");
     let overall = if report.passed {
         "✅ PASSED"
     } else {
@@ -1218,151 +931,7 @@ pub(crate) fn render_markdown_report(
         md.push('\n');
     }
 
-    // HQSE Lifecycle Coverage section (only when --framework hqse)
-    if framework == "hqse" {
-        md.push_str("## HQSE Lifecycle Coverage\n\n");
-        md.push_str("| HQSE Phase | Checks | Status |\n|---|---|---|\n");
-        let hqse_phases: &[(&str, &[&str])] = &[
-            ("§2 Requirements", &[]),
-            ("§3 Design", &["design-docs", "doccov"]),
-            ("§4 Code", &["complexity", "crap", "debt", "secrets", "sast", "crypto", "taint", "deadcode", "linelen", "halstead", "cohesion", "coupling"]),
-            ("§4.5 Tracing", &["observability", "debuggability"]),
-            ("§5 Code Review", &[]),
-            ("§6 Test", &["test-quality", "propcov", "errhandle", "typecov"]),
-            ("§7 Support", &["errhandle", "debuggability", "observability"]),
-            ("§8–9 Planning", &[]),
-        ];
-        for (phase, tools) in hqse_phases {
-            if tools.is_empty() {
-                md.push_str(&format!("| {} | — | ⬜ not automatable |\n", phase));
-                continue;
-            }
-            let phase_checks: Vec<&CheckResult> = report.checks.iter()
-                .filter(|c| tools.contains(&c.name.as_str()))
-                .collect();
-            if phase_checks.is_empty() {
-                md.push_str(&format!("| {} | {} | ⬜ not run |\n", phase, tools.join(", ")));
-                continue;
-            }
-            let all_pass = phase_checks.iter().all(|c| c.passed);
-            let status = if all_pass { "✅" } else { "❌" };
-            let names: Vec<&str> = phase_checks.iter().map(|c| c.name.as_str()).collect();
-            md.push_str(&format!("| {} | {} | {} |\n", phase, names.join(", "), status));
-        }
-        md.push('\n');
-    }
-
     md.push_str("---\n\n*Generated by Cogent — automated code quality & security auditing.*  \n");
     md.push_str("*This report is machine-generated. Results should be reviewed by a qualified engineer before use in compliance filings.*\n");
     md
-}
-
-pub(crate) fn setup_command() {
-    let ascii_art = r#"
-   ____          _      __  __      _        _          
-  / ___|___   __| | ___|  \/  | ___| |_ _ __(_) ___ ___ 
- | |   / _ \ / _` |/ _ \ |\/| |/ _ \ __| '__| |/ __/ __|
- | |__| (_) | (_| |  __/ |  | |  __/ |_| |  | | (__\__ \
-  \____\___/ \__,_|\___|_|  |_|\___|\__|_|  |_|\___|___/
-"#;
-    println!("{}", ascii_art.cyan().bold());
-    println!(
-        "{}",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
-    );
-    println!("{}", "  Cogent Doctor & Setup".cyan().bold());
-    println!(
-        "{}\n",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
-    );
-
-    let mut all_passed = true;
-
-    // Check cargo
-    if std::process::Command::new("cargo")
-        .arg("--version")
-        .output()
-        .is_ok()
-    {
-        println!("  {} cargo installed", "[✓]".green().bold());
-    } else {
-        println!("  {} cargo NOT installed", "[✗]".red().bold());
-        println!("      => {}", "Install Rust: https://rustup.rs/".yellow());
-        all_passed = false;
-    }
-
-    // Check cargo-llvm-cov
-    if std::process::Command::new("cargo")
-        .args(["llvm-cov", "--version"])
-        .output()
-        .is_ok()
-    {
-        println!("  {} cargo-llvm-cov installed", "[✓]".green().bold());
-    } else {
-        println!("  {} cargo-llvm-cov NOT installed", "[✗]".red().bold());
-        println!("      => {}", "Run: cargo install cargo-llvm-cov".yellow());
-        all_passed = false;
-    }
-
-    // Check llvm-tools-preview
-    let rustup_out = std::process::Command::new("rustup")
-        .args(["component", "list"])
-        .output()
-        .ok();
-    if let Some(out) = rustup_out {
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        if stdout.contains("llvm-tools-preview (installed)")
-            || stdout.contains("llvm-tools (installed)")
-        {
-            println!("  {} llvm-tools installed", "[✓]".green().bold());
-        } else {
-            println!("  {} llvm-tools NOT installed", "[✗]".red().bold());
-            println!(
-                "      => {}",
-                "Run: rustup component add llvm-tools-preview".yellow()
-            );
-            all_passed = false;
-        }
-    } else {
-        println!(
-            "  {} rustup not found, could not verify llvm-tools",
-            "[?]".yellow().bold()
-        );
-    }
-
-    // Check .quality.toml
-    if std::path::Path::new(".quality.toml").exists() {
-        println!(
-            "  {} .quality.toml configuration found",
-            "[✓]".green().bold()
-        );
-    } else {
-        println!("  {} .quality.toml NOT found", "[✗]".red().bold());
-        println!("      => {}", "Run: cogent init".yellow());
-        all_passed = false;
-    }
-
-    println!(
-        "\n{}",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
-    );
-    if all_passed {
-        println!(
-            "  {}",
-            "Everything looks good! Your codebase is ready."
-                .green()
-                .bold()
-        );
-    } else {
-        println!(
-            "  {}",
-            "Please resolve the missing requirements above."
-                .red()
-                .bold()
-        );
-    }
-    println!(
-        "{}",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
-    );
 }

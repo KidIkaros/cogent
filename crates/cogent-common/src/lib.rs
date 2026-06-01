@@ -4,65 +4,51 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use unicode_width::UnicodeWidthChar;
 
+pub mod error;
 pub mod memory;
+pub mod types;
+
+pub use error::CogentError;
+pub use types::*;
 
 // ═══════════════════════════════════════════
-// HEADLESS API TYPES
+// CHECK RESULT TYPES (re-exported from types.rs)
 // ═══════════════════════════════════════════
 
-/// Request to run a quality tool.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ToolRequest {
-    pub tool: String,
-    #[serde(default)]
-    pub args: serde_json::Value,
-}
-
-/// Response from a quality tool execution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolResponse {
-    pub tool: String,
-    pub version: String,
-    pub success: bool,
-    pub duration_ms: u64,
-    pub data: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    /// Suggested fix for the issues found (if available)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub suggested_fix: Option<String>,
-    /// Whether an auto-fix is available for the issues found
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_fix_available: Option<bool>,
-}
-
-/// Progress event streamed during long-running tool execution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProgressEvent {
-    pub tool: String,
-    pub stage: String,
-    pub progress_pct: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
-}
-
-/// Result from one tool run within a batch.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolResult {
-    pub tool: String,
-    pub success: bool,
-    pub duration_ms: u64,
-    pub data: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-    /// Suggested fix for the issues found (if available)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub suggested_fix: Option<String>,
-    /// Whether an auto-fix is available for the issues found
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auto_fix_available: Option<bool>,
+/// Compute a weighted health score 0–100 and letter grade.
+/// Security failures penalise harder (×3), compliance (×2), quality (×1).
+pub fn health_score(checks: &[CheckResult]) -> (u32, char) {
+    let security = [
+        "secrets", "vulnscan", "taint", "errhandle", "sast", "crypto",
+    ];
+    let compliance = ["licenses", "sbom"];
+    if checks.is_empty() {
+        return (100, 'A');
+    }
+    let mut weighted_pass = 0u32;
+    let mut weighted_total = 0u32;
+    for c in checks {
+        let w = if security.contains(&c.name.as_str()) {
+            3
+        } else if compliance.contains(&c.name.as_str()) {
+            2
+        } else {
+            1
+        };
+        weighted_total += w;
+        if c.passed {
+            weighted_pass += w;
+        }
+    }
+    let score = weighted_pass.checked_mul(100).unwrap_or(0) / weighted_total.max(1);
+    let grade = match score {
+        90..=100 => 'A',
+        80..=89 => 'B',
+        65..=79 => 'C',
+        50..=64 => 'D',
+        _ => 'F',
+    };
+    (score, grade)
 }
 
 /// Combined report from running multiple tools in one batch.
@@ -594,6 +580,75 @@ mod tests {
         let source = "fn foo() {}\n\nfn bar() {\n    x\n}";
         assert_eq!(estimate_fn_line(source, "foo"), 1);
         assert_eq!(estimate_fn_line(source, "bar"), 3);
+    }
+
+    #[test]
+    fn test_health_score_all_pass() {
+        let checks = vec![
+            CheckResult {
+                name: "crap".into(), passed: true, score: None, threshold: None,
+                message: "".into(), details: serde_json::Value::Null,
+                severity: None, help: None, rule_id: None, findings: vec![],
+            },
+            CheckResult {
+                name: "secrets".into(), passed: true, score: None, threshold: None,
+                message: "".into(), details: serde_json::Value::Null,
+                severity: None, help: None, rule_id: None, findings: vec![],
+            },
+        ];
+        let (score, grade) = health_score(&checks);
+        assert_eq!(score, 100);
+        assert_eq!(grade, 'A');
+    }
+
+    #[test]
+    fn test_health_score_security_fail_weights_heavier() {
+        let checks = vec![
+            CheckResult {
+                name: "crap".into(), passed: true, score: None, threshold: None,
+                message: "".into(), details: serde_json::Value::Null,
+                severity: None, help: None, rule_id: None, findings: vec![],
+            },
+            CheckResult {
+                name: "secrets".into(), passed: false, score: None, threshold: None,
+                message: "".into(), details: serde_json::Value::Null,
+                severity: None, help: None, rule_id: None, findings: vec![],
+            },
+        ];
+        // security weights 3, quality weights 1 → pass=1, total=4 → 25%
+        let (score, grade) = health_score(&checks);
+        assert_eq!(score, 25);
+        assert_eq!(grade, 'F');
+    }
+
+    #[test]
+    fn test_health_score_empty() {
+        let (score, grade) = health_score(&[]);
+        assert_eq!(score, 100);
+        assert_eq!(grade, 'A');
+    }
+
+    #[test]
+    fn test_checkresult_roundtrip_json() {
+        let cr = CheckResult {
+            name: "debt".into(),
+            passed: false,
+            score: Some(12.0),
+            threshold: Some(10.0),
+            message: "found markers".into(),
+            details: serde_json::json!({"items": [{"file": "a.rs", "line": 1}]}),
+            severity: Some("medium".into()),
+            help: Some("remove todos".into()),
+            rule_id: Some("debt-marker".into()),
+            findings: vec![],
+        };
+        let json = serde_json::to_string(&cr).unwrap();
+        assert!(json.contains("debt"));
+        assert!(json.contains("found markers"));
+        let back: CheckResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.name, "debt");
+        assert!(!back.passed);
+        assert_eq!(back.score, Some(12.0));
     }
 }
 

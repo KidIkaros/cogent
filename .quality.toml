@@ -35,5 +35,15 @@ max_risk = 100.0
 # Mutation kill rate threshold. Lowered while test coverage is being expanded.
 min_kill_rate = 0.0
 
+[sast]
+# 5 accepted medium-severity findings: unsafe { libc_isatty(2) } in output/progress
+# (TTY detection, not attacker-reachable), mutation-test internal unsafe, and
+# a false positive in risk-map from a .matches("unsafe {") string literal.
+max_findings = 5
+
+[crypto]
+# crypto-check excludes its own source; no real findings remain.
+max_findings = 0
+
 [skip]
 checks = []

@@ -5,19 +5,164 @@
     {
       "tool": {
         "driver": {
-          "name": "quality-batch",
-          "version": "0.1.0",
-          "rules": []
+          "name": "cogent-batch",
+          "version": "1.1.1",
+          "rules": [
+            {
+              "id": "SAST-DESER-002",
+              "name": "SAST-DESER-002",
+              "short_description": {
+                "text": "Rule SAST-DESER-002"
+              },
+              "full_description": {
+                "text": "Details for rule SAST-DESER-002"
+              },
+              "help": {
+                "text": "Review the finding and apply appropriate fixes."
+              },
+              "default_configuration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "mutate-error",
+              "name": "mutate-error",
+              "short_description": {
+                "text": "Rule mutate-error"
+              },
+              "full_description": {
+                "text": "Details for rule mutate-error"
+              },
+              "help": {
+                "text": "Review the finding and apply appropriate fixes."
+              },
+              "default_configuration": {
+                "level": "warning"
+              }
+            }
+          ]
         }
       },
       "invocations": [
         {
-          "execution_successful": true,
-          "exit_code": 0,
-          "end_time_utc": "2026-04-25T10:17:54.674861341+00:00"
+          "execution_successful": false,
+          "exit_code": 1,
+          "end_time_utc": "2026-06-01T22:23:31.745416681+00:00"
         }
       ],
-      "results": []
+      "results": [
+        {
+          "rule_id": "mutate-error",
+          "level": "error",
+          "message": {
+            "text": "No output. stderr: Verifying baseline tests... 0s\rError: \"Tests fail on original code. Fix tests before mutating.\\n\\nrunning 32 tests\\n...............iii....iii..i 28/32\\ntests::test_rust_fingerprints --- FAILED\\n...\\nfailures:\\n\\n---- tests::test_rust_fingerprints stdout ----\\n\\nthread 'tests::test_rust_fingerprints' (1492558) panicked at crates/ast-parse-ts/src/lib.rs:919:44:\\nattempt to subtract with overflow\\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\\n\\n\\nfailures:\\n    tests::test_rust_fingerprints\\n\\ntest result: FAILED. 24 passed; 1 failed; 7 ignored; 0 measured; 0 filtered out; fin\""
+          },
+          "locations": [
+            {
+              "physical_location": {
+                "artifact_location": {
+                  "uri": "."
+                }
+              }
+            }
+          ]
+        },
+        {
+          "rule_id": "SAST-DESER-002",
+          "level": "warning",
+          "message": {
+            "text": "unsafe block detected — review for memory safety issues."
+          },
+          "locations": [
+            {
+              "physical_location": {
+                "artifact_location": {
+                  "uri": "./crates/cogent-cli/src/output.rs"
+                },
+                "region": {
+                  "start_line": 19
+                }
+              }
+            }
+          ]
+        },
+        {
+          "rule_id": "SAST-DESER-002",
+          "level": "warning",
+          "message": {
+            "text": "unsafe block detected — review for memory safety issues."
+          },
+          "locations": [
+            {
+              "physical_location": {
+                "artifact_location": {
+                  "uri": "./crates/cogent-cli/src/progress.rs"
+                },
+                "region": {
+                  "start_line": 20
+                }
+              }
+            }
+          ]
+        },
+        {
+          "rule_id": "SAST-DESER-002",
+          "level": "warning",
+          "message": {
+            "text": "unsafe block detected — review for memory safety issues."
+          },
+          "locations": [
+            {
+              "physical_location": {
+                "artifact_location": {
+                  "uri": "./crates/mutation-test/src/main.rs"
+                },
+                "region": {
+                  "start_line": 1025
+                }
+              }
+            }
+          ]
+        },
+        {
+          "rule_id": "SAST-DESER-002",
+          "level": "warning",
+          "message": {
+            "text": "unsafe block detected — review for memory safety issues."
+          },
+          "locations": [
+            {
+              "physical_location": {
+                "artifact_location": {
+                  "uri": "./crates/mutation-test/src/main.rs"
+                },
+                "region": {
+                  "start_line": 1110
+                }
+              }
+            }
+          ]
+        },
+        {
+          "rule_id": "SAST-DESER-002",
+          "level": "warning",
+          "message": {
+            "text": "unsafe block detected — review for memory safety issues."
+          },
+          "locations": [
+            {
+              "physical_location": {
+                "artifact_location": {
+                  "uri": "./crates/risk-map/src/main.rs"
+                },
+                "region": {
+                  "start_line": 177
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

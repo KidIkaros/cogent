@@ -674,6 +674,19 @@ pub enum Commands {
         format: String,
     },
 
+    /// SBOM (Software Bill of Materials) generator
+    Sbom {
+        /// Path to analyze (default: current directory)
+        #[arg(default_value = ".")]
+        path: String,
+        /// Output format: xml, json (default: xml)
+        #[arg(short, long, default_value = "xml")]
+        format: String,
+        /// Output file (default: stdout)
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+
     /// Start a local HTTP server to browse reports
     Serve {
         /// Port to listen on (default: 8080)

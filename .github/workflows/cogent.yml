@@ -1,0 +1,28 @@
+name: Cogent Quality Gate
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  cogent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Cogent
+        run: cargo install --path crates/cogent-cli
+
+      - name: Build workspace
+        run: cargo build --release --workspace
+
+      - name: Run Cogent check
+        run: cogent check . --format json
+
+      - name: Run Cogent run
+        run: cogent run .

@@ -21,6 +21,8 @@ fn test_json_output_schema() {
     cmd.arg(src.to_str().unwrap());
     cmd.arg("--format");
     cmd.arg("json");
+    cmd.arg("--max-violations");
+    cmd.arg("100");
     cmd.assert().success();
 
     let stdout = String::from_utf8(cmd.output().unwrap().stdout).unwrap();
@@ -42,7 +44,7 @@ fn test_table_output() {
 
     let mut cmd = Command::cargo_bin("access-control").unwrap();
     cmd.arg(src.to_str().unwrap());
-    cmd.assert().success();
+    cmd.assert().failure();
     cmd.assert().stdout(contains("ACL-CRED"));
 }
 
@@ -56,6 +58,6 @@ fn test_threshold_message() {
     cmd.arg(src.to_str().unwrap());
     cmd.arg("--max-violations");
     cmd.arg("0");
-    cmd.assert().success();
+    cmd.assert().failure();
     cmd.assert().stdout(contains("Exceeds threshold"));
 }

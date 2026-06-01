@@ -15,6 +15,13 @@ fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
+// JSON OUTPUT
+// ═══════════════════════════════════════════
+
+pub(crate) fn output_json(report: &CheckReport) {
+    println!("{}", serde_json::to_string_pretty(report).unwrap());
+}
+
 // NDJSON OUTPUT
 // ═══════════════════════════════════════════
 
@@ -232,6 +239,10 @@ pub(crate) fn output_findings_ndjson(report: &CheckReport) {
 // ═══════════════════════════════════════════
 
 pub(crate) fn output_markdown(report: &CheckReport, path: &str) {
+    output_markdown_with_framework(report, path, "")
+}
+
+pub(crate) fn output_markdown_with_framework(report: &CheckReport, path: &str, framework: &str) {
     let security_tools = [
         "taint",
         "secrets",
@@ -257,6 +268,10 @@ pub(crate) fn output_markdown(report: &CheckReport, path: &str) {
         "comments",
         "errhandle",
         "typecov",
+        "observability",
+        "test-quality",
+        "design-docs",
+        "debuggability",
     ];
     let compliance_tools = ["licenses", "outdated", "supply-chain"];
     let date = chrono::Utc::now().format("%Y-%m-%d %H:%M UTC").to_string();
@@ -267,6 +282,7 @@ pub(crate) fn output_markdown(report: &CheckReport, path: &str) {
         &security_tools,
         &quality_tools,
         &compliance_tools,
+        framework,
     );
     println!("{}", md);
 }

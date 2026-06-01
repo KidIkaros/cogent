@@ -3,6 +3,7 @@
 <img src="logo.svg" alt="Cogent Logo" width="400"/>
 
 [![CI](https://github.com/KidIkaros/cogent/actions/workflows/quality.yml/badge.svg)](https://github.com/KidIkaros/cogent/actions/workflows/quality.yml)
+[![Coverage](https://img.shields.io/badge/coverage-report-green)](https://github.com/KidIkaros/cogent/actions/workflows/quality.yml)
 [![Release](https://img.shields.io/github/v/release/KidIkaros/cogent)](https://github.com/KidIkaros/cogent/releases/latest)
 [![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange)](https://rust-lang.org)
 [![License](https://img.shields.io/badge/License-Apache--2.0%20%7C%20OPL--1.1-blue)](LICENSE)

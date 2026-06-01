@@ -3,6 +3,8 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+use crate::types::{Evidence, Finding, SuggestedFix};
+
 // ═══════════════════════════════════════════
 // POLICY ENGINE
 // ═══════════════════════════════════════════
@@ -276,7 +278,7 @@ pub(crate) fn save_remediation(log: &RemediationLog) -> Result<(), String> {
 }
 
 /// Record new findings from a scan.
-pub(crate) fn record_findings(findings: &[crate::Finding]) -> Vec<RemediationEntry> {
+pub(crate) fn record_findings(findings: &[Finding]) -> Vec<RemediationEntry> {
     let mut log = load_remediation();
     let now = chrono::Utc::now().to_rfc3339();
     let mut new_entries = Vec::new();
@@ -304,7 +306,7 @@ pub(crate) fn record_findings(findings: &[crate::Finding]) -> Vec<RemediationEnt
 }
 
 /// Mark verified-closed findings (present in previous scan but absent now).
-pub(crate) fn verify_remediation(current_findings: &[crate::Finding]) -> Vec<String> {
+pub(crate) fn verify_remediation(current_findings: &[Finding]) -> Vec<String> {
     let mut log = load_remediation();
     let now = chrono::Utc::now().to_rfc3339();
     let mut closed = Vec::new();
@@ -687,6 +689,18 @@ pub fn controls_for(rule_id: &str) -> Vec<String> {
     if r.contains("outdated") {
         controls.extend_from_slice(&["A.5.7", "CC7.3"]);
     }
+    if r.contains("observability") {
+        controls.extend_from_slice(&["HQSE:Support/7.4", "HQSE:Debug/6.6", "A.8.15", "A1.1"]);
+    }
+    if r.contains("test-quality") || r.contains("test_quality") || r.contains("nondeterminism") {
+        controls.extend_from_slice(&["HQSE:Test/6.1", "HQSE:Test/6.4", "CC7.2"]);
+    }
+    if r.contains("design-docs") || r.contains("design_docs") {
+        controls.extend_from_slice(&["HQSE:Design/3.4", "HQSE:Code/4.6", "CC2.1", "A.5.37"]);
+    }
+    if r.contains("debuggability") || r.contains("contextless-unwrap") || r.contains("contextless_unwrap") {
+        controls.extend_from_slice(&["HQSE:Debug/6.6", "HQSE:Code/4.5", "CC7.2", "A.8.15"]);
+    }
     controls.dedup();
     controls.into_iter().map(|s| s.to_string()).collect()
 }
@@ -734,9 +748,9 @@ pub fn git_blame_line(file: &str, line: u64) -> Option<String> {
 
 /// Enrich a finding with evidence (snippet, hash, blame) and suggested fix.
 /// Called when `--evidence` flag is set on `cogent audit` or `cogent check`.
-pub fn enrich_finding(finding: &mut crate::Finding) {
+pub fn enrich_finding(finding: &mut Finding) {
     if let Some(line) = finding.line {
-        finding.evidence = Some(crate::Evidence {
+        finding.evidence = Some(Evidence {
             snippet: extract_snippet(&finding.file, line).unwrap_or_default(),
             file_hash: file_hash(&finding.file),
             context: git_blame_line(&finding.file, line),
@@ -744,7 +758,7 @@ pub fn enrich_finding(finding: &mut crate::Finding) {
     }
     if finding.suggested_fix.is_none() {
         if let Some((desc, diff, conf)) = suggested_fix_for(&finding.rule_id) {
-            finding.suggested_fix = Some(crate::SuggestedFix {
+            finding.suggested_fix = Some(SuggestedFix {
                 description: desc,
                 diff,
                 confidence: conf,

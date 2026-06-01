@@ -146,20 +146,10 @@ impl Bar {
 
 pub(crate) fn box_row(content: &str, inner_width: usize) {
     let vlen = visible_len(content);
-    let pad = if vlen < inner_width { inner_width - vlen } else { 0 };
+    let pad = inner_width.saturating_sub(vlen);
     eprintln!("  ║ {}{} ║", content, " ".repeat(pad));
 }
 
-fn console_width(s: &str) -> usize {
-    let mut w = 0usize;
-    let mut in_escape = false;
-    for ch in s.chars() {
-        if ch == '\x1b' { in_escape = true; continue; }
-        if in_escape { if ch == 'm' { in_escape = false; } continue; }
-        w += 1;
-    }
-    w
-}
 
 pub(crate) fn health_score(checks: &[CheckResult]) -> (u32, char) {
     if checks.is_empty() {

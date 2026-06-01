@@ -158,7 +158,6 @@ pub(crate) fn init_ci(config_path: &str, profile: &ProjectProfile) -> i32 {
 }
 
 /// Print per-tool documentation for `cogent explain <tool>`.
-
 pub(crate) fn explain_command(tool: &str) {
     let tool = tool.to_lowercase();
     let (title, description, threshold, how_to_read, fixes, see_also) = match tool.as_str() {

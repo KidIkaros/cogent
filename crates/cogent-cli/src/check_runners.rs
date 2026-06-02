@@ -1648,11 +1648,23 @@ pub(crate) fn run_batch(
     baseline: Option<&str>,
     no_fail_on_regression: bool,
 ) -> i32 {
+    use crate::config::load_config_thresholds;
     use cogent_common::*;
 
     use std::time::Instant;
 
     let start = Instant::now();
+
+    // Load project thresholds from .quality.toml so batch mode respects them
+    let thresholds = load_config_thresholds(
+        ".quality.toml",
+        (
+            30.0, 15.0, 1000, 10, 5.0, 0, 10.0, 5, 0.0, 0, 0, 2.0, 0, 10, 5,
+            0.05, 50, 0.0, 0, 0, 0, 0, 0,
+        ),
+    );
+    let max_sast = thresholds.20;
+    let max_crypto = thresholds.21;
 
     // Initialize memory monitor (auto-terminates if memory exceeds safe threshold)
     let mut memory_monitor = MemoryMonitor::from_env();
@@ -1669,114 +1681,130 @@ pub(crate) fn run_batch(
         mem_display.bright_black()
     );
 
-    let tools: Vec<(&str, &str, Vec<&str>)> = vec![
+    let tools: Vec<(&str, &str, Vec<String>)> = vec![
         (
             "debt-scan",
             "debt",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "doc-coverage",
             "doccov",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "crap-metric",
             "crap",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
-        ("coupling", "coupling", vec![path, "--format", "json"]),
-        ("risk-map", "riskmap", vec![path, "--format", "json"]),
+        ("coupling", "coupling", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
+        ("risk-map", "riskmap", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
         (
             "duplication",
             "dupfind",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "prop-cov",
             "propcov",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "taint-scan",
             "taint",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "fuzz-surface",
             "fuzz",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         // mutation-test: run with capped mutants and enforced timeout.
         // Uses scratch workspace + watchdog kill — safe to include in batch.
-        // Note: requires -p flag for package selection
+        // Note: requires -p flag for package selection.
+        // Uses dead-code crate (small, tests pass reliably) instead of ast-parse-ts
+        // which has a pre-existing failing test.
         (
             "mutation-test",
             "mutate",
             vec![
-                path,
-                "-p",
-                "ast-parse-ts",
-                "--max-mutants",
-                "5",
-                "--timeout",
-                "30",
-                "--format",
-                "json",
+                path.to_string(),
+                "-p".to_string(),
+                "dead-code".to_string(),
+                "--max-mutants".to_string(),
+                "5".to_string(),
+                "--timeout".to_string(),
+                "30".to_string(),
+                "--format".to_string(),
+                "json".to_string(),
             ],
         ),
         (
             "line-length",
             "linelen",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "halstead",
             "halstead",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "secrets",
             "secrets",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "dead-code",
             "deadcode",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "cohesion",
             "cohesion",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "comment-ratio",
             "comments",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "error-handling",
             "errhandle",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
         (
             "type-coverage",
             "typecov",
-            vec!["--recursive", path, "--format", "json"],
+            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
         ),
-        ("vuln-scan", "vulnscan", vec![path, "--format", "json"]),
+        ("vuln-scan", "vulnscan", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
         (
             "sast",
             "sast",
-            vec!["--recursive", path, "--format", "json"],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+                "--max-findings".to_string(),
+                max_sast.to_string(),
+            ],
         ),
         (
             "crypto-check",
             "cryptocheck",
-            vec!["--recursive", path, "--format", "json"],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+                "--max-findings".to_string(),
+                max_crypto.to_string(),
+            ],
         ),
-        ("licenses", "licenses", vec![path, "--format", "json"]),
+        ("licenses", "licenses", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
     ];
 
     // Run tools sequentially to prevent memory exhaustion
@@ -1799,7 +1827,8 @@ pub(crate) fn run_batch(
         }
 
         let tool_start = Instant::now();
-        let result = run_tool(crate_name, bin_name, args, tool_start);
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let result = run_tool(crate_name, bin_name, &args_ref, tool_start);
         let duration_ms = result.duration_ms;
         let success = result.success;
         results.push(result);

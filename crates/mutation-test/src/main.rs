@@ -833,11 +833,19 @@ fn find_first_workspace_member(workspace_root: &Path) -> Result<String, String> 
                 if path.is_dir() {
                     let toml = path.join("Cargo.toml");
                     if toml.exists() {
-                        // Found a crate! Get its name from [package]
+                        // Found a crate! Get its name from [package] section only.
                         if let Ok(crate_content) = std::fs::read_to_string(&toml) {
+                            let mut in_package = false;
                             for line in crate_content.lines() {
                                 let trimmed = line.trim();
-                                if trimmed.starts_with("name") {
+                                if trimmed == "[package]" {
+                                    in_package = true;
+                                    continue;
+                                }
+                                if trimmed.starts_with('[') {
+                                    in_package = false;
+                                }
+                                if in_package && trimmed.starts_with("name") {
                                     if let Some(name) = trimmed.split('=').nth(1) {
                                         let name = name.trim().trim_matches('"').trim_matches('\'');
                                         return Ok(name.to_string());

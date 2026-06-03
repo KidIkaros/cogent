@@ -343,3 +343,86 @@ pub(crate) fn print_cycle_diff(prev: &[(String, bool)], curr: &[(String, bool)])
 
 // ═══════════════════════════════════════════
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── print_cycle_diff ──
+
+    #[test]
+    fn test_print_cycle_diff_empty_prev_no_output() {
+        // When prev is empty, nothing is printed
+        let prev: Vec<(String, bool)> = vec![];
+        let curr = vec![("crap".to_string(), true)];
+        // Should return without writing to stderr
+        print_cycle_diff(&prev, &curr);
+        // No assertion needed — just verifies no panic
+    }
+
+    #[test]
+    fn test_print_cycle_diff_no_changes_no_output() {
+        let prev = vec![("crap".to_string(), true), ("debt".to_string(), true)];
+        let curr = vec![("crap".to_string(), true), ("debt".to_string(), true)];
+        print_cycle_diff(&prev, &curr);
+        // No changes — should not print anything
+    }
+
+    #[test]
+    fn test_print_cycle_diff_new_check_no_change() {
+        // A new check that wasn't in prev is not a regression or fix
+        let prev: Vec<(String, bool)> = vec![];
+        let curr = vec![("new-check".to_string(), false)];
+        print_cycle_diff(&prev, &curr);
+    }
+
+    #[test]
+    fn test_print_cycle_diff_tracks_state_across_calls() {
+        // Simulates three cycles: pass → fail → pass
+        let mut prev: Vec<(String, bool)> = vec![];
+
+        // Cycle 1: first run, everything passes
+        let mut curr = vec![("crap".to_string(), true), ("debt".to_string(), true)];
+        print_cycle_diff(&prev, &curr); // prev empty → no output
+        prev = curr;
+
+        // Cycle 2: crap regresses
+        curr = vec![("crap".to_string(), false), ("debt".to_string(), true)];
+        print_cycle_diff(&prev, &curr); // should print regression
+        prev = curr;
+
+        // Cycle 3: crap fixed
+        curr = vec![("crap".to_string(), true), ("debt".to_string(), true)];
+        print_cycle_diff(&prev, &curr); // should print fix
+    }
+
+    #[test]
+    fn test_print_cycle_diff_multiple_changes() {
+        let prev = vec![
+            ("check-a".to_string(), true),
+            ("check-b".to_string(), false),
+            ("check-c".to_string(), true),
+        ];
+        let curr = vec![
+            ("check-a".to_string(), false), // regression
+            ("check-b".to_string(), true),  // fix
+            ("check-c".to_string(), true),  // unchanged
+        ];
+        print_cycle_diff(&prev, &curr);
+        // Should output both a fix and a regression
+    }
+
+    #[test]
+    fn test_print_cycle_diff_all_regressions() {
+        let prev = vec![("a".to_string(), true), ("b".to_string(), true)];
+        let curr = vec![("a".to_string(), false), ("b".to_string(), false)];
+        print_cycle_diff(&prev, &curr);
+    }
+
+    #[test]
+    fn test_print_cycle_diff_all_fixes() {
+        let prev = vec![("a".to_string(), false), ("b".to_string(), false)];
+        let curr = vec![("a".to_string(), true), ("b".to_string(), true)];
+        print_cycle_diff(&prev, &curr);
+    }
+}

@@ -28,22 +28,9 @@ max_duplicates = 0
 min_lines = 3
 
 [riskmap]
-# Risk = churn × complexity. Workspace crates have high churn during active development.
-max_risk = 100.0
-
-[mutate]
-# Mutation kill rate threshold. Lowered while test coverage is being expanded.
-min_kill_rate = 0.0
-
-[sast]
-# 5 accepted medium-severity findings: unsafe { libc_isatty(2) } in output/progress
-# (TTY detection, not attacker-reachable), mutation-test internal unsafe, and
-# a false positive in risk-map from a .matches("unsafe {") string literal.
-max_sast = 5
-
-[crypto]
-# crypto-check excludes its own source; no real findings remain.
-max_crypto = 0
+# Risk score = sqrt(churn) * complexity / 20 (0-100, capped at 100)
+# Files scoring >50 need refactoring or extra tests
+max_risk = 75
 
 [skip]
 checks = []

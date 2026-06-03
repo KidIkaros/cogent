@@ -1257,6 +1257,285 @@ pub(crate) fn render_markdown_report(
     md
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── html_escape ──
+
+    #[test]
+    fn test_html_escape_no_special_chars() {
+        assert_eq!(html_escape("hello world"), "hello world");
+    }
+
+    #[test]
+    fn test_html_escape_ampersand() {
+        assert_eq!(html_escape("AT&T"), "AT&amp;T");
+    }
+
+    #[test]
+    fn test_html_escape_angle_brackets() {
+        assert_eq!(html_escape("<script>"), "&lt;script&gt;");
+    }
+
+    #[test]
+    fn test_html_escape_quotes() {
+        assert_eq!(html_escape("say \"hi\""), "say &quot;hi&quot;");
+    }
+
+    #[test]
+    fn test_html_escape_all() {
+        assert_eq!(
+            html_escape("<a href=\"x&y\">"),
+            "&lt;a href=&quot;x&amp;y&quot;&gt;"
+        );
+    }
+
+    #[test]
+    fn test_html_escape_empty_string() {
+        assert_eq!(html_escape(""), "");
+    }
+
+    // ── severity_color_html ──
+
+    #[test]
+    fn test_severity_color_high() {
+        assert_eq!(severity_color_html("high"), "#ef4444");
+    }
+
+    #[test]
+    fn test_severity_color_critical() {
+        assert_eq!(severity_color_html("critical"), "#ef4444");
+    }
+
+    #[test]
+    fn test_severity_color_error() {
+        assert_eq!(severity_color_html("error"), "#ef4444");
+    }
+
+    #[test]
+    fn test_severity_color_medium() {
+        assert_eq!(severity_color_html("medium"), "#f59e0b");
+    }
+
+    #[test]
+    fn test_severity_color_warning() {
+        assert_eq!(severity_color_html("warning"), "#f59e0b");
+    }
+
+    #[test]
+    fn test_severity_color_low() {
+        assert_eq!(severity_color_html("low"), "#3b82f6");
+    }
+
+    #[test]
+    fn test_severity_color_unknown() {
+        assert_eq!(severity_color_html("info"), "#6b7280");
+        assert_eq!(severity_color_html(""), "#6b7280");
+        assert_eq!(severity_color_html("nonexistent"), "#6b7280");
+    }
+
+    // ── severity_badge ──
+
+    #[test]
+    fn test_severity_badge_contains_severity_text() {
+        let badge = severity_badge("high");
+        assert!(badge.contains("high"));
+        assert!(badge.contains("#ef4444"));
+        assert!(badge.contains("<span"));
+    }
+
+    #[test]
+    fn test_severity_badge_medium() {
+        let badge = severity_badge("medium");
+        assert!(badge.contains("medium"));
+        assert!(badge.contains("#f59e0b"));
+    }
+
+    #[test]
+    fn test_severity_badge_low() {
+        let badge = severity_badge("low");
+        assert!(badge.contains("low"));
+        assert!(badge.contains("#3b82f6"));
+    }
+
+    #[test]
+    fn test_severity_badge_info_fallback() {
+        let badge = severity_badge("info");
+        assert!(badge.contains("info"));
+        assert!(badge.contains("#6b7280"));
+    }
+
+    #[test]
+    fn test_severity_badge_contains_style_classes() {
+        let badge = severity_badge("high");
+        assert!(badge.contains("border-radius:12px"));
+        assert!(badge.contains("text-transform:uppercase"));
+        assert!(badge.contains("font-weight:600"));
+    }
+
+    // ── donut_svg ──
+
+    #[test]
+    fn test_donut_svg_starts_with_svg_tag() {
+        let svg = donut_svg(75.0, "#22c55e");
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.ends_with("</svg>"));
+    }
+
+    #[test]
+    fn test_donut_svg_contains_pct_text() {
+        let svg = donut_svg(50.0, "#f59e0b");
+        assert!(svg.contains("50%"));
+        assert!(svg.contains("#f59e0b"));
+    }
+
+    #[test]
+    fn test_donut_svg_zero_percent() {
+        let svg = donut_svg(0.0, "#ef4444");
+        assert!(svg.contains("0%"));
+    }
+
+    #[test]
+    fn test_donut_svg_hundred_percent() {
+        let svg = donut_svg(100.0, "#22c55e");
+        assert!(svg.contains("100%"));
+    }
+
+    #[test]
+    fn test_donut_svg_contains_pass_rate_label() {
+        let svg = donut_svg(80.0, "#22c55e");
+        assert!(svg.contains("pass rate"));
+    }
+
+    #[test]
+    fn test_donut_svg_contains_circle_elements() {
+        let svg = donut_svg(90.0, "#22c55e");
+        assert!(svg.contains("<circle"));
+        assert!(svg.contains("stroke-dasharray"));
+    }
+
+    // ── mini_bar ──
+
+    #[test]
+    fn test_mini_bar_zero_total_returns_empty() {
+        assert_eq!(mini_bar(0, 0, "#22c55e"), "");
+    }
+
+    #[test]
+    fn test_mini_bar_all_passed() {
+        let bar = mini_bar(5, 5, "#22c55e");
+        assert!(bar.contains("████████████"));  // 12 filled
+        assert!(bar.contains("5/5"));
+        assert!(bar.contains("100%"));
+    }
+
+    #[test]
+    fn test_mini_bar_half_passed() {
+        let bar = mini_bar(3, 6, "#f59e0b");
+        assert!(bar.contains("██████"));  // 6 filled
+        assert!(bar.contains("░░░░░░"));  // 6 empty
+        assert!(bar.contains("3/6"));
+        assert!(bar.contains("50%"));
+        assert!(bar.contains("#f59e0b"));
+    }
+
+    #[test]
+    fn test_mini_bar_none_passed() {
+        let bar = mini_bar(0, 4, "#ef4444");
+        assert!(bar.contains("░░░░░░░░░░░░"));  // 12 empty
+        assert!(bar.contains("0/4"));
+        assert!(bar.contains("0%"));
+    }
+
+    #[test]
+    fn test_mini_bar_contains_color() {
+        let bar = mini_bar(2, 10, "#22c55e");
+        assert!(bar.contains("#22c55e"));
+    }
+
+    // ── gauge_svg ──
+
+    #[test]
+    fn test_gauge_svg_starts_and_ends_with_svg() {
+        let svg = gauge_svg(75, "#22c55e");
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.ends_with("</svg>"));
+    }
+
+    #[test]
+    fn test_gauge_svg_contains_score_text() {
+        let svg = gauge_svg(42, "#ef4444");
+        assert!(svg.contains("42"));
+        assert!(svg.contains("Health Score"));
+    }
+
+    #[test]
+    fn test_gauge_svg_contains_color() {
+        let svg = gauge_svg(100, "#22c55e");
+        assert!(svg.contains("#22c55e"));
+    }
+
+    #[test]
+    fn test_gauge_svg_zero_score() {
+        let svg = gauge_svg(0, "#ef4444");
+        assert!(svg.contains("0"));
+    }
+
+    #[test]
+    fn test_gauge_svg_contains_path_elements() {
+        let svg = gauge_svg(50, "#f59e0b");
+        assert!(svg.contains("<path"));
+        assert!(svg.contains("M"));  // SVG path command
+    }
+
+    // ── sparkline_svg ──
+
+    #[test]
+    fn test_sparkline_svg_less_than_two_points_returns_empty() {
+        assert_eq!(sparkline_svg(&[], 300, 100), "");
+        assert_eq!(sparkline_svg(&[50], 300, 100), "");
+    }
+
+    #[test]
+    fn test_sparkline_svg_two_points() {
+        let svg = sparkline_svg(&[0, 100], 300, 100);
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("<polyline"));
+        assert!(svg.contains("<circle"));
+    }
+
+    #[test]
+    fn test_sparkline_svg_contains_grid_line() {
+        let svg = sparkline_svg(&[30, 70, 90], 320, 80);
+        assert!(svg.contains("<line"));
+        assert!(svg.contains("stroke-dasharray"));
+    }
+
+    #[test]
+    fn test_sparkline_svg_many_points() {
+        let scores: Vec<u32> = (0..=100).step_by(10).collect();
+        let svg = sparkline_svg(&scores, 600, 120);
+        assert!(svg.contains("<polyline"));
+        assert!(svg.contains("#6366f1"));
+    }
+
+    #[test]
+    fn test_sparkline_svg_flat_line() {
+        let svg = sparkline_svg(&[50, 50, 50, 50, 50], 300, 100);
+        assert!(svg.contains("<polyline"));
+        assert!(svg.contains("<circle"));
+    }
+
+    #[test]
+    fn test_sparkline_svg_contains_viewbox() {
+        let svg = sparkline_svg(&[10, 90], 300, 100);
+        assert!(svg.contains("viewBox"));
+        assert!(svg.contains("300"));
+        assert!(svg.contains("100"));
+    }
+}
+
 pub(crate) fn setup_command() {
     let ascii_art = r#"
    ____          _      __  __      _        _          

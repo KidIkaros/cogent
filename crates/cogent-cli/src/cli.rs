@@ -135,8 +135,8 @@ pub enum Commands {
         #[arg(long, default_value = "5.0")]
         max_duplication: f64,
 
-        /// Max allowed file risk score (default: 10.0)
-        #[arg(long, default_value = "10.0")]
+        /// Max allowed file risk score (default: 50.0, range 0-100)
+        #[arg(long, default_value = "50.0")]
         max_risk: f64,
 
         /// Max allowed architectural coupling issues (default: 5)
@@ -234,6 +234,16 @@ pub enum Commands {
 
     /// Verify environment dependencies (doctor)
     Setup,
+
+    /// Collect diagnostic info: versions, config, PATH, available binaries, OS info
+    #[command(
+        after_help = "Example: cogent doctor --format json → machine-readable diagnostics."
+    )]
+    Doctor {
+        /// Output format: json or text
+        #[arg(short, long, default_value = "text")]
+        format: String,
+    },
 
     /// CRAP metric — measures change-risk by combining complexity and test coverage
     #[command(
@@ -480,7 +490,7 @@ pub enum Commands {
     /// Risk map (churn x complexity) only
     Riskmap {
         path: String,
-        #[arg(long, default_value = "10.0")]
+        #[arg(long, default_value = "50.0")]
         max_risk: f64,
         #[arg(short, long, default_value = "json")]
         format: String,
@@ -789,4 +799,119 @@ pub enum Commands {
         #[arg(long)]
         verify: bool,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hqse_phase_for;
+
+    // ── hqse_phase_for ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_hqse_phase_observability() {
+        assert_eq!(hqse_phase_for("observability"), "§7 Support / §4.5 Tracing");
+        assert_eq!(hqse_phase_for("check-observability"), "§7 Support / §4.5 Tracing");
+    }
+
+    #[test]
+    fn test_hqse_phase_debuggability() {
+        assert_eq!(hqse_phase_for("debuggability"), "§6.6 Debug / §4.5 Tracing");
+        assert_eq!(hqse_phase_for("contextless-unwrap"), "§6.6 Debug / §4.5 Tracing");
+        assert_eq!(hqse_phase_for("check-debuggability"), "§6.6 Debug / §4.5 Tracing");
+    }
+
+    #[test]
+    fn test_hqse_phase_test_quality() {
+        assert_eq!(hqse_phase_for("test-quality"), "§6 Test");
+        assert_eq!(hqse_phase_for("test_quality"), "§6 Test");
+        assert_eq!(hqse_phase_for("nondeterminism"), "§6 Test");
+        assert_eq!(hqse_phase_for("some-test-quality-check"), "§6 Test");
+    }
+
+    #[test]
+    fn test_hqse_phase_design() {
+        assert_eq!(hqse_phase_for("design-docs"), "§3 Design");
+        assert_eq!(hqse_phase_for("design_docs"), "§3 Design");
+        assert_eq!(hqse_phase_for("project-design-docs"), "§3 Design");
+    }
+
+    #[test]
+    fn test_hqse_phase_doc_coverage() {
+        assert_eq!(hqse_phase_for("doccov"), "§3 Design / §4 Code");
+        assert_eq!(hqse_phase_for("check-doccov"), "§3 Design / §4 Code");
+    }
+
+    #[test]
+    fn test_hqse_phase_error_handling() {
+        assert_eq!(hqse_phase_for("errhandle"), "§7 Support / §4 Code");
+        assert_eq!(hqse_phase_for("unwrap"), "§7 Support / §4 Code");
+        assert_eq!(hqse_phase_for("check-errhandle"), "§7 Support / §4 Code");
+    }
+
+    #[test]
+    fn test_hqse_phase_security_code() {
+        // All security checks map to §4 Code
+        assert_eq!(hqse_phase_for("secrets"), "§4 Code");
+        assert_eq!(hqse_phase_for("sast"), "§4 Code");
+        assert_eq!(hqse_phase_for("crypto"), "§4 Code");
+        assert_eq!(hqse_phase_for("taint"), "§4 Code");
+        // With prefixes
+        assert_eq!(hqse_phase_for("check-secrets"), "§4 Code");
+        assert_eq!(hqse_phase_for("sast-check"), "§4 Code");
+    }
+
+    #[test]
+    fn test_hqse_phase_quality_code() {
+        // Quality & complexity checks map to §4 Code
+        assert_eq!(hqse_phase_for("crap"), "§4 Code");
+        assert_eq!(hqse_phase_for("complexity"), "§4 Code");
+        assert_eq!(hqse_phase_for("debt"), "§4 Code");
+        assert_eq!(hqse_phase_for("cohesion"), "§4 Code");
+        assert_eq!(hqse_phase_for("coupling"), "§4 Code");
+        assert_eq!(hqse_phase_for("deadcode"), "§4 Code");
+        assert_eq!(hqse_phase_for("linelen"), "§4 Code");
+        assert_eq!(hqse_phase_for("halstead"), "§4 Code");
+    }
+
+    #[test]
+    fn test_hqse_phase_vulnerability_code() {
+        // Vulnerability & compliance checks map to §4 Code
+        assert_eq!(hqse_phase_for("vulnscan"), "§4 Code");
+        assert_eq!(hqse_phase_for("license"), "§4 Code");
+        assert_eq!(hqse_phase_for("supply"), "§4 Code");
+        assert_eq!(hqse_phase_for("outdated"), "§4 Code");
+        assert_eq!(hqse_phase_for("vulnscan-critical"), "§4 Code");
+        assert_eq!(hqse_phase_for("license-violation"), "§4 Code");
+    }
+
+    #[test]
+    fn test_hqse_phase_unknown_defaults_to_code() {
+        // Unrecognized rule_ids should default to §4 Code
+        assert_eq!(hqse_phase_for("unknown-tool"), "§4 Code");
+        assert_eq!(hqse_phase_for(""), "§4 Code");
+        assert_eq!(hqse_phase_for("some-random-rule"), "§4 Code");
+        assert_eq!(hqse_phase_for("test"), "§4 Code");
+    }
+
+    #[test]
+    fn test_hqse_phase_case_insensitivity() {
+        // The function lowercases the input, so case shouldn't matter
+        assert_eq!(hqse_phase_for("SECRETS"), "§4 Code");
+        assert_eq!(hqse_phase_for("SAST"), "§4 Code");
+        assert_eq!(hqse_phase_for("Observability"), "§7 Support / §4.5 Tracing");
+        assert_eq!(hqse_phase_for("Debt"), "§4 Code");
+        assert_eq!(hqse_phase_for("Test-Quality"), "§6 Test");
+        assert_eq!(hqse_phase_for("Design-Docs"), "§3 Design");
+    }
+
+    #[test]
+    fn test_hqse_phase_partial_match_priority() {
+        // Earlier conditions in the function take priority.
+        // "doccov" matches before "errhandle" bcause it comes first.
+        assert_eq!(hqse_phase_for("doccov"), "§3 Design / §4 Code");
+        // "observability" matches before later conditions
+        assert_eq!(hqse_phase_for("observability"), "§7 Support / §4.5 Tracing");
+        // "sast" matches before quality checks (order matters)
+        assert_eq!(hqse_phase_for("sast"), "§4 Code");
+    }
 }

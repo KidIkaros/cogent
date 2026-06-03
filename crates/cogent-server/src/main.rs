@@ -583,4 +583,113 @@ mod tests {
         let resp = handle_request(req).await;
         assert!(resp.is_none());
     }
+
+    #[tokio::test]
+    async fn test_unknown_method_returns_error() {
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: "nonexistent_method".to_string(),
+            params: None,
+        };
+        let resp = handle_request(req).await.unwrap();
+        assert!(resp.error.is_some());
+        assert_eq!(resp.error.unwrap().code, -32601);
+    }
+
+    #[tokio::test]
+    async fn test_tools_run_stream_returns_error() {
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: "tools/run_stream".to_string(),
+            params: None,
+        };
+        let resp = handle_request(req).await.unwrap();
+        assert!(resp.error.is_some());
+        assert_eq!(resp.error.unwrap().code, -32000);
+    }
+
+    #[tokio::test]
+    async fn test_mcp_tools_list_contains_tools() {
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: "tools/list".to_string(),
+            params: None,
+        };
+        let resp = handle_request(req).await.unwrap();
+        let tools = resp.result.unwrap();
+        let tool_array = tools["tools"].as_array().unwrap();
+        assert!(tool_array.len() >= 5);
+        assert!(tool_array.iter().any(|t| t["name"] == "debt-scan"));
+        assert!(tool_array.iter().any(|t| t["name"] == "mutation-test"));
+    }
+
+    #[tokio::test]
+    async fn test_initialize_returns_protocol_version() {
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: Some(serde_json::json!(1)),
+            method: "initialize".to_string(),
+            params: Some(serde_json::json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": {}
+            })),
+        };
+        let resp = handle_request(req).await.unwrap();
+        let result = resp.result.unwrap();
+        assert_eq!(result["protocolVersion"], "2024-11-05");
+        assert_eq!(result["serverInfo"]["name"], "cogent");
+    }
+
+    #[tokio::test]
+    async fn test_parse_error_returns_code_32700() {
+        // Simulate what handle_request returns for a malformed request
+        let req = JsonRpcRequest {
+            jsonrpc: "2.0".to_string(),
+            id: None,
+            method: "tools/call".to_string(),
+            params: Some(serde_json::json!({"invalid": true})),
+        };
+        let resp = handle_request(req).await;
+        // tools/call with missing 'name' should return error
+        assert!(resp.is_some());
+        let resp = resp.unwrap();
+        // The run_tool should fail with "Missing params" or "Missing 'name'"
+        assert!(resp.error.is_some());
+    }
+
+    #[test]
+    fn test_tool_catalog_contains_expected_tools() {
+        let catalog = tool_catalog();
+        let names: Vec<&str> = catalog.iter().map(|e| e.name.as_str()).collect();
+        assert!(names.contains(&"debt-scan"));
+        assert!(names.contains(&"duplication"));
+        assert!(names.contains(&"mutation-test"));
+        assert!(names.contains(&"taint-scan"));
+        assert!(names.contains(&"crap-metric"));
+        assert_eq!(catalog.len(), 10);
+    }
+
+    #[test]
+    fn test_tool_catalog_has_schemas() {
+        let catalog = tool_catalog();
+        for entry in &catalog {
+            assert!(entry.args_schema.get("type").is_some());
+            assert!(entry.args_schema.get("properties").is_some());
+            assert!(entry.args_schema.get("required").is_some());
+        }
+    }
+
+    #[test]
+    fn test_mcp_tools_list_has_tools() {
+        let tools = mcp_tools_list();
+        let tools_array = tools["tools"].as_array().unwrap();
+        assert_eq!(tools_array.len(), 10);
+        let first = &tools_array[0];
+        assert!(first.get("name").is_some());
+        assert!(first.get("description").is_some());
+        assert!(first.get("inputSchema").is_some());
+    }
 }

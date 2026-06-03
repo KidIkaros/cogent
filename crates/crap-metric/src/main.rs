@@ -4,7 +4,9 @@ use clap::Parser;
 use serde::Serialize;
 
 use ast_parse_ts::parse_complexity_file;
-use cogent_common::{crap_category, crap_score, parse_lcov, CoverageRecord};
+use cogent_common::{crap_category, crap_score, function_coverage, parse_lcov};
+#[cfg(test)]
+use cogent_common::CoverageRecord;
 use cogent_common::{find_source_files, print_table_header, print_table_row, Column};
 
 #[derive(Parser)]
@@ -294,13 +296,6 @@ fn output_table(reports: &[FunctionReport]) {
     }
 }
 
-fn function_coverage(coverage_records: &[CoverageRecord], func_name: &str) -> f64 {
-    coverage_records
-        .iter()
-        .find(|r| r.function == func_name)
-        .map_or(0.0, |r| if r.hits > 0 { 1.0 } else { 0.0 })
-}
-
 fn output_json(reports: &[FunctionReport]) -> Result<(), Box<dyn std::error::Error>> {
     let total = reports.len();
     let total_complexity: u32 = reports.iter().map(|r| r.complexity).sum();
@@ -370,4 +365,105 @@ fn output_ndjson(reports: &[FunctionReport]) -> Result<(), Box<dyn std::error::E
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_report(name: &str, score: f64) -> FunctionReport {
+        FunctionReport {
+            name: name.to_string(),
+            file: "src/lib.rs".to_string(),
+            line: 42,
+            complexity: 10,
+            line_count: 30,
+            coverage_pct: 0.5,
+            crap_score: score,
+            category: if score > 30.0 { "crappy".into() } else if score > 20.0 { "acceptable".into() } else if score > 10.0 { "good".into() } else { "excellent".into() },
+            severity: "error".to_string(),
+            help: "Reduce complexity or add tests.".to_string(),
+            rule_id: "crap-error".to_string(),
+            suggested_fix: Some("Refactor function.".to_string()),
+            auto_fix_available: Some(false),
+        }
+    }
+
+    #[test]
+    fn test_output_json_serialization() {
+        let reports = vec![
+            sample_report("foo", 5.0),
+            sample_report("bar", 35.0),
+        ];
+        // Capture stdout
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = output_json(&reports);
+        }));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_output_json_empty() {
+        let reports: Vec<FunctionReport> = vec![];
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = output_json(&reports);
+        }));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_output_ndjson_serialization() {
+        let reports = vec![
+            sample_report("foo", 5.0),
+        ];
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = output_ndjson(&reports);
+        }));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_output_ndjson_empty() {
+        let reports: Vec<FunctionReport> = vec![];
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = output_ndjson(&reports);
+        }));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_crap_report_json_structure() {
+        let reports = vec![
+            sample_report("compute", 12.5),
+            sample_report("process", 45.0),
+        ];
+        let json_str = serde_json::to_string_pretty(&CrapReport {
+            functions: reports,
+            summary: Summary {
+                total_functions: 2,
+                total_complexity: 20,
+                avg_complexity: 10.0,
+                avg_crap: 28.75,
+                crappy_count: 1,
+                acceptable_count: 0,
+                good_count: 1,
+                excellent_count: 0,
+            },
+        }).unwrap();
+        assert!(json_str.contains("compute"));
+        assert!(json_str.contains("process"));
+        assert!(json_str.contains("crappy"));
+        assert!(json_str.contains("good"));
+    }
+
+    #[test]
+    fn test_function_coverage_from_common() {
+        let records = vec![
+            CoverageRecord { function: "foo".into(), line: 10, hits: 5 },
+            CoverageRecord { function: "bar".into(), line: 20, hits: 0 },
+        ];
+        assert_eq!(cogent_common::function_coverage(&records, "foo"), 1.0);
+        assert_eq!(cogent_common::function_coverage(&records, "bar"), 0.0);
+        assert_eq!(cogent_common::function_coverage(&records, "nonexistent"), 0.0);
+    }
 }

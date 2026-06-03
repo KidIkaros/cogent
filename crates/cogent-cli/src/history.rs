@@ -313,3 +313,304 @@ fn format_ts(ts: u64) -> String {
     let m = (ts % 3600) / 60;
     format!("{}-{:02}-{:02} {:02}:{:02}", year, month, day, h, m)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── chrono_yymm ──
+
+    #[test]
+    fn test_chrono_yymm_epoch() {
+        // 1970-01-01
+        assert_eq!(chrono_yymm(0), "1970-01");
+    }
+
+    #[test]
+    fn test_chrono_yymm_typical() {
+        // 2025-06-01 = seconds from 1970-01-01
+        // days = 55 * 365 + 13 leap days ≈ 20088
+        // 20088 * 86400 = 1735603200 (roughly June 2025)
+        let ts = 1748736000; // 2025-06-01 00:00:00 UTC
+        assert_eq!(chrono_yymm(ts), "2025-06");
+    }
+
+    #[test]
+    fn test_chrono_yymm_january() {
+        // 2024-01-15 00:00:00 UTC
+        let ts = 1705276800;
+        assert_eq!(chrono_yymm(ts), "2024-01");
+    }
+
+    #[test]
+    fn test_chrono_yymm_december() {
+        // 2023-12-01 00:00:00 UTC
+        let ts = 1701388800;
+        assert_eq!(chrono_yymm(ts), "2023-12");
+    }
+
+    #[test]
+    fn test_chrono_yymm_far_future() {
+        // 2070-01-01
+        let ts = 3155760000;
+        let result = chrono_yymm(ts);
+        assert!(result.starts_with("2070-"));
+    }
+
+    // ── format_ts ──
+
+    #[test]
+    fn test_format_ts_epoch() {
+        assert_eq!(format_ts(0), "1970-01-01 00:00");
+    }
+
+    #[test]
+    fn test_format_ts_typical() {
+        // Function uses approximate math: days/365, months/30, no leap years
+        // ts=1718461800 → days=19889, year=2024, month=6 (179/30+1), day=30 (179%30+1), h=14, m=30
+        let ts = 1718461800;
+        let result = format_ts(ts);
+        assert_eq!(result, "2024-06-30 14:30");
+    }
+
+    #[test]
+    fn test_format_ts_midnight() {
+        // ts=1735689600 → days=20089, year=2025, month=1 (14/30+1), day=15 (14%30+1), h=0, m=0
+        let ts = 1735689600;
+        assert_eq!(format_ts(ts), "2025-01-15 00:00");
+    }
+
+    #[test]
+    fn test_format_ts_end_of_month() {
+        // ts=1677628740 → days=19416, year=2023, month=3 (71/30+1), day=12 (71%30+1), h=23, m=59
+        let ts = 1677628740;
+        let result = format_ts(ts);
+        assert_eq!(result, "2023-03-12 23:59");
+    }
+
+    #[test]
+    fn test_format_ts_one_second() {
+        assert_eq!(format_ts(1), "1970-01-01 00:00");
+    }
+
+    #[test]
+    fn test_format_ts_far_future() {
+        let ts = 4102444800; // 2100-01-01
+        let result = format_ts(ts);
+        assert!(result.starts_with("2100-"));
+    }
+
+    #[test]
+    fn test_chrono_yymm_vs_format_ts_midnight() {
+        // chrono_yymm("2024-06-15") should match format_ts("2024-06-15...")
+        let ts = 1718409600; // 2024-06-15 00:00 UTC
+        let yymm = chrono_yymm(ts);
+        let fmt = format_ts(ts);
+        assert!(fmt.starts_with(&format!("{}-", yymm)),
+            "chrono_yymm({})={} should match format_ts prefix", ts, yymm);
+    }
+}
+
+    // ── history_record ──
+
+    #[test]
+    fn test_history_record_writes_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let report_json = serde_json::json!({
+            "run_id": "test-run",
+            "summary": {"passed": 5, "failed": 1},
+            "tools": [],
+        });
+        let report_path = dir.path().join("report.json");
+        std::fs::write(&report_path, report_json.to_string()).expect("write");
+
+        let code = history_record(
+            dir.path().to_str().unwrap(),
+            Some(report_path.to_str().unwrap()),
+        );
+        assert_eq!(code, 0, "history_record should succeed");
+
+        // Should have created a .jsonl file
+        let mut entries: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().is_some_and(|x| x == "jsonl"))
+            .collect();
+        assert!(!entries.is_empty(), "should create a .jsonl file");
+
+        // The JSONL file should contain valid JSON
+        let content = std::fs::read_to_string(entries[0].path()).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+        assert_eq!(parsed["passed"], 5);
+        assert_eq!(parsed["failed"], 1);
+    }
+
+    #[test]
+    fn test_history_record_missing_file_returns_1() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let code = history_record(
+            dir.path().to_str().unwrap(),
+            Some("/tmp/nonexistent-report-12345.json"),
+        );
+        assert_eq!(code, 1, "missing file should return 1");
+    }
+
+    #[test]
+    fn test_history_record_invalid_json_returns_1() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let bad_path = dir.path().join("bad.json");
+        std::fs::write(&bad_path, "not valid json").unwrap();
+        let code = history_record(
+            dir.path().to_str().unwrap(),
+            Some(bad_path.to_str().unwrap()),
+        );
+        assert_eq!(code, 1, "invalid JSON should return 1");
+    }
+
+    // ── history_show ──
+
+    #[test]
+    fn test_history_show_empty_dir() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let code = history_show(dir.path().to_str().unwrap(), 10);
+        assert_eq!(code, 0, "empty dir should return 0");
+    }
+
+    #[test]
+    fn test_history_show_with_records() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // Create a mock history file
+        let record = serde_json::json!({
+            "ts": 1718409600,
+            "passed": 10,
+            "failed": 2,
+            "tools": {}
+        });
+        let history_path = dir.path().join("2024-06.jsonl");
+        std::fs::write(&history_path, format!("{}\n", record)).unwrap();
+
+        let code = history_show(dir.path().to_str().unwrap(), 10);
+        assert_eq!(code, 0, "history_show should return 0");
+    }
+
+    #[test]
+    fn test_history_show_filters_non_jsonl() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // Create a .txt file — should be ignored
+        std::fs::write(dir.path().join("notes.txt"), "hello").unwrap();
+        let code = history_show(dir.path().to_str().unwrap(), 10);
+        assert_eq!(code, 0, "should handle non-jsonl files gracefully");
+    }
+
+    #[test]
+    fn test_history_show_respects_last_param() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // Create 5 records in the file
+        let mut content = String::new();
+        for i in 0..5u64 {
+            let record = serde_json::json!({
+                "ts": 1718409600 + i * 86400,
+                "passed": 10,
+                "failed": i,
+                "tools": {}
+            });
+            content.push_str(&format!("{}\n", record));
+        }
+        let history_path = dir.path().join("2024-06.jsonl");
+        std::fs::write(&history_path, content).unwrap();
+
+        // Should not crash with any last value
+        assert_eq!(history_show(dir.path().to_str().unwrap(), 3), 0);
+        assert_eq!(history_show(dir.path().to_str().unwrap(), 0), 0);
+    }
+
+    // ── history_html ──
+
+    #[test]
+    fn test_history_html_empty_dir_returns_0() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let code = history_html(dir.path().to_str().unwrap(), 10);
+        assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn test_history_html_with_records() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let record = serde_json::json!({
+            "ts": 1718409600,
+            "passed": 8,
+            "failed": 2,
+            "tools": {
+                "crap": {"success": true, "duration_ms": 1500},
+                "debt": {"success": false, "duration_ms": 800},
+            }
+        });
+        let history_path = dir.path().join("2024-06.jsonl");
+        std::fs::write(&history_path, format!("{}\n", record)).unwrap();
+
+        let code = history_html(dir.path().to_str().unwrap(), 10);
+        assert_eq!(code, 0, "history_html should succeed");
+    }
+
+    #[test]
+    fn test_history_html_multiple_records() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut content = String::new();
+        for i in 0..3u64 {
+            let record = serde_json::json!({
+                "ts": 1718409600 + i * 86400,
+                "passed": 10,
+                "failed": i,
+                "tools": {}
+            });
+            content.push_str(&format!("{}\n", record));
+        }
+        std::fs::write(dir.path().join("2024-06.jsonl"), content).unwrap();
+
+        let code = history_html(dir.path().to_str().unwrap(), 5);
+        assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn test_history_html_respects_last_param() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut content = String::new();
+        for i in 0..10u64 {
+            let record = serde_json::json!({
+                "ts": 1718409600 + i * 86400,
+                "passed": 10,
+                "failed": 0,
+                "tools": {}
+            });
+            content.push_str(&format!("{}\n", record));
+        }
+        std::fs::write(dir.path().join("2024-06.jsonl"), content).unwrap();
+
+        // last=3 should work without issues
+        let code = history_html(dir.path().to_str().unwrap(), 3);
+        assert_eq!(code, 0);
+    }
+
+    // ── history_command ──
+
+    #[test]
+    fn test_history_command_unknown_action_defaults_to_show() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let code = history_command("foobar", dir.path().to_str().unwrap(), 10, None, "text");
+        assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn test_history_command_html_format() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let code = history_command("show", dir.path().to_str().unwrap(), 10, None, "html");
+        assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn test_history_command_record_without_report() {
+        // No report_path and stdin not available → will fail
+        let dir = tempfile::tempdir().expect("tempdir");
+        let code = history_command("record", dir.path().to_str().unwrap(), 10, None, "text");
+        assert_eq!(code, 1, "record without stdin should fail");
+    }

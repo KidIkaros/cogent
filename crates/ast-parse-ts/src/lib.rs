@@ -598,6 +598,28 @@ pub fn parse_complexity_file(path: &str) -> Vec<FunctionInfo> {
 // DOC COVERAGE
 // ═══════════════════════════════════════════
 
+/// Doc comment prefixes per language.
+fn doc_comment_prefixes(lang: Language) -> &'static [&'static str] {
+    match lang {
+        Language::Rust => &["///", "/**", "//!"],
+        Language::Python => &["#"],
+        Language::JavaScript | Language::TypeScript => &["*", "/**"],
+        Language::Solidity => &["///"],
+        Language::Vyper => &["///", "/**", "#"],
+        Language::Ocaml => &["(**"],
+        Language::Go
+        | Language::C
+        | Language::Cpp
+        | Language::CSharp
+        | Language::Java
+        | Language::Php
+        | Language::Ruby
+        | Language::Swift
+        | Language::Kotlin => &["//", "/*", "///", "/**"],
+        Language::Unknown => &[],
+    }
+}
+
 /// Detect whether a function/class node at `line` has a doc comment in `source`.
 fn has_doc_comment_before(source: &str, line: usize, lang: Language) -> bool {
     if line == 0 {
@@ -607,6 +629,7 @@ fn has_doc_comment_before(source: &str, line: usize, lang: Language) -> bool {
     let line = line.min(lines.len().saturating_add(1));
     // Look at up to 5 lines above the node start (attributes like #[derive] may sit between)
     let start = line.saturating_sub(5);
+    let prefixes = doc_comment_prefixes(lang);
     for prev in (start..line.saturating_sub(1)).rev() {
         let trimmed = lines.get(prev).map(|l| l.trim()).unwrap_or("");
         if trimmed.is_empty() {
@@ -615,38 +638,7 @@ fn has_doc_comment_before(source: &str, line: usize, lang: Language) -> bool {
         if lang == Language::Rust && trimmed.starts_with("#") {
             continue;
         }
-        let is_doc = match lang {
-            Language::Rust => {
-                trimmed.starts_with("///")
-                    || trimmed.starts_with("/**")
-                    || trimmed.starts_with("//!")
-            }
-            Language::Python => trimmed.starts_with('#'),
-            Language::JavaScript | Language::TypeScript => {
-                trimmed.starts_with('*') || trimmed.starts_with("/**")
-            }
-            Language::Solidity => trimmed.starts_with("///"),
-            Language::Vyper => {
-                trimmed.starts_with("///") || trimmed.starts_with("/**") || trimmed.starts_with('#')
-            }
-            Language::Ocaml => trimmed.starts_with("(**"),
-            Language::Go
-            | Language::C
-            | Language::Cpp
-            | Language::CSharp
-            | Language::Java
-            | Language::Php
-            | Language::Ruby
-            | Language::Swift
-            | Language::Kotlin => {
-                trimmed.starts_with("//")
-                    || trimmed.starts_with("/*")
-                    || trimmed.starts_with("///")
-                    || trimmed.starts_with("/**")
-            }
-            Language::Unknown => false,
-        };
-        if is_doc {
+        if prefixes.iter().any(|p| trimmed.starts_with(p)) {
             return true;
         }
     }
@@ -1046,9 +1038,28 @@ fn collect_import_nodes<'a>(node: Node<'a>, import_kinds: &[&str], out: &mut Vec
     }
 }
 
+/// Strip a keyword prefix and clean up trailing semicolons for import extraction.
+fn extract_keyword_import(text: &str, keyword: &str) -> Option<String> {
+    let result = text
+        .trim()
+        .strip_prefix(keyword)?
+        .trim_end_matches(';')
+        .trim()
+        .to_string();
+    if result.is_empty() { None } else { Some(result) }
+}
+
+/// Extract content of the first quoted string "..." in text.
+fn extract_quoted(text: &str) -> Option<String> {
+    let start = text.find('"')?;
+    let end = text[start + 1..].find('"')?;
+    Some(text[start + 1..start + 1 + end].to_string())
+}
+
 /// Extract what module each import node points to.
 fn extract_import_target(node: Node<'_>, source_bytes: &[u8], lang: Language) -> Option<String> {
     match lang {
+        // ── AST field-based languages ─────────────────
         Language::Python => {
             // `import foo` or `from foo import bar`
             if let Some(n) = node.child_by_field_name("name") {
@@ -1097,45 +1108,70 @@ fn extract_import_target(node: Node<'_>, source_bytes: &[u8], lang: Language) ->
             }
             None
         }
+        // ── Keyword-stripping languages ──────────────
         Language::Rust => {
-            // `use crate::foo::bar` → extract the path text
-            let text = node_text(node, source_bytes)
-                .trim_start_matches("use ")
-                .trim_end_matches(';')
-                .trim()
-                .to_string();
-            if !text.is_empty() {
-                return Some(text);
-            }
-            None
+            let text = node_text(node, source_bytes).trim().to_string();
+            extract_keyword_import(&text, "use ")
         }
+        Language::CSharp => {
+            let text = node_text(node, source_bytes).trim().to_string();
+            extract_keyword_import(&text, "using ")
+        }
+        Language::Swift | Language::Kotlin => {
+            let text = node_text(node, source_bytes).trim().to_string();
+            extract_keyword_import(&text, "import ")
+        }
+        Language::Ocaml => {
+            let text = node_text(node, source_bytes).trim().to_string();
+            extract_keyword_import(&text, "open ")
+        }
+        Language::Vyper => {
+            let text = node_text(node, source_bytes).trim().to_string();
+            extract_keyword_import(&text, "import ")
+        }
+        // ── Quoted-path languages ────────────────────
         Language::C | Language::Cpp => {
             // `#include "header.h"` or `#include <header.h>`
             let text = node_text(node, source_bytes).trim().to_string();
-            if let Some(start) = text.find('"') {
-                if let Some(end) = text[start + 1..].find('"') {
-                    return Some(text[start + 1..start + 1 + end].to_string());
-                }
-            }
-            if let Some(start) = text.find('<') {
-                if let Some(end) = text[start + 1..].find('>') {
-                    return Some(text[start + 1..start + 1 + end].to_string());
-                }
-            }
-            None
+            extract_quoted(&text)
+                .or_else(|| {
+                    text.find('<')
+                        .and_then(|start| text[start + 1..].find('>').map(|end| text[start + 1..start + 1 + end].to_string()))
+                })
         }
-        Language::CSharp => {
-            // `using System.Collections.Generic;`
-            let text = node_text(node, source_bytes)
-                .trim_start_matches("using ")
-                .trim_end_matches(';')
-                .trim()
-                .to_string();
-            if !text.is_empty() {
-                return Some(text);
-            }
-            None
+        Language::Solidity => {
+            let text = node_text(node, source_bytes).trim().to_string();
+            extract_quoted(&text)
         }
+        // ── Multi-pattern languages ──────────────────
+        Language::Php => {
+            // `use Foo\Bar;` or `include/require "file.php";`
+            let text = node_text(node, source_bytes).trim().to_string();
+            extract_keyword_import(&text, "use ")
+                .or_else(|| {
+                    if text.starts_with("include") || text.starts_with("require") {
+                        extract_quoted(&text)
+                    } else {
+                        None
+                    }
+                })
+        }
+        Language::Ruby => {
+            // `require "gem"`, `require_relative "./file"`, `load "file.rb"`, `include Module`
+            let text = node_text(node, source_bytes).trim().to_string();
+            if text.starts_with("require ")
+                || text.starts_with("require_relative ")
+                || text.starts_with("load ")
+            {
+                extract_quoted(&text)
+            } else if text.starts_with("include ") {
+                text.strip_prefix("include ")
+                    .map(|s| s.trim().to_string())
+            } else {
+                None
+            }
+        }
+        // ── Single-pattern text-based ────────────────
         Language::Java => {
             // `import java.util.List;` or `import static java.util.List.*;`
             let text = node_text(node, source_bytes)
@@ -1145,87 +1181,7 @@ fn extract_import_target(node: Node<'_>, source_bytes: &[u8], lang: Language) ->
                 .trim_end_matches(".*")
                 .trim()
                 .to_string();
-            if !text.is_empty() {
-                return Some(text);
-            }
-            None
-        }
-        Language::Php => {
-            // `use Foo\Bar;` or `include/require "file.php";`
-            let text = node_text(node, source_bytes).trim().to_string();
-            if text.starts_with("use ") {
-                if let Some(stripped) = text.strip_prefix("use ") {
-                    return Some(stripped.trim_end_matches(';').trim().to_string());
-                }
-            }
-            if text.starts_with("include") || text.starts_with("require") {
-                if let Some(start) = text.find('"') {
-                    if let Some(end) = text[start + 1..].find('"') {
-                        return Some(text[start + 1..start + 1 + end].to_string());
-                    }
-                }
-            }
-            None
-        }
-        Language::Ruby => {
-            // `require "gem"`, `require_relative "./file"`, `load "file.rb"`, `include Module`
-            let text = node_text(node, source_bytes).trim().to_string();
-            if text.starts_with("require ")
-                || text.starts_with("require_relative ")
-                || text.starts_with("load ")
-            {
-                if let Some(start) = text.find('"') {
-                    if let Some(end) = text[start + 1..].find('"') {
-                        return Some(text[start + 1..start + 1 + end].to_string());
-                    }
-                }
-            }
-            if text.starts_with("include ") {
-                if let Some(stripped) = text.strip_prefix("include ") {
-                    return Some(stripped.trim().to_string());
-                }
-            }
-            None
-        }
-        Language::Swift => {
-            // `import Foundation`
-            let text = node_text(node, source_bytes).trim().to_string();
-            if let Some(stripped) = text.strip_prefix("import ") {
-                return Some(stripped.trim().to_string());
-            }
-            None
-        }
-        Language::Kotlin => {
-            let text = node_text(node, source_bytes).trim().to_string();
-            if let Some(stripped) = text.strip_prefix("import ") {
-                return Some(stripped.trim().to_string());
-            }
-            None
-        }
-        Language::Solidity => {
-            let text = node_text(node, source_bytes).trim().to_string();
-            if let Some(start) = text.find('"') {
-                if let Some(end) = text[start + 1..].find('"') {
-                    return Some(text[start + 1..start + 1 + end].to_string());
-                }
-            }
-            None
-        }
-        Language::Vyper => {
-            let text = node_text(node, source_bytes).trim().to_string();
-            if text.starts_with("import ") {
-                if let Some(stripped) = text.strip_prefix("import ") {
-                    return Some(stripped.trim_end_matches(';').trim().to_string());
-                }
-            }
-            None
-        }
-        Language::Ocaml => {
-            let text = node_text(node, source_bytes).trim().to_string();
-            if let Some(stripped) = text.strip_prefix("open ") {
-                return Some(stripped.trim().to_string());
-            }
-            None
+            if !text.is_empty() { Some(text) } else { None }
         }
         Language::Unknown => None,
     }
@@ -1617,5 +1573,168 @@ import { useState } from 'react';
         assert!(imports
             .iter()
             .any(|i| i.imported_module == "java.util.List"));
+    }
+
+    // ── extract_quoted tests ─────────────────
+
+    #[test]
+    fn test_extract_quoted_basic() {
+        assert_eq!(
+            extract_quoted("#include \"header.h\""),
+            Some("header.h".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_quoted_no_quotes() {
+        assert_eq!(extract_quoted("no quotes here"), None);
+    }
+
+    #[test]
+    fn test_extract_quoted_empty_string() {
+        assert_eq!(extract_quoted("\"\""), Some("".to_string()));
+    }
+
+    #[test]
+    fn test_extract_quoted_multiple() {
+        // Should return only the first quoted string
+        assert_eq!(
+            extract_quoted("\"first\" and \"second\""),
+            Some("first".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_quoted_with_path() {
+        assert_eq!(
+            extract_quoted("import \"./utils\";"),
+            Some("./utils".to_string())
+        );
+    }
+
+    // ── extract_keyword_import tests ─────────
+
+    #[test]
+    fn test_extract_keyword_import_basic() {
+        assert_eq!(
+            extract_keyword_import("use crate::foo::bar;", "use "),
+            Some("crate::foo::bar".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_keyword_import_no_semicolon() {
+        assert_eq!(
+            extract_keyword_import("import Foundation", "import "),
+            Some("Foundation".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_keyword_import_with_whitespace() {
+        assert_eq!(
+            extract_keyword_import("  using System.Collections;  ", "using "),
+            Some("System.Collections".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_keyword_import_no_match() {
+        assert_eq!(extract_keyword_import("fn foo()", "use "), None);
+    }
+
+    #[test]
+    fn test_extract_keyword_import_empty_after_strip() {
+        assert_eq!(extract_keyword_import("use ;", "use "), None);
+    }
+
+    #[test]
+    fn test_extract_keyword_import_open() {
+        assert_eq!(
+            extract_keyword_import("open List", "open "),
+            Some("List".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_keyword_import_dotted_path() {
+        assert_eq!(
+            extract_keyword_import("import java.util.List;", "import "),
+            Some("java.util.List".to_string())
+        );
+    }
+
+    // ── doc_comment_prefixes tests ───────────
+
+    #[test]
+    fn test_doc_comment_prefixes_rust() {
+        let prefixes = doc_comment_prefixes(Language::Rust);
+        assert!(prefixes.contains(&"///"));
+        assert!(prefixes.contains(&"/**"));
+        assert!(prefixes.contains(&"//!"));
+        assert_eq!(prefixes.len(), 3);
+    }
+
+    #[test]
+    fn test_doc_comment_prefixes_python() {
+        let prefixes = doc_comment_prefixes(Language::Python);
+        assert!(prefixes.contains(&"#"));
+        assert_eq!(prefixes.len(), 1);
+    }
+
+    #[test]
+    fn test_doc_comment_prefixes_javascript() {
+        let prefixes = doc_comment_prefixes(Language::JavaScript);
+        assert!(prefixes.contains(&"*"));
+        assert!(prefixes.contains(&"/**"));
+    }
+
+    #[test]
+    fn test_doc_comment_prefixes_ocaml() {
+        let prefixes = doc_comment_prefixes(Language::Ocaml);
+        assert!(prefixes.contains(&"(**"));
+        assert_eq!(prefixes.len(), 1);
+    }
+
+    #[test]
+    fn test_doc_comment_prefixes_go() {
+        let prefixes = doc_comment_prefixes(Language::Go);
+        assert!(prefixes.contains(&"//"));
+        assert!(prefixes.contains(&"/*"));
+        assert!(prefixes.contains(&"///"));
+        assert!(prefixes.contains(&"/**"));
+    }
+
+    #[test]
+    fn test_doc_comment_prefixes_solidity() {
+        let prefixes = doc_comment_prefixes(Language::Solidity);
+        assert!(prefixes.contains(&"///"));
+        assert_eq!(prefixes.len(), 1);
+    }
+
+    #[test]
+    fn test_doc_comment_prefixes_vyper() {
+        let prefixes = doc_comment_prefixes(Language::Vyper);
+        assert!(prefixes.contains(&"///"));
+        assert!(prefixes.contains(&"/**"));
+        assert!(prefixes.contains(&"#"));
+        assert_eq!(prefixes.len(), 3);
+    }
+
+    #[test]
+    fn test_doc_comment_prefixes_unknown() {
+        let prefixes = doc_comment_prefixes(Language::Unknown);
+        assert!(prefixes.is_empty());
+    }
+
+    #[test]
+    fn test_doc_comment_prefixes_csharp() {
+        let prefixes = doc_comment_prefixes(Language::CSharp);
+        // C# uses the same prefixes as Go/C/C++/Java/PHP/Ruby/Swift/Kotlin
+        assert!(prefixes.contains(&"//"));
+        assert!(prefixes.contains(&"/*"));
+        assert!(prefixes.contains(&"///"));
+        assert!(prefixes.contains(&"/**"));
+        assert_eq!(prefixes.len(), 4);
     }
 }

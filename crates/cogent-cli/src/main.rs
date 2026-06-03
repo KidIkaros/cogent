@@ -10,6 +10,7 @@ mod commands;
 mod config;
 mod diff;
 mod dispatcher;
+mod doctor;
 mod history;
 mod hooks;
 mod progress;

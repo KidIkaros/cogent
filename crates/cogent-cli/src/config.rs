@@ -486,3 +486,147 @@ fn parse_toml_f64(line: &str, key: &str) -> Option<f64> {
 fn parse_toml_usize(line: &str, key: &str) -> Option<usize> {
     parse_toml_f64(line, key).map(|v| v as usize)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── parse_toml_f64 ──
+
+    #[test]
+    fn test_parse_f64_max_avg() {
+        assert_eq!(parse_toml_f64("max_avg = 15.0", "max_avg"), Some(15.0));
+    }
+
+    #[test]
+    fn test_parse_f64_min_pct() {
+        assert_eq!(parse_toml_f64("min_pct = 95.5", "min_pct"), Some(95.5));
+    }
+
+    #[test]
+    fn test_parse_f64_integer_value() {
+        assert_eq!(parse_toml_f64("max_avg = 30", "max_avg"), Some(30.0));
+    }
+
+    #[test]
+    fn test_parse_f64_no_spaces_key() {
+        assert_eq!(parse_toml_f64("max_avg=15.0", "max_avg"), Some(15.0));
+    }
+
+    #[test]
+    fn test_parse_f64_key_not_found() {
+        assert_eq!(parse_toml_f64("other_key = 42.0", "max_avg"), None);
+    }
+
+    #[test]
+    fn test_parse_f64_comment_line() {
+        assert_eq!(parse_toml_f64("# max_avg = 15.0", "max_avg"), None);
+    }
+
+    #[test]
+    fn test_parse_f64_empty_value() {
+        assert_eq!(parse_toml_f64("max_avg = ", "max_avg"), None);
+    }
+
+    #[test]
+    fn test_parse_f64_non_numeric() {
+        assert_eq!(parse_toml_f64("max_avg = abc", "max_avg"), None);
+    }
+
+    // ── parse_toml_usize ──
+
+    #[test]
+    fn test_parse_usize_max_markers() {
+        assert_eq!(parse_toml_usize("max_markers = 50", "max_markers"), Some(50));
+    }
+
+    #[test]
+    fn test_parse_usize_zero() {
+        assert_eq!(parse_toml_usize("max_markers = 0", "max_markers"), Some(0));
+    }
+
+    #[test]
+    fn test_parse_usize_float_truncates() {
+        assert_eq!(parse_toml_usize("max_markers = 42.9", "max_markers"), Some(42));
+    }
+
+    #[test]
+    fn test_parse_usize_no_spaces() {
+        assert_eq!(parse_toml_usize("max_violations=10", "max_violations"), Some(10));
+    }
+
+    #[test]
+    fn test_parse_usize_key_not_found() {
+        assert_eq!(parse_toml_usize("other = 5", "max_markers"), None);
+    }
+
+    // ── build_gha_workflow ──
+
+    fn make_profile(
+        test_cmd: Vec<&str>,
+        coverage_cmd: Vec<&str>,
+        lcov_path: &str,
+    ) -> ProjectProfile {
+        ProjectProfile {
+            ecosystem: ProjectEcosystem::Rust,
+            test_cmd: test_cmd.into_iter().map(String::from).collect(),
+            coverage_cmd: coverage_cmd.into_iter().map(String::from).collect(),
+            lcov_path: lcov_path.to_string(),
+            watch_extensions: vec!["rs".into()],
+            max_crap: 15.0,
+            min_doc: 95.0,
+            max_debt: 0,
+            max_complexity_violations: 0,
+        }
+    }
+
+    #[test]
+    fn test_gha_workflow_contains_name() {
+        let profile = make_profile(vec!["cargo", "test"], vec![], "");
+        let workflow = build_gha_workflow(&profile);
+        assert!(workflow.contains("name: Cogent Quality Gate"));
+    }
+
+    #[test]
+    fn test_gha_workflow_contains_test_cmd() {
+        let profile = make_profile(vec!["cargo", "test"], vec![], "");
+        let workflow = build_gha_workflow(&profile);
+        assert!(workflow.contains("run: cargo test"));
+    }
+
+    #[test]
+    fn test_gha_workflow_no_coverage() {
+        let profile = make_profile(vec!["cargo", "test"], vec![], "");
+        let workflow = build_gha_workflow(&profile);
+        assert!(!workflow.contains("Collect coverage"));
+    }
+
+    #[test]
+    fn test_gha_workflow_with_coverage() {
+        let profile = make_profile(
+            vec!["cargo", "test"],
+            vec!["cargo", "llvm-cov", "--lcov", "--output-path", "lcov.info"],
+            "lcov.info",
+        );
+        let workflow = build_gha_workflow(&profile);
+        assert!(workflow.contains("Collect coverage"));
+        assert!(workflow.contains("cargo llvm-cov --lcov --output-path lcov.info"));
+        assert!(workflow.contains("--coverage lcov.info"));
+    }
+
+    #[test]
+    fn test_gha_workflow_baseline_section() {
+        let profile = make_profile(vec!["npm", "test"], vec![], "");
+        let workflow = build_gha_workflow(&profile);
+        assert!(workflow.contains(".cogent-baseline.sarif"));
+        assert!(workflow.contains("Update baseline on main"));
+    }
+
+    #[test]
+    fn test_gha_workflow_sarif_upload() {
+        let profile = make_profile(vec!["go", "test", "./..."], vec![], "");
+        let workflow = build_gha_workflow(&profile);
+        assert!(workflow.contains("Upload SARIF to GitHub Security"));
+        assert!(workflow.contains("github/codeql-action/upload-sarif@v3"));
+    }
+}

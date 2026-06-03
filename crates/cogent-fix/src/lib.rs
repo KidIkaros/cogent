@@ -78,7 +78,7 @@ pub fn apply_patches(patches: &[FixPatch], dry_run: bool, validate: bool) -> Vec
 
     for (file, mut file_patches) in by_file {
         // Sort descending by line so earlier insertions don't shift later ones.
-        file_patches.sort_by(|a, b| b.line.cmp(&a.line));
+        file_patches.sort_by_key(|b| std::cmp::Reverse(b.line));
 
         let Ok(src) = std::fs::read_to_string(&file) else {
             results.push(ApplyResult {
@@ -390,11 +390,8 @@ fn fixer_deadcode(files: &[String]) -> Vec<FixPatch> {
                 line: ln,
                 old_text: line.to_string(),
                 new_text: format!("{}#[allow(dead_code)]\n{}", indent_str, line),
-                rule_id: "deadcode-annotate".into(),
-                confidence: "high".into(),
-                description: format!(
-                    "Add `#[allow(dead_code)]` to suppress dead code warning"
-                ),
+                rule_id: "deadcode-annotate".into(),                    confidence: "high".into(),
+                    description: "Add `#[allow(dead_code)]` to suppress dead code warning".to_string(),
             });
         }
     }
@@ -532,13 +529,12 @@ fn fixer_secrets(files: &[String]) -> Vec<FixPatch> {
                             let indent = line.len() - line.trim_start().len();
                             let indent_str = &line[..indent];
                             // For const we can't use ?, use expect for const context
+                            let env_msg = format_args!("{} must be set", env_name);
+                            let keyword = line.split_whitespace().next().unwrap_or("let");
                             let new_line = if line.trim().starts_with("const") || line.trim().starts_with("static") {
                                 format!(
                                     "{}{}std::env::var(\"{}\").expect(\"{}\");",
-                                    indent_str,
-                                    line.trim().split_whitespace().next().unwrap_or("let"),
-                                    env_name,
-                                    format!("{} must be set", env_name)
+                                    indent_str, keyword, env_name, env_msg
                                 )
                             } else {
                                 format!(
@@ -621,8 +617,8 @@ fn fixer_secrets(files: &[String]) -> Vec<FixPatch> {
 
 fn extract_string_literal(s: &str) -> Option<String> {
     let s = s.trim();
-    if s.starts_with('"') {
-        let end = s[1..].find('"')?;
+    if let Some(inner) = s.strip_prefix('"') {
+        let end = inner.find('"')?;
         Some(s[1..end + 1].to_string())
     } else {
         None
@@ -987,3 +983,322 @@ fn get_indent_at_line(src: &str, line: usize) -> String {
     let indent = l.len() - l.trim_start().len();
     " ".repeat(indent)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── FixPatch tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_fix_patch_to_diff() {
+        let patch = FixPatch {
+            file: "src/main.rs".into(),
+            line: 10,
+            old_text: "let x = 1;".into(),
+            new_text: "let x = 2;".into(),
+            rule_id: "test-rule".into(),
+            confidence: "high".into(),
+            description: "test patch".into(),
+        };
+        let diff = patch.to_diff();
+        assert!(diff.contains("--- src/main.rs"));
+        assert!(diff.contains("+++ src/main.rs"));
+        assert!(diff.contains("-let x = 1;"));
+        assert!(diff.contains("+let x = 2;"));
+    }
+
+    // ── validate_rust_source ────────────────────────────────────────
+
+    #[test]
+    fn test_validate_rust_source_valid() {
+        assert!(validate_rust_source("fn main() { println!(\"hello\"); }"));
+    }
+
+    #[test]
+    fn test_validate_rust_source_invalid() {
+        assert!(!validate_rust_source("fn main() { println!(\"hello\" "));
+    }
+
+    // ── apply_patches ───────────────────────────────────────────────
+
+    #[test]
+    fn test_apply_patches_dry_run() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "let x = 1;").unwrap();
+        writeln!(f, "let y = 2;").unwrap();
+
+        let patches = vec![FixPatch {
+            file: f.path().to_str().unwrap().to_string(),
+            line: 1,
+            old_text: "let x = 1;".into(),
+            new_text: "let x = 10;".into(),
+            rule_id: "test".into(),
+            confidence: "high".into(),
+            description: "test".into(),
+        }];
+
+        let results = apply_patches(&patches, true, true);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].patches_applied, 1);
+        assert_eq!(results[0].patches_rejected, 0);
+    }
+
+    #[test]
+    fn test_apply_patches_rejected_when_old_text_mismatch() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "let x = 1;").unwrap();
+
+        let patches = vec![FixPatch {
+            file: f.path().to_str().unwrap().to_string(),
+            line: 1,
+            old_text: "let x = 999;".into(),  // doesn't match
+            new_text: "let x = 10;".into(),
+            rule_id: "test".into(),
+            confidence: "high".into(),
+            description: "test".into(),
+        }];
+
+        let results = apply_patches(&patches, false, false);
+        assert_eq!(results[0].patches_applied, 0);
+        assert_eq!(results[0].patches_rejected, 1);
+    }
+
+    // ── is_code_position ────────────────────────────────────────────
+
+    #[test]
+    fn test_is_code_position_true() {
+        assert!(is_code_position("let x = result.unwrap();", 15));
+    }
+
+    #[test]
+    fn test_is_code_position_false_comment() {
+        assert!(!is_code_position("// let x = result.unwrap();", 5));
+    }
+
+    // ── extract_expr_name ───────────────────────────────────────────
+
+    #[test]
+    fn test_extract_expr_name_simple() {
+        assert_eq!(extract_expr_name("let x = result"), "result");
+    }
+
+    #[test]
+    fn test_extract_expr_name_chained() {
+        let name = extract_expr_name("let x = get_data()");
+        assert!(!name.is_empty(), "should extract a non-empty expression name");
+        assert!(!name.contains('('), "should not include opening paren: got '{}'", name);
+    }
+
+    #[test]
+    fn test_extract_expr_name_truncated() {
+        let long = "a".repeat(40);
+        let result = extract_expr_name(&format!("let x = {}", long));
+        assert_eq!(result.len(), 30);
+    }
+
+    // ── find_closing_paren ──────────────────────────────────────────
+
+    #[test]
+    fn test_find_closing_paren_basic() {
+        assert_eq!(find_closing_paren("foo(bar)", 3), Some(7));
+    }
+
+    #[test]
+    fn test_find_closing_paren_nested() {
+        assert_eq!(find_closing_paren("foo(bar(baz))", 3), Some(12));
+    }
+
+    #[test]
+    fn test_find_closing_paren_no_match() {
+        assert_eq!(find_closing_paren("foo(bar", 3), None);
+    }
+
+    #[test]
+    fn test_find_closing_paren_with_string() {
+        // String literal with parens inside should not confuse the matcher
+        assert_eq!(find_closing_paren("foo(\"(\")", 3), Some(7));
+    }
+
+    // ── extract_string_literal ──────────────────────────────────────
+
+    #[test]
+    fn test_extract_string_literal_valid() {
+        assert_eq!(
+            extract_string_literal("\"hello\"").as_deref(),
+            Some("hello")
+        );
+    }
+
+    #[test]
+    fn test_extract_string_literal_no_quote() {
+        assert!(extract_string_literal("hello").is_none());
+    }
+
+    // ── extract_var_name ────────────────────────────────────────────
+
+    #[test]
+    fn test_extract_var_name_let() {
+        assert_eq!(extract_var_name("let api_key = \"value\";"), "api_key");
+    }
+
+    #[test]
+    fn test_extract_var_name_const() {
+        assert_eq!(extract_var_name("const SECRET: &str = \"value\";"), "SECRET");
+    }
+
+    #[test]
+    fn test_extract_var_name_empty() {
+        assert_eq!(extract_var_name("println!(\"hello\");"), "");
+    }
+
+    // ── fixer_errhandle: .unwrap() → ? ──────────────────────────────
+
+    #[test]
+    fn test_fixer_errhandle_detects_unwrap() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "fn test() {{ let x = get_value().unwrap(); }}").unwrap();
+        let patches = fixer_errhandle(&[f.path().to_str().unwrap().to_string()]);
+        assert!(!patches.is_empty(), "should detect .unwrap()");
+        assert!(patches[0].rule_id.contains("unwrap"));
+    }
+
+    #[test]
+    fn test_fixer_errhandle_skips_comments() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "// let x = get_value().unwrap();").unwrap();
+        let patches = fixer_errhandle(&[f.path().to_str().unwrap().to_string()]);
+        assert!(patches.is_empty(), "should skip comment lines");
+    }
+
+    // ── fixer_debt: TODO → TODO(#0) ────────────────────────────────
+
+    #[test]
+    fn test_fixer_debt_converts_todo() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "// TODO: implement this").unwrap();
+        let patches = fixer_debt(&[f.path().to_str().unwrap().to_string()]);
+        assert!(!patches.is_empty(), "should convert TODO");
+        // The format uses TODO:(#0): — colon before parens
+        assert!(patches[0].new_text.contains("TODO:(#0):") || patches[0].new_text.contains("(#0):"),
+            "new_text should contain issue tracker reference, got: {}", patches[0].new_text);
+    }
+
+    #[test]
+    fn test_fixer_debt_skips_tracked() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "// TODO(#42): implement this").unwrap();
+        let patches = fixer_debt(&[f.path().to_str().unwrap().to_string()]);
+        assert!(patches.is_empty(), "should skip already-tracked TODO");
+    }
+
+    // ── fixer_deadcode: #[allow(dead_code)] ─────────────────────────
+
+    #[test]
+    fn test_fixer_deadcode_adds_allow() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "fn unused_function() {{}}").unwrap();
+        let patches = fixer_deadcode(&[f.path().to_str().unwrap().to_string()]);
+        assert!(!patches.is_empty(), "should add #[allow(dead_code)]");
+        assert!(patches[0].new_text.contains("#[allow(dead_code)]"));
+    }
+
+    #[test]
+    fn test_fixer_deadcode_skips_pub() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "pub fn used_function() {{}}").unwrap();
+        let patches = fixer_deadcode(&[f.path().to_str().unwrap().to_string()]);
+        assert!(patches.is_empty(), "should skip pub functions");
+    }
+
+    // ── fixer_crypto: MD5 → SHA-256 ────────────────────────────────
+
+    #[test]
+    fn test_fixer_crypto_replaces_md5() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "let hash = md5::compute(data);").unwrap();
+        let patches = fixer_crypto(&[f.path().to_str().unwrap().to_string()]);
+        assert!(!patches.is_empty(), "should replace md5");
+        assert!(patches[0].new_text.contains("sha2::Sha256::digest"));
+    }
+
+    #[test]
+    fn test_fixer_crypto_replaces_sha1() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "use sha1::Sha1;").unwrap();
+        writeln!(f, "let hash = sha1::Sha1::digest(data);").unwrap();
+        let patches = fixer_crypto(&[f.path().to_str().unwrap().to_string()]);
+        assert!(!patches.is_empty(), "should replace sha1");
+    }
+
+    #[test]
+    fn test_fixer_crypto_replaces_import() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "use md5;").unwrap();
+        let patches = fixer_crypto(&[f.path().to_str().unwrap().to_string()]);
+        assert!(!patches.is_empty(), "should replace import");
+        assert!(patches[0].new_text.contains("sha2::"));
+    }
+
+    // ── fixer_doccov: doc stubs ─────────────────────────────────────
+
+    #[test]
+    fn test_fixer_doccov_adds_stub_for_pub_fn() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "/// existing doc").unwrap();
+        writeln!(f, "pub fn documented() {{}}").unwrap();
+        writeln!(f, "pub fn undocumented() {{}}").unwrap();
+        let patches = fixer_doccov(&[f.path().to_str().unwrap().to_string()]);
+        // Only the undocumented function should get a stub
+        let undocumented_patches: Vec<&FixPatch> = patches.iter().filter(|p| p.description.contains("undocumented")).collect();
+        assert_eq!(undocumented_patches.len(), 1);
+    }
+
+    #[test]
+    fn test_fixer_doccov_skips_private() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "fn private_fn() {{}}").unwrap();
+        let patches = fixer_doccov(&[f.path().to_str().unwrap().to_string()]);
+        assert!(patches.is_empty(), "should skip private functions");
+    }
+
+    // ── collect_patches ─────────────────────────────────────────────
+
+    #[test]
+    fn test_collect_patches_all() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::with_suffix(".rs").unwrap();
+        writeln!(f, "// TODO: fix this").unwrap();
+        f.flush().unwrap();
+        let patches = collect_patches(f.path().to_str().unwrap(), "all");
+        // Should find patches for at least the debt fixer
+        assert!(!patches.is_empty(), "should find patches, got {}", patches.len());
+        assert!(patches.iter().any(|p| p.rule_id == "debt-track"),
+            "should find deb-track patch, got rules: {:?}",
+            patches.iter().map(|p| &p.rule_id).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_collect_patches_specific_check() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::with_suffix(".rs").unwrap();
+        writeln!(f, "let x = get_value().unwrap();").unwrap();
+        f.flush().unwrap();
+        let patches = collect_patches(f.path().to_str().unwrap(), "errhandle");
+        assert!(!patches.is_empty(), "should find errhandle patches, got {}", patches.len());
+    }
+}
+

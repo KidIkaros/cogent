@@ -287,4 +287,81 @@ mod tests {
         let ratio = comm as f64 / (code + comm) as f64;
         assert!((ratio - 0.25).abs() < 1e-9);
     }
+
+    use super::*;
+
+    // ── analyze_file ──
+
+    #[test]
+    fn test_analyze_file_nonexistent() {
+        assert!(analyze_file("/nonexistent/file.rs", 0.1).is_none());
+    }
+
+    fn make_large_file(dir: &tempfile::TempDir, name: &str, content: &str) -> String {
+        // Prepend enough code lines to exceed the total > 10 threshold
+        let mut full = String::from("\n\n\n\n\n\n\n\n\n"); // 9 blank/newlines
+        full.push_str(content);
+        let path = dir.path().join(name);
+        std::fs::write(&path, &full).unwrap();
+        path.to_str().unwrap().to_string()
+    }
+
+    #[test]
+    fn test_analyze_file_rust_with_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = make_large_file(&dir, "test.rs", "// header comment\nfn main() {\n    // inline\n    let x = 1;\n}\n");
+        let stats = analyze_file(&path, 0.1).unwrap();
+        assert_eq!(stats.comment_lines, 2);
+        assert!(stats.code_lines >= 3);
+    }
+
+    #[test]
+    fn test_analyze_file_all_code_no_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = make_large_file(&dir, "main.rs", "fn main() {\nlet x = 1;\nprintln!(\"hi\");\n}\n");
+        let stats = analyze_file(&path, 0.3).unwrap();
+        assert_eq!(stats.comment_lines, 0);
+    }
+
+    #[test]
+    fn test_analyze_file_python_with_comments() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = make_large_file(&dir, "test.py", "# license header\ndef foo():\n    pass\n");
+        let stats = analyze_file(&path, 0.3).unwrap();
+        assert_eq!(stats.comment_lines, 1);
+        assert_eq!(stats.code_lines, 2);
+    }
+
+    #[test]
+    fn test_analyze_file_small_file_skips_threshold() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tiny.rs");
+        std::fs::write(&path, "// comment\nfn main() {}\n").unwrap();
+        let stats = analyze_file(path.to_str().unwrap(), 0.5).unwrap();
+        assert!(!stats.below_threshold); // total = 2, <= 10
+    }
+
+    #[test]
+    fn test_analyze_file_zero_ratio_for_empty_total() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.rs");
+        std::fs::write(&path, "").unwrap();
+        let stats = analyze_file(path.to_str().unwrap(), 0.1).unwrap();
+        assert_eq!(stats.comment_ratio, 1.0);
+        assert!(!stats.below_threshold);
+    }
+
+    #[test]
+    fn test_analyze_file_below_threshold_with_large_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("large.rs");
+        let mut content = String::new();
+        for i in 0..15 {
+            content.push_str(&format!("let x{} = {};\n", i, i));
+        }
+        std::fs::write(&path, &content).unwrap();
+        let stats = analyze_file(path.to_str().unwrap(), 0.1).unwrap();
+        assert!(stats.below_threshold); // 15 code > 10, ratio 0 < 0.1
+        assert!(stats.suggested_fix.is_some());
+    }
 }

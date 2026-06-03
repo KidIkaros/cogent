@@ -459,4 +459,123 @@ mod tests {
         assert_eq!(classify_license(""), "unknown");
         assert_eq!(classify_license("unknown"), "unknown");
     }
+
+    use super::*;
+
+    // ── parse_cargo_lock ──
+
+    #[test]
+    fn test_parse_cargo_lock_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkgs = parse_cargo_lock(dir.path());
+        assert!(pkgs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_cargo_lock_with_packages() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.lock"), r#"
+[[package]]
+name = "serde"
+version = "1.0.0"
+
+[[package]]
+name = "tokio"
+version = "0.2.0"
+"#).unwrap();
+        let pkgs = parse_cargo_lock(dir.path());
+        assert_eq!(pkgs.len(), 2);
+        assert_eq!(pkgs[0].0, "serde");
+        assert_eq!(pkgs[1].0, "tokio");
+    }
+
+    // ── parse_python_requirements ──
+
+    #[test]
+    fn test_parse_python_requirements_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let pkgs = parse_python_requirements(dir.path());
+        assert!(pkgs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_python_requirements_with_packages() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("requirements.txt"), "requests>=2.0.0\nflask==1.0\n# comment\n").unwrap();
+        let pkgs = parse_python_requirements(dir.path());
+        assert_eq!(pkgs.len(), 2);
+        assert_eq!(pkgs[0].0, "requests");
+        assert_eq!(pkgs[1].0, "flask");
+    }
+
+    #[test]
+    fn test_parse_python_requirements_empty_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("requirements.txt"), "pkg1\n\n# comment\npkg2\n").unwrap();
+        let pkgs = parse_python_requirements(dir.path());
+        assert_eq!(pkgs.len(), 2);
+    }
+
+    // ── collect_workspace_licenses ──
+
+    #[test]
+    fn test_collect_workspace_licenses_empty_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut map = std::collections::HashMap::new();
+        collect_workspace_licenses(dir.path(), &mut map);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_collect_workspace_licenses_with_cargo_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), r#"
+[package]
+name = "my-crate"
+license = "MIT"
+"#).unwrap();
+        let mut map = std::collections::HashMap::new();
+        collect_workspace_licenses(dir.path(), &mut map);
+        assert_eq!(map.get("my-crate").map(|s| s.as_str()), Some("MIT"));
+    }
+
+    // ── parse_npm_licenses ──
+
+    #[test]
+    fn test_parse_npm_licenses_no_node_modules() {
+        let dir = tempfile::tempdir().unwrap();
+        // No node_modules, no package.json -> empty
+        let pkgs = parse_npm_licenses(dir.path());
+        assert!(pkgs.is_empty());
+    }
+
+    #[test]
+    fn test_parse_npm_licenses_from_package_json() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("package.json"), r#"{
+  "dependencies": {"lodash": "^4.17.0"},
+  "devDependencies": {"mocha": "^9.0.0"}
+}"#).unwrap();
+        let pkgs = parse_npm_licenses(dir.path());
+        assert_eq!(pkgs.len(), 2);
+        assert_eq!(pkgs[0].0, "lodash");
+    }
+
+    // ── classify_license extensions ──
+
+    #[test]
+    fn test_classify_license_copyleft_weak_lgpl() {
+        assert_eq!(classify_license("LGPL-3.0"), "copyleft-weak");
+    }
+
+    #[test]
+    fn test_classify_license_other() {
+        assert_eq!(classify_license("Proprietary"), "other");
+    }
+
+    #[test]
+    fn test_classify_license_case_insensitive_matches() {
+        assert_eq!(classify_license("mit"), "permissive");
+        assert_eq!(classify_license("gpl-3.0"), "copyleft-strong");
+    }
 }

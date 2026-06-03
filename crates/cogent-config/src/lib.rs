@@ -55,7 +55,7 @@ pub fn detect_project(root: &str) -> ProjectProfile {
     let p = std::path::Path::new(root);
 
     // Rust — Cargo.toml present
-    if p.join("Cargo.toml").exists() || std::path::Path::new("Cargo.toml").exists() {
+    if p.join("Cargo.toml").exists() {
         return ProjectProfile {
             ecosystem: ProjectEcosystem::Rust,
             test_cmd: vec!["cargo".into(), "test".into()],
@@ -76,7 +76,7 @@ pub fn detect_project(root: &str) -> ProjectProfile {
     }
 
     // Go — go.mod present
-    if p.join("go.mod").exists() || std::path::Path::new("go.mod").exists() {
+    if p.join("go.mod").exists() {
         return ProjectProfile {
             ecosystem: ProjectEcosystem::Go,
             test_cmd: vec!["go".into(), "test".into(), "./...".into()],
@@ -96,11 +96,7 @@ pub fn detect_project(root: &str) -> ProjectProfile {
     }
 
     // Python — pyproject.toml or setup.py present
-    if p.join("pyproject.toml").exists()
-        || p.join("setup.py").exists()
-        || std::path::Path::new("pyproject.toml").exists()
-        || std::path::Path::new("setup.py").exists()
-    {
+    if p.join("pyproject.toml").exists() || p.join("setup.py").exists() {
         return ProjectProfile {
             ecosystem: ProjectEcosystem::Python,
             test_cmd: vec!["pytest".into()],
@@ -119,7 +115,7 @@ pub fn detect_project(root: &str) -> ProjectProfile {
     }
 
     // JavaScript/TypeScript — package.json present
-    if p.join("package.json").exists() || std::path::Path::new("package.json").exists() {
+    if p.join("package.json").exists() {
         // Prefer vitest if vitest.config exists, otherwise fall back to jest/npm test
         let has_vitest = p.join("vitest.config.ts").exists()
             || p.join("vitest.config.js").exists()
@@ -554,9 +550,9 @@ pub fn load_config_with_overrides(
         // Section header: [crap]  or  [override."crates/*/tests/**"]
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
             let sec = &trimmed[1..trimmed.len() - 1];
-            if sec.starts_with("override.") {
+            if let Some(after_prefix) = sec.strip_prefix("override.") {
                 flush_override(&mut current_override);
-                let pat = sec["override.".len()..]
+                let pat = after_prefix
                     .trim()
                     .trim_matches('"')
                     .to_string();
@@ -673,7 +669,6 @@ pub fn resolve_threshold(
     global: Thresholds,
     overrides: &PathOverrides,
     file: &str,
-    _check: &str,
 ) -> Thresholds {
     let mut effective = global;
     for (pat, vals) in overrides {
@@ -713,4 +708,286 @@ pub fn resolve_threshold(
         }
     }
     effective
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── TOML Parsing ────────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_toml_f64_normal() {
+        assert_eq!(parse_toml_f64("max_avg = 15.0", "max_avg"), Some(15.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_no_space() {
+        assert_eq!(parse_toml_f64("max_avg=15.0", "max_avg"), Some(15.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_nonexistent_key() {
+        assert_eq!(parse_toml_f64("max_avg = 15.0", "nonexistent"), None);
+    }
+
+    #[test]
+    fn test_parse_toml_usize_normal() {
+        assert_eq!(parse_toml_usize("max_markers = 5", "max_markers"), Some(5));
+    }
+
+    // ── Parse Line Into ─────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_line_into_sets_max_crap() {
+        let mut section = ConfigSection::default();
+        parse_line_into("max_avg = 20.5", &mut section);
+        assert_eq!(section.max_crap, Some(20.5));
+    }
+
+    #[test]
+    fn test_parse_line_into_sets_min_doc() {
+        let mut section = ConfigSection::default();
+        parse_line_into("min_pct = 90.0", &mut section);
+        assert_eq!(section.min_doc, Some(90.0));
+    }
+
+    #[test]
+    fn test_parse_line_into_sets_max_debt() {
+        let mut section = ConfigSection::default();
+        parse_line_into("max_markers = 10", &mut section);
+        assert_eq!(section.max_debt, Some(10));
+    }
+
+    // ── ConfigSection Thresholds ─────────────────────────────────────
+
+    #[test]
+    fn test_config_section_to_thresholds_uses_defaults() {
+        let section = ConfigSection::default();
+        let defaults: Thresholds = (10.0, 50.0, 5, 2, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let th = section.to_thresholds(defaults);
+        assert_eq!(th.0, 10.0);
+        assert_eq!(th.1, 50.0);
+        assert_eq!(th.2, 5);
+    }
+
+    #[test]
+    fn test_config_section_roundtrip() {
+        let defaults: Thresholds = (10.0, 50.0, 5, 2, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let section = ConfigSection::from_thresholds(defaults);
+        let result = section.to_thresholds((0.0, 0.0, 0, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0));
+        assert_eq!(result.0, defaults.0);
+        assert_eq!(result.1, defaults.1);
+        assert_eq!(result.2, defaults.2);
+    }
+
+    // ── Glob Matching ───────────────────────────────────────────────
+
+    #[test]
+    fn test_glob_matches_exact() {
+        assert!(glob_matches("src/main.rs", "src/main.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_exact_fail() {
+        assert!(!glob_matches("src/main.rs", "src/lib.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_single_star() {
+        assert!(glob_matches("src/*.rs", "src/main.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_single_star_no_match() {
+        assert!(!glob_matches("src/*.rs", "src/main.py"));
+    }
+
+    #[test]
+    fn test_glob_matches_double_star() {
+        assert!(glob_matches("**/*.rs", "src/main.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_double_star_deep() {
+        assert!(glob_matches("**", "a/b/c/d/file.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_prefix_star() {
+        assert!(glob_matches("prefix*.rs", "prefix_utils.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_prefix_star_no_match() {
+        assert!(!glob_matches("prefix*.rs", "other.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_directory_override() {
+        assert!(glob_matches("crates/*/tests/**", "crates/foo/tests/test_bar.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_directory_override_fail() {
+        assert!(!glob_matches("crates/*/tests/**", "crates/foo/src/lib.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_normalizes_separators() {
+        assert!(glob_matches("src/*.rs", "src\\main.rs"));
+    }
+
+    #[test]
+    fn test_glob_matches_leading_dot_slash() {
+        assert!(glob_matches("./src/main.rs", "src/main.rs"));
+    }
+
+    // ── Resolve Threshold ───────────────────────────────────────────
+
+    #[test]
+    fn test_resolve_uses_global_when_no_overrides() {
+        let global: Thresholds = (10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let overrides = PathOverrides::new();
+        let result = resolve_threshold(global, &overrides, "src/main.rs");
+        assert_eq!(result.0, 10.0);
+    }
+
+    #[test]
+    fn test_resolve_applies_override_when_glob_matches() {
+        let global: Thresholds = (10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let mut overrides = PathOverrides::new();
+        let mut vals = std::collections::HashMap::new();
+        vals.insert("max_avg".to_string(), 25.0);
+        overrides.insert("src/**".to_string(), vals);
+        let result = resolve_threshold(global, &overrides, "src/main.rs");
+        assert_eq!(result.0, 25.0);  // overridden
+    }
+
+    #[test]
+    fn test_resolve_does_not_apply_override_when_no_match() {
+        let global: Thresholds = (10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let mut overrides = PathOverrides::new();
+        let mut vals = std::collections::HashMap::new();
+        vals.insert("max_avg".to_string(), 25.0);
+        overrides.insert("tests/**".to_string(), vals);
+        let result = resolve_threshold(global, &overrides, "src/main.rs");
+        assert_eq!(result.0, 10.0);  // not overridden
+    }
+
+    // ── Load Config ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_config_with_overrides_missing_file() {
+        let defaults: Thresholds = (15.0, 70.0, 0, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let (th, overrides) = load_config_with_overrides("/nonexistent/path/quality.toml", defaults);
+        assert_eq!(th.0, 15.0);
+        assert!(overrides.is_empty());
+    }
+
+    #[test]
+    fn test_load_config_with_overrides_parses_sections() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "[crap]").unwrap();
+        writeln!(f, "max_avg = 12.5").unwrap();
+        writeln!(f, "[debt]").unwrap();
+        writeln!(f, "max_markers = 5").unwrap();
+        let defaults: Thresholds = (15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let (th, _) = load_config_with_overrides(f.path().to_str().unwrap(), defaults);
+        assert_eq!(th.0, 12.5);  // from config
+        assert_eq!(th.2, 5);     // from config
+        assert_eq!(th.1, 70.0);  // from default (not in config)
+    }
+
+    #[test]
+    fn test_load_config_with_overrides_section_header() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "[project]").unwrap();
+        writeln!(f, "ecosystem = \"Rust\"").unwrap();
+        writeln!(f, "[crap]").unwrap();
+        writeln!(f, "max_avg = 18.0").unwrap();
+        writeln!(f, "[doc_coverage]").unwrap();
+        writeln!(f, "min_pct = 85.0").unwrap();
+        let defaults: Thresholds = (15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let (th, _) = load_config_with_overrides(f.path().to_str().unwrap(), defaults);
+        assert_eq!(th.0, 18.0);  // overridden
+        assert_eq!(th.1, 85.0);  // overridden
+        assert_eq!(th.2, 10);    // default preserved
+    }
+
+    #[test]
+    fn test_load_config_with_overrides_parses_override() {
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::new().unwrap();
+        writeln!(f, "[crap]").unwrap();
+        writeln!(f, "max_avg = 10.0").unwrap();
+        writeln!(f, "[override.\"crates/*/tests/**\"]").unwrap();
+        writeln!(f, "max_avg = 25.0").unwrap();
+        let defaults: Thresholds = (15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let (th, overrides) = load_config_with_overrides(f.path().to_str().unwrap(), defaults);
+        assert_eq!(th.0, 10.0);  // global from config
+        assert!(!overrides.is_empty());
+        let entry = overrides.get("crates/*/tests/**").unwrap();
+        assert_eq!(entry.get("max_avg"), Some(&25.0));
+    }
+
+    // ── Detect Project ──────────────────────────────────────────────
+
+    #[test]
+    fn test_detect_project_rust() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname = \"test\"\n").unwrap();
+        let profile = detect_project(dir.path().to_str().unwrap());
+        assert_eq!(profile.ecosystem, ProjectEcosystem::Rust);
+        assert_eq!(profile.test_cmd, vec!["cargo", "test"]);
+    }
+
+    #[test]
+    fn test_detect_project_python() {
+        let dir = tempfile::TempDir::new().unwrap();
+        std::fs::write(dir.path().join("setup.py"), "from setuptools import setup\n").unwrap();
+        let profile = detect_project(dir.path().to_str().unwrap());
+        assert_eq!(profile.ecosystem, ProjectEcosystem::Python);
+    }
+
+    #[test]
+    fn test_detect_project_unknown() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let profile = detect_project(dir.path().to_str().unwrap());
+        assert_eq!(profile.ecosystem, ProjectEcosystem::Unknown);
+    }
+
+    #[test]
+    fn test_is_coverage_available_true() {
+        let profile = ProjectProfile {
+            ecosystem: ProjectEcosystem::Rust,
+            test_cmd: vec!["cargo".into(), "test".into()],
+            coverage_cmd: vec!["cargo".into(), "llvm-cov".into()],
+            lcov_path: "lcov.info".into(),
+            watch_extensions: vec!["rs".into()],
+            max_crap: 15.0,
+            min_doc: 95.0,
+            max_debt: 0,
+            max_complexity_violations: 0,
+        };
+        assert!(profile.is_coverage_available());
+    }
+
+    #[test]
+    fn test_is_coverage_available_false() {
+        let profile = ProjectProfile {
+            ecosystem: ProjectEcosystem::Unknown,
+            test_cmd: vec![],
+            coverage_cmd: vec![],
+            lcov_path: String::new(),
+            watch_extensions: vec!["rs".into()],
+            max_crap: 30.0,
+            min_doc: 50.0,
+            max_debt: 100,
+            max_complexity_violations: 0,
+        };
+        assert!(!profile.is_coverage_available());
+    }
 }

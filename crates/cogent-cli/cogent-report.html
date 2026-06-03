@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cogent Audit — /home/mo/projects/cogent/crates/fixtures</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#1e293b;line-height:1.5}
+a{color:#6366f1;text-decoration:none}
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.sidebar{background:#0f172a;color:#94a3b8;padding:28px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar .brand{padding:0 20px 24px;border-bottom:1px solid #1e293b;margin-bottom:20px}
+.sidebar .brand-name{font-size:13px;font-weight:700;color:#e2e8f0;text-transform:uppercase;letter-spacing:.08em}
+.sidebar .brand-sub{font-size:11px;color:#475569;margin-top:2px}
+.sidebar nav a{display:flex;align-items:center;gap:10px;padding:9px 20px;font-size:13px;color:#94a3b8;transition:background .15s}
+.sidebar nav a:hover,.sidebar nav a.active{background:#1e293b;color:#e2e8f0}
+.sidebar .nav-icon{font-size:15px;width:20px;text-align:center}
+.sidebar .cat-score{margin-left:auto;font-size:11px;font-weight:600;padding:1px 7px;border-radius:10px}
+.sidebar .score-pass{background:#14532d;color:#86efac}
+.sidebar .score-fail{background:#7f1d1d;color:#fca5a5}
+.sidebar .divider{border:none;border-top:1px solid #1e293b;margin:12px 20px}
+.main{padding:36px 40px 60px;max-width:1000px}
+.page-header{background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);color:#fff;padding:32px 36px;border-radius:14px;margin-bottom:32px;display:flex;gap:32px;align-items:center}
+.page-header-text{flex:1}
+.page-header .eyebrow{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.page-header h1{font-size:26px;font-weight:800;letter-spacing:-.3px;color:#f8fafc}
+.page-header .meta{font-size:12px;color:#64748b;margin-top:6px}
+.verdict-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);padding:8px 18px;border-radius:8px;margin-top:14px}
+.verdict-pill .v-label{font-size:18px;font-weight:800;color:#ef4444}
+.verdict-pill .v-sub{font-size:13px;color:#94a3b8}
+.score-ring{display:flex;flex-direction:column;align-items:center;gap:4px}
+.grade-badge{font-size:40px;font-weight:900;color:#06b6d4;line-height:1}
+.grade-label{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.06em}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+.stat-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.06);text-align:center;border:1px solid #f1f5f9}
+.stat-card .n{font-size:34px;font-weight:900;line-height:1}
+.stat-card .lbl{font-size:11px;color:#94a3b8;margin-top:6px;text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+.card{background:#fff;border-radius:12px;padding:28px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:28px;border:1px solid #f1f5f9}
+.card-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.cat-bars{display:flex;flex-direction:column;gap:14px}
+.cat-bar-row{display:flex;align-items:center;gap:12px}
+.cat-bar-label{font-size:13px;color:#475569;min-width:120px;font-weight:500}
+.footer{font-size:12px;color:#94a3b8;text-align:center;margin-top:48px;padding-top:24px;border-top:1px solid #e2e8f0}
+.collapsible-header{cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px}
+.collapsible-header::before{content:'▸';font-size:12px;color:#9ca3af;transition:transform .15s}
+.collapsible-header.open::before{content:'▾'}
+.collapsible-body{overflow:hidden;transition:max-height .2s ease}
+.collapsible-body.closed{max-height:0}
+.heatmap-row{cursor:pointer;transition:background .1s}
+.heatmap-row:hover{background:#f0f9ff}
+.filter-tag{display:inline-flex;align-items:center;gap:4px;background:#dbeafe;color:#1d4ed8;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-bottom:12px}
+.filter-tag .x{cursor:pointer;font-size:14px;line-height:1}
+@media(max-width:768px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:static;height:auto}
+  .main{padding:20px}
+  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  .page-header{flex-direction:column}
+}
+@media print{
+  .sidebar{display:none}
+  .layout{grid-template-columns:1fr}
+  .main{padding:20px}
+  body{background:#fff}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-name">Cogent</div>
+    <div class="brand-sub">Audit Report</div>
+  </div>
+  <nav>
+    <a href="#overview" class="active"><span class="nav-icon">&#128203;</span>Overview
+      <span class="cat-score score-fail">FAIL</span>
+    </a>
+    <hr class="divider">
+    <a href="#security"><span class="nav-icon">&#128274;</span>Security
+      <span class="cat-score score-pass">6/6</span>
+    </a>
+    <a href="#quality"><span class="nav-icon">&#128202;</span>Quality
+      <span class="cat-score score-fail">14/16</span>
+    </a>
+    <a href="#compliance"><span class="nav-icon">&#128203;</span>Compliance
+      <span class="cat-score score-fail">2/3</span>
+    </a>
+    <hr class="divider">
+    <a href="#remediation"><span class="nav-icon">&#128295;</span>Remediation</a>
+  </nav>
+</aside>
+
+<main class="main">
+
+<div id="overview">
+
+<div class="page-header">
+  <div class="page-header-text">
+    <div class="eyebrow">Automated Code Audit Report</div>
+    <h1>/home/mo/projects/cogent/crates/fixtures</h1>
+    <div class="meta">Generated 2026-06-03 18:26 UTC &nbsp;&middot;&nbsp; Path: /home/mo/projects/cogent/crates/fixtures &nbsp;&middot;&nbsp; Cogent v1.1.1</div>
+    <div class="verdict-pill">
+      <span class="v-label">FAILED</span>
+      <span class="v-sub">88% of 25 checks passed</span>
+    </div>
+  </div>
+  <div class="score-ring">
+    <svg viewBox="0 0 100 100" width="120" height="120" style="display:block">
+  <circle cx="50" cy="50" r="44" fill="none" stroke="#e5e7eb" stroke-width="10"/>
+  <circle cx="50" cy="50" r="44" fill="none" stroke="#ef4444" stroke-width="10"
+    stroke-dasharray="243.28 33.18" stroke-dashoffset="69.12"
+    stroke-linecap="round" transform="rotate(-90 50 50)"/>
+  <text x="50" y="46" text-anchor="middle" font-size="18" font-weight="800" fill="#ef4444" font-family="system-ui">88%</text>
+  <text x="50" y="60" text-anchor="middle" font-size="9" fill="#9ca3af" font-family="system-ui">pass rate</text>
+</svg>
+    <div class="grade-badge" style="color:#06b6d4">B</div>
+    <div class="grade-label">Health Grade</div>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card"><div class="n" style="color:#1e293b">25</div><div class="lbl">Total Checks</div></div>
+  <div class="stat-card"><div class="n" style="color:#22c55e">22</div><div class="lbl">Passed</div></div>
+  <div class="stat-card"><div class="n" style="color:#ef4444">3</div><div class="lbl">Failed</div></div>
+  <div class="stat-card"><div class="n" style="color:#06b6d4">88/100</div><div class="lbl">Health Score</div></div>
+</div>
+
+<div class="card">
+  <div class="card-title">&#128200; Category Breakdown</div>
+  <div class="cat-bars">
+    <div class="cat-bar-row"><span class="cat-bar-label">&#128274; Security</span><div style="display:flex;align-items:center;gap:8px;font-size:12px">
+  <span style="font-family:monospace;color:#22c55e;letter-spacing:.1em">████████████</span>
+  <span style="color:#6b7280">6/6 (100%)</span>
+</div></div>
+    <div class="cat-bar-row"><span class="cat-bar-label">&#128202; Quality</span><div style="display:flex;align-items:center;gap:8px;font-size:12px">
+  <span style="font-family:monospace;color:#ef4444;letter-spacing:.1em">██████████░░</span>
+  <span style="color:#6b7280">14/16 (87%)</span>
+</div></div>
+    <div class="cat-bar-row"><span class="cat-bar-label">&#128203; Compliance</span><div style="display:flex;align-items:center;gap:8px;font-size:12px">
+  <span style="font-family:monospace;color:#ef4444;letter-spacing:.1em">████████░░░░</span>
+  <span style="color:#6b7280">2/3 (66%)</span>
+</div></div>
+  </div>
+</div>
+
+<div class="card" id="severity-dist">
+  <div class="card-title">&#128202; Severity Distribution</div>
+  <div style="margin-bottom:14px"><span style="background:#ef444420;color:#ef4444;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-right:6px">7 high</span><span style="background:#22c55e20;color:#22c55e;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-right:6px">10 low</span><span style="background:#3b82f620;color:#3b82f6;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-right:6px">12 info</span></div>
+  <svg viewBox="0 0 320 64" width="320" height="64" style="display:block"><rect x="40" y="4" width="163.33333333333334" height="16" rx="3" fill="#ef4444"/><text x="35" y="16" text-anchor="end" font-size="11" fill="#6b7280" font-family="system-ui" dy="0">high (7)</text><rect x="40" y="24" width="233.33333333333334" height="16" rx="3" fill="#22c55e"/><text x="35" y="36" text-anchor="end" font-size="11" fill="#6b7280" font-family="system-ui" dy="0">low (10)</text><rect x="40" y="44" width="280" height="16" rx="3" fill="#3b82f6"/><text x="35" y="56" text-anchor="end" font-size="11" fill="#6b7280" font-family="system-ui" dy="0">info (12)</text></svg>
+</div>
+
+
+
+<div class="card" id="heatmap">
+  <div class="card-title">&#128293; File Heatmap</div>
+  <p style="font-size:13px;color:#9ca3af;margin-bottom:12px">Top files by total issue count across all tools.</p>
+  <div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+  <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/home/mo/projects/cogent/crates/fixtures/sample.py</div>
+  <div style="width:200px;height:8px;background:#f59e0b;border-radius:4px"></div>
+  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">6</div>
+</div><div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+  <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/home/mo/projects/cogent/crates/fixtures/sample.java</div>
+  <div style="width:166px;height:8px;background:#f59e0b;border-radius:4px"></div>
+  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">5</div>
+</div><div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+  <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/home/mo/projects/cogent/crates/fixtures/sample.c</div>
+  <div style="width:166px;height:8px;background:#f59e0b;border-radius:4px"></div>
+  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">5</div>
+</div><div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+  <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/home/mo/projects/cogent/crates/fixtures/sample.ts</div>
+  <div style="width:133px;height:8px;background:#22c55e;border-radius:4px"></div>
+  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">4</div>
+</div><div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+  <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/home/mo/projects/cogent/crates/fixtures/sample.js</div>
+  <div style="width:100px;height:8px;background:#22c55e;border-radius:4px"></div>
+  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">3</div>
+</div><div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+  <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/home/mo/projects/cogent/crates/fixtures/sample.go</div>
+  <div style="width:100px;height:8px;background:#22c55e;border-radius:4px"></div>
+  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">3</div>
+</div><div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+  <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/home/mo/projects/cogent/crates/fixtures/sample.rs</div>
+  <div style="width:66px;height:8px;background:#22c55e;border-radius:4px"></div>
+  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">2</div>
+</div><div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+  <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+  <div style="width:33px;height:8px;background:#22c55e;border-radius:4px"></div>
+  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">1</div>
+</div>
+</div>
+
+<div class="card">
+  <div class="card-title">&#127919; Executive Summary</div>
+  <p style="font-size:14px;color:#475569;line-height:1.6;margin-bottom:20px">3 of 25 checks failed, concentrated in compliance. 2 findings rated high/critical severity require immediate attention before the next release.</p>
+  <div style="font-weight:700;font-size:13px;color:#0f172a;margin-bottom:12px">Top Priority Actions</div>
+  <div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid #f3f4f6;align-items:flex-start">
+  <div style="font-size:20px;font-weight:800;color:#d1d5db;min-width:24px">1</div>
+  <div style="flex:1">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font-weight:700;font-size:14px">fuzz</span><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span>
+      <span style="font-size:11px;color:#9ca3af;margin-left:auto">High effort</span>
+    </div>
+    <div style="font-size:13px;color:#6b7280">Review and fix flagged items.</div>
+  </div>
+</div><div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid #f3f4f6;align-items:flex-start">
+  <div style="font-size:20px;font-weight:800;color:#d1d5db;min-width:24px">2</div>
+  <div style="flex:1">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font-weight:700;font-size:14px">supply-chain</span><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span>
+      <span style="font-size:11px;color:#9ca3af;margin-left:auto">High effort</span>
+    </div>
+    <div style="font-size:13px;color:#6b7280">Review lockfile integrity, typosquatting, unpinned dependencies, and abandoned packages.</div>
+  </div>
+</div><div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid #f3f4f6;align-items:flex-start">
+  <div style="font-size:20px;font-weight:800;color:#d1d5db;min-width:24px">3</div>
+  <div style="flex:1">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font-weight:700;font-size:14px">comments</span><span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">low</span>
+      <span style="font-size:11px;color:#9ca3af;margin-left:auto">Low effort</span>
+    </div>
+    <div style="font-size:13px;color:#6b7280">Add inline comments explaining non-obvious logic. Doc comments are tracked separately by doccov.</div>
+  </div>
+</div>
+</div>
+
+</div>
+
+<div class="card" id="remediation" style="scroll-margin-top:80px">
+  <div class="card-title">&#128295; Remediation Checklist
+    <span style="font-size:12px;font-weight:400;color:#9ca3af;margin-left:4px">&#8212; ranked by severity</span>
+  </div>
+  <p style="font-size:13px;color:#9ca3af;margin-bottom:16px">Address Critical and High items before any release.</p>
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">#</th>
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Check</th>
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Severity</th>
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Effort</th>
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Action</th>
+</tr></thead><tbody><tr style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:10px 14px;font-weight:700;color:#9ca3af">1</td>
+  <td style="padding:10px 14px;font-weight:600">fuzz</td>
+  <td style="padding:10px 14px"><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span></td>
+  <td style="padding:10px 14px;font-size:12px;color:#6b7280">High</td>
+  <td style="padding:10px 14px;font-size:12px;color:#6b7280">Review and fix the flagged items.</td>
+</tr><tr style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:10px 14px;font-weight:700;color:#9ca3af">2</td>
+  <td style="padding:10px 14px;font-weight:600">supply-chain</td>
+  <td style="padding:10px 14px"><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span></td>
+  <td style="padding:10px 14px;font-size:12px;color:#6b7280">High</td>
+  <td style="padding:10px 14px;font-size:12px;color:#6b7280">Review lockfile integrity, typosquatting, unpinned dependencies, and abandoned packages.</td>
+</tr><tr style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:10px 14px;font-weight:700;color:#9ca3af">3</td>
+  <td style="padding:10px 14px;font-weight:600">comments</td>
+  <td style="padding:10px 14px"><span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">low</span></td>
+  <td style="padding:10px 14px;font-size:12px;color:#6b7280">Low</td>
+  <td style="padding:10px 14px;font-size:12px;color:#6b7280">Add inline comments explaining non-obvious logic. Doc comments are tracked separately by doccov.</td>
+</tr></tbody></table>
+</div>
+
+<div id="findings" style="scroll-margin-top:80px">
+  <div class="card">
+    <div class="card-title">&#128269; Findings Drill-Down
+      <input type="text" placeholder="Search findings..." oninput="filterFindings(this.value)" style="margin-left:auto;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;width:220px">
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:20px">
+  <div class="collapsible-header" style="display:flex;align-items:center;gap:10px;margin-bottom:0px;padding-bottom:12px;border-bottom:1px solid #f3f4f6">
+    <span style="font-weight:700;font-size:14px">fuzz</span>
+    <span style="margin-left:4px"><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span></span>
+    <span style="margin-left:auto;font-size:12px;color:#6b7280">7 findings</span>
+  </div>
+  <div class="collapsible-body closed" style="max-height:0">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
+    <thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">File</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;width:60px">Line</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Message</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Fix Hint</th>
+    </tr></thead>
+    <tbody><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.py</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">17</td>
+  <td style="padding:8px 12px;font-size:12px">unused</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.py</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">10</td>
+  <td style="padding:8px 12px;font-size:12px">process</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.ts</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">10</td>
+  <td style="padding:8px 12px;font-size:12px">process</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.c</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">4</td>
+  <td style="padding:8px 12px;font-size:12px">helper</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.c</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">8</td>
+  <td style="padding:8px 12px;font-size:12px">process</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.java</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">8</td>
+  <td style="padding:8px 12px;font-size:12px">helper</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.java</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">12</td>
+  <td style="padding:8px 12px;font-size:12px">process</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr></tbody>
+  </table>
+  </div>
+</div><div class="card" style="margin-bottom:20px">
+  <div class="collapsible-header" style="display:flex;align-items:center;gap:10px;margin-bottom:0px;padding-bottom:12px;border-bottom:1px solid #f3f4f6">
+    <span style="font-weight:700;font-size:14px">supply-chain</span>
+    <span style="margin-left:4px"><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span></span>
+    <span style="margin-left:auto;font-size:12px;color:#6b7280">1 findings</span>
+  </div>
+  <div class="collapsible-body closed" style="max-height:0">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
+    <thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">File</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;width:60px">Line</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Message</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Fix Hint</th>
+    </tr></thead>
+    <tbody><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px">No recognized dependency ecosystem detected.</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr></tbody>
+  </table>
+  </div>
+</div><div class="card" style="margin-bottom:20px">
+  <div class="collapsible-header" style="display:flex;align-items:center;gap:10px;margin-bottom:0px;padding-bottom:12px;border-bottom:1px solid #f3f4f6">
+    <span style="font-weight:700;font-size:14px">debt</span>
+    <span style="margin-left:4px"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></span>
+    <span style="margin-left:auto;font-size:12px;color:#6b7280">5 findings</span>
+  </div>
+  <div class="collapsible-body closed" style="max-height:0">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
+    <thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">File</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;width:60px">Line</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Message</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Fix Hint</th>
+    </tr></thead>
+    <tbody><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.c</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">10</td>
+  <td style="padding:8px 12px;font-size:12px">FIXME marker found in /home/mo/projects/cogent/crates/fixtures/sample.c</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">Address or remove the FIXME marker.</td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.go</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">12</td>
+  <td style="padding:8px 12px;font-size:12px">TODO marker found in /home/mo/projects/cogent/crates/fixtures/sample.go</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">Address or remove the TODO marker.</td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.java</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">14</td>
+  <td style="padding:8px 12px;font-size:12px">TODO marker found in /home/mo/projects/cogent/crates/fixtures/sample.java</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">Address or remove the TODO marker.</td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.js</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">15</td>
+  <td style="padding:8px 12px;font-size:12px">FIXME marker found in /home/mo/projects/cogent/crates/fixtures/sample.js</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">Address or remove the FIXME marker.</td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.ts</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">12</td>
+  <td style="padding:8px 12px;font-size:12px">HACK marker found in /home/mo/projects/cogent/crates/fixtures/sample.ts</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">Address or remove the HACK marker.</td>
+</tr></tbody>
+  </table>
+  </div>
+</div><div class="card" style="margin-bottom:20px">
+  <div class="collapsible-header" style="display:flex;align-items:center;gap:10px;margin-bottom:0px;padding-bottom:12px;border-bottom:1px solid #f3f4f6">
+    <span style="font-weight:700;font-size:14px">halstead</span>
+    <span style="margin-left:4px"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></span>
+    <span style="margin-left:auto;font-size:12px;color:#6b7280">7 findings</span>
+  </div>
+  <div class="collapsible-body closed" style="max-height:0">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
+    <thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">File</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;width:60px">Line</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Message</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Fix Hint</th>
+    </tr></thead>
+    <tbody><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.js</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.java</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.c</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.rs</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.ts</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.py</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.go</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr></tbody>
+  </table>
+  </div>
+</div><div class="card" style="margin-bottom:20px">
+  <div class="collapsible-header" style="display:flex;align-items:center;gap:10px;margin-bottom:0px;padding-bottom:12px;border-bottom:1px solid #f3f4f6">
+    <span style="font-weight:700;font-size:14px">deadcode</span>
+    <span style="margin-left:4px"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></span>
+    <span style="margin-left:auto;font-size:12px;color:#6b7280">2 findings</span>
+  </div>
+  <div class="collapsible-body closed" style="max-height:0">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
+    <thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">File</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;width:60px">Line</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Message</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Fix Hint</th>
+    </tr></thead>
+    <tbody><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.py</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">3</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.py</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">4</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr></tbody>
+  </table>
+  </div>
+</div><div class="card" style="margin-bottom:20px">
+  <div class="collapsible-header" style="display:flex;align-items:center;gap:10px;margin-bottom:0px;padding-bottom:12px;border-bottom:1px solid #f3f4f6">
+    <span style="font-weight:700;font-size:14px">comments</span>
+    <span style="margin-left:4px"><span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">low</span></span>
+    <span style="margin-left:auto;font-size:12px;color:#6b7280">7 findings</span>
+  </div>
+  <div class="collapsible-body closed" style="max-height:0">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
+    <thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">File</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;width:60px">Line</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Message</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Fix Hint</th>
+    </tr></thead>
+    <tbody><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.rs</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.java</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.py</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.js</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.ts</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.c</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr><tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">/home/mo/projects/cogent/crates/fixtures/sample.go</td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280">-</td>
+  <td style="padding:8px 12px;font-size:12px"></td>
+  <td style="padding:8px 12px;font-size:12px;color:#6b7280"></td>
+</tr></tbody>
+  </table>
+  </div>
+</div>
+</div>
+
+<div class="card" style="display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px">
+  <svg viewBox="0 0 200 110" width="200" height="110" style="display:block"><path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#e5e7eb" stroke-width="12" stroke-linecap="round"/><path d="M 20 100 A 80 80 0 1 1 174.3821188710601 70.55003578522576" fill="none" stroke="#06b6d4" stroke-width="12" stroke-linecap="round"/><text x="100" y="108" text-anchor="middle" font-size="28" font-weight="800" fill="#06b6d4" font-family="system-ui">88</text><text x="100" y="124" text-anchor="middle" font-size="10" fill="#9ca3af" font-family="system-ui">Health Score</text></svg>
+</div>
+
+<section id="quality" style="margin-bottom:40px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f3f4f6">
+  <span style="font-size:22px">📊</span>
+  <h2 style="font-size:18px;font-weight:800;color:#111827;margin:0">Code Quality Checks</h2>
+  <span style="font-size:13px;color:#ef4444;font-weight:600;margin-left:4px">14/16</span>
+  <div style="margin-left:auto"><span style="background:#fee2e2;color:#ef4444;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">2 FAILED</span></div>
+</div>
+<div style="border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+  <th style="padding:9px 14px;width:42px"></th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Check</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Result / Details</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Score</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Sev</th>
+</tr></thead>
+<tbody><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">crap</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Average CRAP 3.6 &lt;= 30</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">CRAP score is within acceptable limits.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">3.6 / 30.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">debt</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">5 debt markers &lt;= 100</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Technical debt is within acceptable limits.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">5.0 / 100.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">doc_coverage</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Doc coverage 58% &gt;= 50% (langs: go, javascript, python, rust, typescript)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Documentation coverage is within acceptable limits.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">58.3 / 50.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">complexity</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">No functions above complexity threshold (languages: c, go, java, javascript, python, rust, typescript)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">No functions with excessive complexity.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">duplication</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">1 duplicated groups &lt;= 5</div><div style="font-size:11px;color:#9ca3af;margin-top:3px"></div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">1.0 / 5.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">riskmap</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Max risk score 0.0 &lt;= 50.0</div><div style="font-size:11px;color:#9ca3af;margin-top:3px"></div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 50.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">coupling</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Avg fan-out 0.7 &lt;= 5</div><div style="font-size:11px;color:#9ca3af;margin-top:3px"></div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.7 / 5.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">propcov</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">PropCov 0.0% &gt;= 0.0%</div><div style="font-size:11px;color:#9ca3af;margin-top:3px"></div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fef2f2;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#ef4444;text-align:center;width:40px;font-weight:700">&#10007;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#ef4444;white-space:nowrap">fuzz</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">7 fuzzable endpoints &gt; allowed 0</div><div style="font-size:11px;color:#9ca3af;margin-top:3px"></div><details style="margin-top:8px">
+<summary style="font-size:12px;color:#6366f1;cursor:pointer;user-select:none;padding:4px 0">▶ Show 7 findings</summary>
+<div style="margin-top:8px;padding:8px 12px;background:#f9fafb;border-radius:6px;border-left:3px solid #6366f1">
+<div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px">
+  <span style="color:#6366f1;font-family:monospace;white-space:nowrap;min-width:180px">/home/mo/projects/cogent/crates/fixtures/sample.py:17</span>
+  <span style="color:#6b7280">unused</span>
+</div><div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px">
+  <span style="color:#6366f1;font-family:monospace;white-space:nowrap;min-width:180px">/home/mo/projects/cogent/crates/fixtures/sample.py:10</span>
+  <span style="color:#6b7280">process</span>
+</div><div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px">
+  <span style="color:#6366f1;font-family:monospace;white-space:nowrap;min-width:180px">/home/mo/projects/cogent/crates/fixtures/sample.ts:10</span>
+  <span style="color:#6b7280">process</span>
+</div><div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px">
+  <span style="color:#6366f1;font-family:monospace;white-space:nowrap;min-width:180px">/home/mo/projects/cogent/crates/fixtures/sample.c:4</span>
+  <span style="color:#6b7280">helper</span>
+</div><div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px">
+  <span style="color:#6366f1;font-family:monospace;white-space:nowrap;min-width:180px">/home/mo/projects/cogent/crates/fixtures/sample.c:8</span>
+  <span style="color:#6b7280">process</span>
+</div><div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px">
+  <span style="color:#6366f1;font-family:monospace;white-space:nowrap;min-width:180px">/home/mo/projects/cogent/crates/fixtures/sample.java:8</span>
+  <span style="color:#6b7280">helper</span>
+</div><div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px">
+  <span style="color:#6366f1;font-family:monospace;white-space:nowrap;min-width:180px">/home/mo/projects/cogent/crates/fixtures/sample.java:12</span>
+  <span style="color:#6b7280">process</span>
+</div>
+</div>
+</details></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">7.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">linelen</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">All functions and files within size limits</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Functions should be &lt;= 40 lines; files should be &lt;= 500 lines.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">halstead</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Halstead bugs estimated 0.90 (no file exceeds 2.0)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Halstead bugs = Volume/3000. High values indicate complex, error-prone code.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.9 / 2.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">deadcode</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">2 dead code findings &lt;= allowed 10</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Remove unused imports, #[allow(dead_code)] suppressions, and dead assignments.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">2.0 / 10.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">cohesion</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">All structs cohesive (avg LCOM4 1.00)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">High LCOM4 means a struct does too many unrelated things. Split it.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">1.0 / 5.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fef2f2;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#ef4444;text-align:center;width:40px;font-weight:700">&#10007;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#ef4444;white-space:nowrap">comments</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">1 files below comment ratio threshold of 5%</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Add inline comments explaining non-obvious logic. Doc comments are tracked separately by doccov.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">9.4 / 5.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">low</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">errhandle</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">No error handling issues detected</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Replace .unwrap()/.expect() with proper error propagation using `?` or match.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 50.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">mutate</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Mutation testing passed (kill rate 0.0%)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px"></div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr></tbody>
+</table></div></section>
+<section id="security" style="margin-bottom:40px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f3f4f6">
+  <span style="font-size:22px">🔒</span>
+  <h2 style="font-size:18px;font-weight:800;color:#111827;margin:0">Security Checks</h2>
+  <span style="font-size:13px;color:#22c55e;font-weight:600;margin-left:4px">6/6</span>
+  <div style="margin-left:auto"><span style="background:#dcfce7;color:#16a34a;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">ALL PASSED</span></div>
+</div>
+<div style="border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+  <th style="padding:9px 14px;width:42px"></th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Check</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Result / Details</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Score</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Sev</th>
+</tr></thead>
+<tbody><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">taint</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">0 taint violations &lt;= 0</div><div style="font-size:11px;color:#9ca3af;margin-top:3px"></div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">secrets</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">No hardcoded secrets detected</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Move secrets to environment variables or a secrets manager.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">vulnscan</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Skipped: No output. stderr: Error: Could not detect ecosystem in '/home/mo/projects/cogent/crates/fixtures'. Use --ecosystem rust|node|python.</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Install the check tool or run from the Cogent workspace to enable this check.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">&#8212;</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">sast</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">No SAST findings (SQL injection, XSS, path traversal, cmd injection)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Review SAST findings. Parameterize SQL, sanitize input, use allowlists for file paths and commands.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">crypto</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">No cryptographic issues (weak hash, insecure random, ECB, disabled TLS)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Replace MD5/SHA1 with SHA-256. Use OsRng for security randomness. Use AES-GCM, not ECB.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">access-control</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Access control passed (0 findings, 0 critical)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Review missing auth guards, hardcoded credentials, IAM policies, and CORS settings.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span></td>
+</tr></tbody>
+</table></div></section>
+<section id="compliance" style="margin-bottom:40px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f3f4f6">
+  <span style="font-size:22px">📋</span>
+  <h2 style="font-size:18px;font-weight:800;color:#111827;margin:0">Compliance Checks</h2>
+  <span style="font-size:13px;color:#ef4444;font-weight:600;margin-left:4px">2/3</span>
+  <div style="margin-left:auto"><span style="background:#fee2e2;color:#ef4444;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">1 FAILED</span></div>
+</div>
+<div style="border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
+  <th style="padding:9px 14px;width:42px"></th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Check</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Result / Details</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Score</th>
+  <th style="padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Sev</th>
+</tr></thead>
+<tbody><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">licenses</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">No license violations in 0 packages scanned</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Review copyleft (GPL/AGPL) licenses. They may require open-sourcing your code. Consult legal counsel.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">0.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr><tr style="background:#fef2f2;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#ef4444;text-align:center;width:40px;font-weight:700">&#10007;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#ef4444;white-space:nowrap">supply-chain</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Supply chain failed (1 risks &gt; 0 threshold, 0 critical)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Review lockfile integrity, typosquatting, unpinned dependencies, and abandoned packages.</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">1.0 / 0.0</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#ef4444;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">high</span></td>
+</tr><tr style="background:#fff;border-bottom:1px solid #f3f4f6;vertical-align:top">
+  <td style="padding:12px 14px;font-size:18px;color:#22c55e;text-align:center;width:40px;font-weight:700">&#10003;</td>
+  <td style="padding:12px 14px;font-weight:600;font-size:13px;color:#111827;white-space:nowrap">outdated</td>
+  <td style="padding:12px 14px"><div style="font-size:13px;color:#374151">Skipped: cargo-outdated not installed (cargo install cargo-outdated)</div><div style="font-size:11px;color:#9ca3af;margin-top:3px">Install with: cargo install cargo-outdated</div></td>
+  <td style="padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap">&#8212;</td>
+  <td style="padding:12px 14px;white-space:nowrap"><span style="background:#6b7280;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">info</span></td>
+</tr></tbody>
+</table></div></section>
+
+<div class="footer">
+  Generated by <strong>Cogent</strong> &#8212; automated code quality &amp; security auditing &nbsp;&middot;&nbsp; 2026-06-03 18:26 UTC<br>
+  <span style="color:#cbd5e1">This report is machine-generated. Results should be reviewed by a qualified engineer before use in compliance filings.</span>
+</div>
+
+</main>
+</div>
+
+<script>
+const sections = document.querySelectorAll('[id]');
+const links = document.querySelectorAll('.sidebar nav a');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      links.forEach(l=>l.classList.remove('active'));
+      const a = document.querySelector('.sidebar nav a[href="#'+e.target.id+'"]');
+      if(a) a.classList.add('active');
+    }
+  });
+},{threshold:0.3});
+sections.forEach(s=>obs.observe(s));
+
+// Collapsible findings sections
+function toggleCollapsible(h){
+  const body = h.nextElementSibling;
+  if(!body) return;
+  body.classList.toggle('closed');
+  h.classList.toggle('open');
+  if(!body.classList.contains('closed')){
+    body.style.maxHeight = body.scrollHeight + 'px';
+  } else {
+    body.style.maxHeight = '0px';
+  }
+}
+document.querySelectorAll('.collapsible-header').forEach(h=>{
+  h.addEventListener('click', ()=>toggleCollapsible(h));
+});
+
+// Findings search
+function filterFindings(q){
+  const rows = document.querySelectorAll('.finding-row');
+  rows.forEach(r=>{
+    const txt = r.textContent.toLowerCase();
+    r.style.display = txt.includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// File heatmap click-to-filter
+let activeFileFilter = '';
+function filterByFile(file){
+  activeFileFilter = file;
+  const rows = document.querySelectorAll('.finding-row');
+  rows.forEach(r=>{
+    const cell = r.querySelector('td');
+    if(cell){
+      const f = cell.textContent.trim();
+      r.style.display = f === file ? '' : 'none';
+    }
+  });
+  // Show active filter badge
+  let badge = document.getElementById('file-filter-badge');
+  if(!badge){
+    badge = document.createElement('div');
+    badge.id = 'file-filter-badge';
+    badge.className = 'filter-tag';
+    const header = document.querySelector('#findings .card-title');
+    if(header) header.parentNode.insertBefore(badge, header.nextSibling);
+  }
+  badge.innerHTML = 'File: ' + file + ' <span class="x" onclick="clearFileFilter()">&times;</span>';
+  badge.style.display = 'inline-flex';
+}
+function clearFileFilter(){
+  activeFileFilter = '';
+  const rows = document.querySelectorAll('.finding-row');
+  rows.forEach(r=>r.style.display = '');
+  const badge = document.getElementById('file-filter-badge');
+  if(badge) badge.style.display = 'none';
+}
+document.querySelectorAll('.heatmap-row').forEach(row=>{
+  row.addEventListener('click', ()=>{
+    const fileDiv = row.querySelector('div');
+    if(fileDiv) filterByFile(fileDiv.textContent.trim());
+  });
+});
+</script>
+</body>
+</html>

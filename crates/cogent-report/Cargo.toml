@@ -18,6 +18,10 @@ serde = { version = "1", features = ["derive"], default-features = false, option
 serde_json = { version = "1", default-features = false, optional = true }
 tracing = { version = "0.1", features = ["max_level_debug"] }
 
+[dev-dependencies]
+tempfile = "3"
+libc = "0.2"
+
 [features]
 default = ["json"]
 json = ["dep:serde", "dep:serde_json"]

@@ -117,6 +117,107 @@ if %ERRORLEVEL% NEQ 0 exit /b 1
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_profile(test_cmd: Vec<&str>) -> ProjectProfile {
+        ProjectProfile {
+            ecosystem: crate::config::ProjectEcosystem::Rust,
+            test_cmd: test_cmd.into_iter().map(String::from).collect(),
+            coverage_cmd: vec!["cargo", "llvm-cov", "--lcov", "--output-path", "lcov.info"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+            lcov_path: "lcov.info".into(),
+            watch_extensions: vec!["rs".into()],
+            max_crap: 15.0,
+            min_doc: 95.0,
+            max_debt: 0,
+            max_complexity_violations: 0,
+        }
+    }
+
+    #[test]
+    fn test_build_hook_script_shebang() {
+        let profile = make_profile(vec!["cargo", "test"]);
+        let script = build_hook_script(false, &profile);
+        assert!(script.starts_with("#!/usr/bin/env bash"));
+    }
+
+    #[test]
+    fn test_build_hook_script_set_euo() {
+        let profile = make_profile(vec!["cargo", "test"]);
+        let script = build_hook_script(false, &profile);
+        assert!(script.contains("set -euo pipefail"));
+    }
+
+    #[test]
+    fn test_build_hook_script_cm_bin_detection() {
+        let profile = make_profile(vec!["cargo", "test"]);
+        let script = build_hook_script(false, &profile);
+        assert!(script.contains("command -v cogent"));
+        assert!(script.contains("target/release/cogent"));
+    }
+
+    #[test]
+    fn test_build_hook_script_full_mode_contains_test_and_coverage() {
+        let profile = make_profile(vec!["cargo", "test"]);
+        let script = build_hook_script(false, &profile);
+        assert!(script.contains("Running tests"));
+        assert!(script.contains("cargo test"));
+        assert!(script.contains("Collecting coverage"));
+        assert!(script.contains("cargo llvm-cov --lcov --output-path lcov.info"));
+        assert!(script.contains("Running quality checks"));
+        assert!(script.contains("$CM_BIN check . --coverage lcov.info"));
+    }
+
+    #[test]
+    fn test_build_hook_script_fast_mode_skips_tests() {
+        let profile = make_profile(vec!["cargo", "test"]);
+        let script = build_hook_script(true, &profile);
+        assert!(!script.contains("Running tests"));
+        assert!(!script.contains("Collecting coverage"));
+        assert!(script.contains("$CM_BIN check . --format text"));
+    }
+
+    #[test]
+    fn test_build_hook_script_fast_mode_comment() {
+        let profile = make_profile(vec!["cargo", "test"]);
+        let script = build_hook_script(true, &profile);
+        assert!(script.contains("fast/metrics-only"));
+    }
+
+    #[test]
+    fn test_build_hook_script_full_mode_comment() {
+        let profile = make_profile(vec!["cargo", "test"]);
+        let script = build_hook_script(false, &profile);
+        assert!(script.contains("full: tests + coverage + metrics"));
+    }
+
+    #[test]
+    fn test_build_hook_script_no_coverage_fast_mode() {
+        let mut profile = make_profile(vec!["cargo", "test"]);
+        profile.coverage_cmd = vec![];
+        profile.lcov_path = String::new();
+        // When coverage is unavailable, full mode should behave like fast mode
+        let script = build_hook_script(false, &profile);
+        assert!(!script.contains("Running tests"));
+        assert!(!script.contains("Collecting coverage"));
+        assert!(script.contains("$CM_BIN check . --format text"));
+    }
+
+    #[test]
+    fn test_build_hook_script_comment_header() {
+        let profile = make_profile(vec!["cargo", "test"]);
+        let script = build_hook_script(false, &profile);
+        assert!(script.contains("Cogent pre-commit hook"));
+        assert!(script.contains("cogent install-hooks"));
+        assert!(script.contains("cogent uninstall-hooks"));
+        assert!(script.contains("git commit --no-verify"));
+    }
+}
+
 fn build_hook_script(fast: bool, profile: &ProjectProfile) -> String {
     let cm_bin = r#"CM_BIN=""
 if command -v cogent &>/dev/null; then

@@ -650,6 +650,384 @@ mod tests {
         assert!(!back.passed);
         assert_eq!(back.score, Some(12.0));
     }
+
+    // ── separator ──
+
+    #[test]
+    fn test_separator_default() {
+        let s = separator(10);
+        assert_eq!(s.chars().count(), 10);
+        assert!(s.chars().all(|c| c == '─'));
+    }
+
+    #[test]
+    fn test_separator_zero() {
+        assert_eq!(separator(0), "");
+    }
+
+    // ── Column builders ──
+
+    #[test]
+    fn test_column_left() {
+        let c = Column::left("Name", 20);
+        assert_eq!(c.header, "Name");
+        assert_eq!(c.width, 20);
+        assert!(!c.align_right);
+    }
+
+    #[test]
+    fn test_column_right() {
+        let c = Column::right("Count", 6);
+        assert_eq!(c.header, "Count");
+        assert_eq!(c.width, 6);
+        assert!(c.align_right);
+    }
+
+    // ── wrap_tool_response ──
+
+    #[test]
+    fn test_wrap_tool_response_basic() {
+        let resp = wrap_tool_response("test-tool", "1.0", true, 42, serde_json::json!({"key": "val"}), None, None);
+        assert_eq!(resp.tool, "test-tool");
+        assert_eq!(resp.version, "1.0");
+        assert!(resp.success);
+        assert_eq!(resp.duration_ms, 42);
+        assert_eq!(resp.data["key"], "val");
+        assert!(resp.summary.is_none());
+        assert!(resp.error.is_none());
+        assert!(resp.suggested_fix.is_none());
+    }
+
+    #[test]
+    fn test_wrap_tool_response_with_summary_and_error() {
+        let resp = wrap_tool_response("x", "2.0", false, 100, serde_json::Value::Null, Some(serde_json::json!({})), Some("error msg".into()));
+        assert!(!resp.success);
+        assert_eq!(resp.error, Some("error msg".into()));
+        assert_eq!(resp.summary, Some(serde_json::json!({})));
+    }
+
+    // ── new_unified_report ──
+
+    #[test]
+    fn test_new_unified_report() {
+        let report = new_unified_report("2024-01-01".into());
+        assert!(report.run_id.starts_with("run-"));
+        assert_eq!(report.started_at, "2024-01-01");
+        assert_eq!(report.duration_ms, 0);
+        assert!(report.tools.is_empty());
+        assert_eq!(report.summary.total_tools, 0);
+    }
+
+    // ── function_coverage ──
+
+    #[test]
+    fn test_function_coverage_found_with_hits() {
+        let records = vec![
+            CoverageRecord { function: "foo".into(), line: 10, hits: 5 },
+            CoverageRecord { function: "bar".into(), line: 20, hits: 0 },
+        ];
+        assert_eq!(function_coverage(&records, "foo"), 1.0);
+    }
+
+    #[test]
+    fn test_function_coverage_found_no_hits() {
+        let records = vec![
+            CoverageRecord { function: "foo".into(), line: 10, hits: 0 },
+        ];
+        assert_eq!(function_coverage(&records, "foo"), 0.0);
+    }
+
+    #[test]
+    fn test_function_coverage_not_found() {
+        let records = vec![
+            CoverageRecord { function: "foo".into(), line: 10, hits: 5 },
+        ];
+        assert_eq!(function_coverage(&records, "nonexistent"), 0.0);
+    }
+
+    #[test]
+    fn test_function_coverage_empty_records() {
+        let records: Vec<CoverageRecord> = vec![];
+        assert_eq!(function_coverage(&records, "foo"), 0.0);
+    }
+
+    // ── crap_score ──
+
+    #[test]
+    fn test_crap_score_zero_complexity() {
+        let score = crap_score(0, 0.0);
+        assert_eq!(score, 0.0);
+    }
+
+    #[test]
+    fn test_crap_score_no_coverage() {
+        let score = crap_score(5, 0.0);
+        // 5^2 * (1-0)^3 + 5 = 25 + 5 = 30
+        assert!((score - 30.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_crap_score_full_coverage() {
+        let score = crap_score(5, 1.0);
+        // 5^2 * (1-1)^3 + 5 = 0 + 5 = 5
+        assert!((score - 5.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_crap_score_partial_coverage() {
+        let score = crap_score(10, 0.5);
+        // 10^2 * (1-0.5)^3 + 10 = 100 * 0.125 + 10 = 22.5
+        assert!((score - 22.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_crap_score_clamps_cov_above_1() {
+        let score = crap_score(3, 2.0);
+        // clamped to 1.0: 3^2 * 0 + 3 = 3
+        assert!((score - 3.0).abs() < 1e-9);
+    }
+
+    // ── crap_category ──
+
+    #[test]
+    fn test_crap_category_excellent() {
+        assert_eq!(crap_category(0.0), "excellent");
+        assert_eq!(crap_category(10.0), "excellent");
+    }
+
+    #[test]
+    fn test_crap_category_good() {
+        assert_eq!(crap_category(15.0), "good");
+        assert_eq!(crap_category(20.0), "good");
+    }
+
+    #[test]
+    fn test_crap_category_acceptable() {
+        assert_eq!(crap_category(25.0), "acceptable");
+        assert_eq!(crap_category(30.0), "acceptable");
+    }
+
+    #[test]
+    fn test_crap_category_crappy() {
+        assert_eq!(crap_category(31.0), "crappy");
+        assert_eq!(crap_category(100.0), "crappy");
+    }
+
+    // ── sarif_level ──
+
+    #[test]
+    fn test_sarif_level_error() {
+        assert_eq!(sarif_level("error"), "error");
+        assert_eq!(sarif_level("critical"), "error");
+        assert_eq!(sarif_level("high"), "error");
+    }
+
+    #[test]
+    fn test_sarif_level_warning() {
+        assert_eq!(sarif_level("warning"), "warning");
+        assert_eq!(sarif_level("medium"), "warning");
+    }
+
+    #[test]
+    fn test_sarif_level_note() {
+        assert_eq!(sarif_level("note"), "note");
+        assert_eq!(sarif_level("info"), "note");
+        assert_eq!(sarif_level("low"), "note");
+    }
+
+    #[test]
+    fn test_sarif_level_unknown_defaults_to_warning() {
+        assert_eq!(sarif_level("unknown"), "warning");
+        assert_eq!(sarif_level(""), "warning");
+    }
+
+    // ── get_rule_details ──
+
+    #[test]
+    fn test_get_rule_details_known() {
+        let (short, full, help) = get_rule_details("crap-error");
+        assert_eq!(short, "CRAP Score Too High");
+        assert!(full.contains("CRAP"));
+        assert!(help.contains("Reduce complexity"));
+    }
+
+    #[test]
+    fn test_get_rule_details_default() {
+        let (short, full, help) = get_rule_details("unknown-rule");
+        assert_eq!(short, "Rule unknown-rule");
+        assert_eq!(full, "Details for rule unknown-rule");
+    }
+
+    // ── format_timestamp ──
+
+    #[test]
+    fn test_format_timestamp_epoch() {
+        assert_eq!(format_timestamp(0), "1970-01-01");
+    }
+
+    #[test]
+    fn test_format_timestamp_later() {
+        // Approx 2024-06-15: days = 19889
+        let ts = 19889i64 * 86400;
+        let s = format_timestamp(ts);
+        assert!(s.starts_with("202"));
+        assert_eq!(s.len(), 10);
+    }
+
+    // ── demangle_rust_v0 ──
+
+    #[test]
+    fn test_demangle_non_mangled() {
+        assert_eq!(demangle_rust_v0("my_function"), "my_function");
+    }
+
+    #[test]
+    fn test_demangle_v0_extracts_last_ident() {
+        // _R (v0 prefix) Nv (fn nesting) CsXXX (crate) 4crate 17my_function_name
+        let result = demangle_rust_v0("_RNvCs1234_4crate16my_function_name");
+        assert_eq!(result, "my_function_name");
+    }
+
+    #[test]
+    fn test_demangle_v0_short_sym() {
+        let result = demangle_rust_v0("_R");
+        // No parseable identifiers, returns the original
+        assert_eq!(result, "_R");
+    }
+
+    // ── parse_lcov ──
+
+    #[test]
+    fn test_parse_lcov_empty() {
+        assert!(parse_lcov("").is_empty());
+    }
+
+    #[test]
+    fn test_parse_lcov_single_fn() {
+        let lcov = "FN:10,my_func\nFNDA:5,my_func\n";
+        let records = parse_lcov(lcov);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].function, "my_func");
+        assert_eq!(records[0].line, 10);
+        assert_eq!(records[0].hits, 5);
+    }
+
+    #[test]
+    fn test_parse_lcov_multiple_fns() {
+        let lcov = "FN:5,fn_a\nFNDA:3,fn_a\nFN:20,fn_b\nFNDA:7,fn_b\n";
+        let records = parse_lcov(lcov);
+        assert_eq!(records.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_lcov_fnda_before_fn() {
+        // FNDA without prior FN should insert a record with line=0
+        let lcov = "FNDA:42,orphan\n";
+        let records = parse_lcov(lcov);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].function, "orphan");
+        assert_eq!(records[0].line, 0);
+        assert_eq!(records[0].hits, 42);
+    }
+
+    // ── diff_results ──
+
+    fn make_sarif_result(rule_id: &str, uri: &str, line: usize) -> SarifResult {
+        SarifResult {
+            rule_id: rule_id.to_string(),
+            rule_index: None,
+            level: "warning".to_string(),
+            message: SarifMessage { text: "msg".to_string() },
+            locations: vec![SarifLocation {
+                physical_location: SarifPhysicalLocation {
+                    artifact_location: Some(SarifArtifactLocation { uri: uri.to_string() }),
+                    region: Some(SarifRegion {
+                        start_line: Some(line),
+                        start_column: None,
+                        end_line: None,
+                        end_column: None,
+                    }),
+                },
+            }],
+        }
+    }
+
+    #[test]
+    fn test_diff_results_no_new() {
+        let current = vec![make_sarif_result("R1", "a.rs", 1)];
+        let baseline = vec![make_sarif_result("R1", "a.rs", 1)];
+        assert!(diff_results(&current, &baseline).is_empty());
+    }
+
+    #[test]
+    fn test_diff_results_new_finding() {
+        let current = vec![
+            make_sarif_result("R1", "a.rs", 1),
+            make_sarif_result("R2", "b.rs", 5),
+        ];
+        let baseline = vec![make_sarif_result("R1", "a.rs", 1)];
+        let new = diff_results(&current, &baseline);
+        assert_eq!(new.len(), 1);
+        assert_eq!(new[0].rule_id, "R2");
+    }
+
+    #[test]
+    fn test_diff_results_all_new() {
+        let current = vec![make_sarif_result("R3", "c.rs", 10)];
+        let baseline = vec![make_sarif_result("R1", "a.rs", 1)];
+        assert_eq!(diff_results(&current, &baseline).len(), 1);
+    }
+
+    // ── find_lcov_file ──
+
+    #[test]
+    fn test_find_lcov_file_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(find_lcov_file(dir.path()).is_none());
+    }
+
+    #[test]
+    fn test_find_lcov_file_found() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("lcov.info"), "").unwrap();
+        assert!(find_lcov_file(dir.path()).is_some());
+    }
+
+    // ── find_coverage ──
+
+    #[test]
+    fn test_find_coverage_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(find_coverage(dir.path()).is_none());
+    }
+
+    #[test]
+    fn test_find_coverage_with_content() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("lcov.info"), "FN:1,foo\nFNDA:3,foo\n").unwrap();
+        let cov = find_coverage(dir.path()).unwrap();
+        assert_eq!(cov.len(), 1);
+        assert_eq!(cov[0].function, "foo");
+        assert_eq!(cov[0].hits, 3);
+    }
+
+    // ── print_verdict ──
+
+    #[test]
+    fn test_print_verdict_passes_when_equal() {
+        // Just verify it doesn't panic
+        print_verdict(5.0, 5.0, "good", "bad");
+    }
+
+    #[test]
+    fn test_print_verdict_passes_below() {
+        print_verdict(3.0, 5.0, "good", "bad");
+    }
+
+    #[test]
+    fn test_print_verdict_fails_above() {
+        print_verdict(10.0, 5.0, "good", "bad");
+    }
 }
 
 // ═══════════════════════════════════════════
@@ -990,7 +1368,7 @@ pub struct CoverageRecord {
 /// Parse an LCOV file into coverage records per function.
 /// Lines look like: `FN:<line>,<name>` followed by `FNDA:<hits>,<name>`.
 /// Attempt to extract a human-readable function name from a Rust v0 mangled symbol.
-/// For `_RNvCsXXX_4crate17my_function_name` this returns `"my_function_name"`.
+/// For `_RNvCsXXX_4crate16my_function_name` this returns `"my_function_name"`.
 /// Falls back to returning the original symbol unchanged for non-mangled names.
 fn demangle_rust_v0(sym: &str) -> String {
     // Only attempt demangling for Rust v0 mangled symbols
@@ -1121,6 +1499,14 @@ pub fn find_coverage(project_path: &Path) -> Option<Vec<CoverageRecord>> {
 // ═══════════════════════════════════════════
 // CRAP SCORE UTILITIES (shared across tools)
 // ═══════════════════════════════════════════
+
+/// Look up a function in coverage records and return 1.0 if it has > 0 hits, else 0.0.
+pub fn function_coverage(records: &[CoverageRecord], func_name: &str) -> f64 {
+    records
+        .iter()
+        .find(|r| r.function == func_name)
+        .map_or(0.0, |r| if r.hits > 0 { 1.0 } else { 0.0 })
+}
 
 /// Calculate CRAP score from complexity and test-coverage ratio.
 /// `covered_ratio` is hits / total_runs (0.0–1.0).

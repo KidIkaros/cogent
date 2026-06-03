@@ -1,0 +1,234 @@
+{
+  "entries": [
+    {
+      "finding_id": "SUPPLY-ECO-001::0",
+      "rule_id": "SUPPLY-ECO-001",
+      "file": "",
+      "detected_at": "2026-06-03T18:26:38.922983898+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "debt-fixme:/home/mo/projects/cogent/crates/fixtures/sample.c:10",
+      "rule_id": "debt-fixme",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.c",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "debt-todo:/home/mo/projects/cogent/crates/fixtures/sample.go:12",
+      "rule_id": "debt-todo",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.go",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "debt-todo:/home/mo/projects/cogent/crates/fixtures/sample.java:14",
+      "rule_id": "debt-todo",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.java",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "debt-fixme:/home/mo/projects/cogent/crates/fixtures/sample.js:15",
+      "rule_id": "debt-fixme",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.js",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "debt-hack:/home/mo/projects/cogent/crates/fixtures/sample.ts:12",
+      "rule_id": "debt-hack",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.ts",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "deadcode_limit:/home/mo/projects/cogent/crates/fixtures/sample.py:3",
+      "rule_id": "deadcode_limit",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.py",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "deadcode_limit:/home/mo/projects/cogent/crates/fixtures/sample.py:4",
+      "rule_id": "deadcode_limit",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.py",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "comment_ratio:/home/mo/projects/cogent/crates/fixtures/sample.rs:0",
+      "rule_id": "comment_ratio",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.rs",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "comment_ratio:/home/mo/projects/cogent/crates/fixtures/sample.java:0",
+      "rule_id": "comment_ratio",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.java",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "comment_ratio:/home/mo/projects/cogent/crates/fixtures/sample.py:0",
+      "rule_id": "comment_ratio",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.py",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "comment_ratio:/home/mo/projects/cogent/crates/fixtures/sample.js:0",
+      "rule_id": "comment_ratio",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.js",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "comment_ratio:/home/mo/projects/cogent/crates/fixtures/sample.ts:0",
+      "rule_id": "comment_ratio",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.ts",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "comment_ratio:/home/mo/projects/cogent/crates/fixtures/sample.c:0",
+      "rule_id": "comment_ratio",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.c",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "comment_ratio:/home/mo/projects/cogent/crates/fixtures/sample.go:0",
+      "rule_id": "comment_ratio",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.go",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "halstead_bugs:/home/mo/projects/cogent/crates/fixtures/sample.js:0",
+      "rule_id": "halstead_bugs",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.js",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "halstead_bugs:/home/mo/projects/cogent/crates/fixtures/sample.java:0",
+      "rule_id": "halstead_bugs",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.java",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "halstead_bugs:/home/mo/projects/cogent/crates/fixtures/sample.c:0",
+      "rule_id": "halstead_bugs",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.c",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "halstead_bugs:/home/mo/projects/cogent/crates/fixtures/sample.rs:0",
+      "rule_id": "halstead_bugs",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.rs",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "halstead_bugs:/home/mo/projects/cogent/crates/fixtures/sample.ts:0",
+      "rule_id": "halstead_bugs",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.ts",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "halstead_bugs:/home/mo/projects/cogent/crates/fixtures/sample.py:0",
+      "rule_id": "halstead_bugs",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.py",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "halstead_bugs:/home/mo/projects/cogent/crates/fixtures/sample.go:0",
+      "rule_id": "halstead_bugs",
+      "file": "/home/mo/projects/cogent/crates/fixtures/sample.go",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    },
+    {
+      "finding_id": "design-docs-missing:/home/mo/projects/cogent/crates/fixtures:0",
+      "rule_id": "design-docs-missing",
+      "file": "/home/mo/projects/cogent/crates/fixtures",
+      "detected_at": "2026-06-03T18:26:45.372228510+00:00",
+      "status": "open",
+      "assigned_to": null,
+      "closed_at": null,
+      "verification_scan": null
+    }
+  ]
+}

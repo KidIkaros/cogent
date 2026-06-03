@@ -414,9 +414,19 @@ dependencies = [
  "clap",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "unicode-width 0.2.2",
  "uuid",
+]
+
+[[package]]
+name = "cogent-config"
+version = "1.1.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -434,14 +444,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "cogent-fix"
+version = "1.1.1"
+dependencies = [
+ "cogent-common",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde_json",
+ "syn",
+ "tempfile",
+]
+
+[[package]]
 name = "cogent-report"
 version = "1.1.1"
 dependencies = [
  "chrono",
  "cogent-common",
  "colored",
+ "libc",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tracing",
  "unicode-width 0.1.14",
@@ -497,6 +522,7 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -1278,6 +1304,7 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -1369,6 +1396,7 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -1781,6 +1809,7 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -1840,6 +1869,7 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -2513,6 +2543,7 @@ dependencies = [
  "predicates",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

@@ -935,3 +935,393 @@ pub fn render_markdown_report(
     md.push_str("*This report is machine-generated. Results should be reviewed by a qualified engineer before use in compliance filings.*\n");
     md
 }
+
+#[cfg(test)]
+mod html_tests {
+    use super::*;
+    use cogent_common::{CheckReport, CheckResult, CheckSummary, Finding};
+
+    // ── severity_color_html ────────────────────────────────────────
+
+    #[test]
+    fn test_severity_color_high() {
+        assert_eq!(severity_color_html("high"), "#ef4444");
+        assert_eq!(severity_color_html("critical"), "#ef4444");
+        assert_eq!(severity_color_html("error"), "#ef4444");
+    }
+
+    #[test]
+    fn test_severity_color_medium() {
+        assert_eq!(severity_color_html("medium"), "#f59e0b");
+        assert_eq!(severity_color_html("warning"), "#f59e0b");
+    }
+
+    #[test]
+    fn test_severity_color_low() {
+        assert_eq!(severity_color_html("low"), "#3b82f6");
+    }
+
+    #[test]
+    fn test_severity_color_default() {
+        assert_eq!(severity_color_html("info"), "#6b7280");
+        assert_eq!(severity_color_html("unknown"), "#6b7280");
+    }
+
+    // ── severity_badge ──────────────────────────────────────────────
+
+    #[test]
+    fn test_severity_badge_contains_text() {
+        let badge = severity_badge("high");
+        assert!(badge.contains(">high<"));
+        assert!(badge.contains("#ef4444"));
+    }
+
+    #[test]
+    fn test_severity_badge_uppercase() {
+        let badge = severity_badge("critical");
+        assert!(badge.contains("uppercase"));
+    }
+
+    // ── donut_svg ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_donut_svg_contains_percentage() {
+        let svg = donut_svg(75.0, "#22c55e");
+        assert!(svg.contains("75%"));
+        assert!(svg.contains("#22c55e"));
+    }
+
+    #[test]
+    fn test_donut_svg_zero_percent() {
+        let svg = donut_svg(0.0, "#ef4444");
+        assert!(svg.contains("0%"));
+    }
+
+    #[test]
+    fn test_donut_svg_full_percent() {
+        let svg = donut_svg(100.0, "#22c55e");
+        assert!(svg.contains("100%"));
+    }
+
+    #[test]
+    fn test_donut_svg_contains_viewbox() {
+        let svg = donut_svg(50.0, "#f59e0b");
+        assert!(svg.contains("viewBox"));
+        assert!(svg.contains("<circle"));
+        assert!(svg.contains("<text"));
+    }
+
+    // ── mini_bar ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_mini_bar_shows_fraction() {
+        let bar = mini_bar(6, 8, "#22c55e");
+        assert!(bar.contains("6/8"));
+        assert!(bar.contains("75%"));
+    }
+
+    #[test]
+    fn test_mini_bar_all_passed() {
+        let bar = mini_bar(8, 8, "#22c55e");
+        assert!(bar.contains("8/8"));
+        assert!(bar.contains("100%"));
+    }
+
+    #[test]
+    fn test_mini_bar_all_failed() {
+        let bar = mini_bar(0, 5, "#ef4444");
+        assert!(bar.contains("0/5"));
+        assert!(bar.contains("0%"));
+    }
+
+    #[test]
+    fn test_mini_bar_zero_total() {
+        assert_eq!(mini_bar(0, 0, "#000"), "");
+    }
+
+    // ── gauge_svg ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_gauge_svg_contains_score() {
+        let svg = gauge_svg(85, "#22c55e");
+        assert!(svg.contains("85"));
+        assert!(svg.contains("Health Score"));
+    }
+
+    #[test]
+    fn test_gauge_svg_zero() {
+        let svg = gauge_svg(0, "#ef4444");
+        assert!(svg.contains("0"));
+    }
+
+    #[test]
+    fn test_gauge_svg_full() {
+        let svg = gauge_svg(100, "#22c55e");
+        assert!(svg.contains("100"));
+    }
+
+    #[test]
+    fn test_gauge_svg_contains_path() {
+        let svg = gauge_svg(50, "#f59e0b");
+        assert!(svg.contains("<path"));
+        assert!(svg.contains("<text"));
+    }
+
+    // ── severity_bar_chart_svg ──────────────────────────────────────
+
+    #[test]
+    fn test_severity_bar_chart_empty() {
+        assert_eq!(severity_bar_chart_svg(&[]), "");
+    }
+
+    #[test]
+    fn test_severity_bar_chart_single() {
+        let data = vec![("critical".to_string(), 5, "#dc2626")];
+        let svg = severity_bar_chart_svg(&data);
+        assert!(svg.contains("critical"));
+        assert!(svg.contains("5"));
+    }
+
+    #[test]
+    fn test_severity_bar_chart_multiple() {
+        let data = vec![
+            ("critical".to_string(), 3, "#dc2626"),
+            ("high".to_string(), 7, "#ef4444"),
+            ("low".to_string(), 1, "#22c55e"),
+        ];
+        let svg = severity_bar_chart_svg(&data);
+        assert!(svg.contains("critical"));
+        assert!(svg.contains("high"));
+        assert!(svg.contains("low"));
+        assert!(svg.contains("3"));
+        assert!(svg.contains("7"));
+        assert!(svg.contains("1"));
+    }
+
+    // ── sparkline_svg ───────────────────────────────────────────────
+
+    #[test]
+    fn test_sparkline_svg_fewer_than_two_points() {
+        assert_eq!(sparkline_svg(&[50], 100, 30), "");
+    }
+
+    #[test]
+    fn test_sparkline_svg_two_points() {
+        let svg = sparkline_svg(&[50, 100], 100, 30);
+        assert!(svg.contains("<polyline"));
+    }
+
+    #[test]
+    fn test_sparkline_svg_multiple_points() {
+        let svg = sparkline_svg(&[30, 50, 80, 100, 95, 70], 200, 60);
+        assert!(svg.contains("<polyline"));
+        assert!(svg.contains("<circle"));
+        assert!(svg.contains("stroke-dasharray=\"3,3\""), "should have grid line at 50%");
+    }
+
+    #[test]
+    fn test_sparkline_svg_flat_line() {
+        let svg = sparkline_svg(&[50, 50, 50, 50], 100, 30);
+        assert!(svg.contains("<polyline"));
+    }
+
+    // ── offender_rows_html ──────────────────────────────────────────
+
+    fn make_check_result_with_items(items: serde_json::Value) -> CheckResult {
+        CheckResult {
+            name: "test".into(),
+            passed: false,
+            score: None,
+            threshold: None,
+            message: "test check".into(),
+            details: items,
+            severity: Some("high".into()),
+            help: Some("fix it".into()),
+            rule_id: Some("T-001".into()),
+            findings: vec![],
+        }
+    }
+
+    #[test]
+    fn test_offender_rows_empty() {
+        let c = make_check_result_with_items(serde_json::json!({"items": []}));
+        assert_eq!(offender_rows_html(&c), "");
+    }
+
+    #[test]
+    fn test_offender_rows_with_items() {
+        let c = make_check_result_with_items(serde_json::json!({
+            "items": [
+                {"file": "src/main.rs", "line": 42, "context": "dangerous call"},
+                {"file": "src/lib.rs", "line": 10, "context": "bad pattern"}
+            ]
+        }));
+        let html = offender_rows_html(&c);
+        assert!(html.contains("src/main.rs"));
+        assert!(html.contains("src/lib.rs"));
+        assert!(html.contains("<details"));
+        assert!(html.contains("<summary"));
+    }
+
+    #[test]
+    fn test_offender_rows_more_than_ten_shows_more() {
+        // Build 15 items to test the 'N more findings' truncation
+        let mut items_json = Vec::new();
+        for i in 0..15 {
+            items_json.push(serde_json::json!({
+                "file": format!("f{}.rs", i),
+                "line": i,
+                "context": format!("item {}", i)
+            }));
+        }
+        let c = make_check_result_with_items(serde_json::json!({"items": items_json}));
+        let html = offender_rows_html(&c);
+        assert!(html.contains("5 more findings"), "should indicate remaining findings");
+    }
+
+    // ── check_row_html ──────────────────────────────────────────────
+
+    #[test]
+    fn test_check_row_html_passed() {
+        let c = CheckResult {
+            name: "crap".into(),
+            passed: true,
+            score: Some(12.5),
+            threshold: Some(15.0),
+            message: "all good".into(),
+            details: serde_json::Value::Null,
+            severity: None,
+            help: None,
+            rule_id: None,
+            findings: vec![],
+        };
+        let row = check_row_html(&c);
+        assert!(row.contains("&#10003;"));  // checkmark
+        assert!(row.contains("12.5"));
+        assert!(row.contains("15.0"));
+        assert!(row.contains("crap"));
+    }
+
+    #[test]
+    fn test_check_row_html_failed() {
+        let c = CheckResult {
+            name: "secrets".into(),
+            passed: false,
+            score: None,
+            threshold: None,
+            message: "found secrets".into(),
+            details: serde_json::Value::Null,
+            severity: Some("high".into()),
+            help: Some("use env vars".into()),
+            rule_id: None,
+            findings: vec![],
+        };
+        let row = check_row_html(&c);
+        assert!(row.contains("&#10007;"));  // x mark
+        assert!(row.contains("secrets"));
+        assert!(row.contains("use env vars"));
+        assert!(row.contains("high"));
+    }
+
+    // ── render_html_report ──────────────────────────────────────────
+
+    #[test]
+    fn test_render_html_report_basic_structure() {
+        let report = CheckReport {
+            passed: true,
+            path: ".".into(),
+            checks: vec![CheckResult {
+                name: "crap".into(), passed: true, score: None, threshold: None,
+                message: "ok".into(), details: serde_json::Value::Null,
+                severity: None, help: None, rule_id: None, findings: vec![],
+            }],
+            summary: CheckSummary {
+                total_checks: 1, passed_checks: 1, failed_checks: 0,
+                functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
+            },
+            file_summary: vec![],
+        };
+        let html = render_html_report(&report, "testproj", "2024-01-01", &["secrets"], &["crap"], &["licenses"]);
+        assert!(html.contains("<html"));
+        assert!(html.contains("testproj"));
+        assert!(html.contains("PASSED"));
+        assert!(html.contains("Health Score"));
+    }
+
+    // ── render_markdown_report ──────────────────────────────────────
+
+    #[test]
+    fn test_render_markdown_report_passed() {
+        let report = CheckReport {
+            passed: true,
+            path: ".".into(),
+            checks: vec![CheckResult {
+                name: "crap".into(), passed: true, score: None, threshold: None,
+                message: "ok".into(), details: serde_json::Value::Null,
+                severity: None, help: None, rule_id: None, findings: vec![],
+            }],
+            summary: CheckSummary {
+                total_checks: 1, passed_checks: 1, failed_checks: 0,
+                functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
+            },
+            file_summary: vec![],
+        };
+        let md = render_markdown_report(&report, "testproj", "2024-01-01", &["secrets"], &["crap"], &["licenses"]);
+        assert!(md.contains("Cogent Audit Report"));
+        assert!(md.contains("✅"));
+    }
+
+    #[test]
+    fn test_render_markdown_report_with_file_heatmap() {
+        let report = CheckReport {
+            passed: false,
+            path: ".".into(),
+            checks: vec![],
+            summary: CheckSummary {
+                total_checks: 0, passed_checks: 0, failed_checks: 0,
+                functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
+            },
+            file_summary: vec![
+                cogent_common::FileSummary {
+                    file: "src/main.rs".into(),
+                    issue_count: 5,
+                    severity_score: 12,
+                    findings_by_severity: std::collections::HashMap::new(),
+                },
+            ],
+        };
+        let md = render_markdown_report(&report, "testproj", "2024-01-01", &[], &[], &[]);
+        assert!(md.contains("File Heatmap"));
+        assert!(md.contains("src/main.rs"));
+        assert!(md.contains("5"));
+    }
+
+    #[test]
+    fn test_render_markdown_report_with_findings() {
+        let report = CheckReport {
+            passed: false,
+            path: ".".into(),
+            checks: vec![CheckResult {
+                name: "secrets".into(), passed: false, score: None, threshold: None,
+                message: "found secret".into(), details: serde_json::Value::Null,
+                severity: Some("high".into()), help: None, rule_id: None,
+                findings: vec![Finding {
+                    file: "src/main.rs".into(), line: Some(42), column: None,
+                    severity: "high".into(), message: "API key hardcoded".into(),
+                    rule_id: "SEC-001".into(), fix_hint: "use env var".into(),
+                    evidence: None, suggested_fix: None, controls: None,
+                }],
+            }],
+            summary: CheckSummary {
+                total_checks: 1, passed_checks: 0, failed_checks: 1,
+                functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
+            },
+            file_summary: vec![],
+        };
+        let md = render_markdown_report(&report, "testproj", "2024-01-01", &["secrets"], &[], &[]);
+        assert!(md.contains("Findings by Tool"));
+        assert!(md.contains("API key hardcoded"));
+        assert!(md.contains("SEC-001"));
+    }
+}
+

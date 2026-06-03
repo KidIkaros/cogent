@@ -125,7 +125,8 @@ fn is_fn_signature(trimmed: &str) -> bool {
 /// Extract the function name from a trimmed fn-signature line.
 fn extract_fn_name(trimmed: &str) -> Option<&str> {
     let rest = &trimmed[trimmed.find("fn ")? + 3..];
-    let end = rest.find(|c: char| c == '(' || c.is_whitespace())?;
+    // Rust identifiers: alphanumeric + underscore; stop at `(` or any non-identifier char
+    let end = rest.find(|c: char| c == '(' || (!c.is_alphanumeric() && c != '_'))?;
     let name = rest[..end].trim();
     if name.is_empty() {
         None
@@ -462,5 +463,220 @@ fn quadruple(x: i32) -> i32 { double(double(x)) }
         assert!(fns.contains(&"add".to_string()));
         assert!(fns.contains(&"double".to_string()));
         assert!(fns.contains(&"quadruple".to_string()));
+    }
+
+    // ── extract_diff_file ──
+
+    #[test]
+    fn test_extract_diff_file_valid_rs() {
+        let result = extract_diff_file("diff --git a/src/main.rs b/src/main.rs");
+        assert_eq!(result, Some("src/main.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_diff_file_non_rs() {
+        let result = extract_diff_file("diff --git a/README.md b/README.md");
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_extract_diff_file_malformed() {
+        assert_eq!(extract_diff_file("not a diff line"), None);
+        assert_eq!(extract_diff_file(""), None);
+    }
+
+    // ── is_fn_signature ──
+
+    #[test]
+    fn test_is_fn_signature_pub_fn() {
+        assert!(is_fn_signature("pub fn foo()"));
+        assert!(is_fn_signature("pub fn foo(x: i32)"));
+    }
+
+    #[test]
+    fn test_is_fn_signature_private_fn() {
+        assert!(is_fn_signature("fn foo()"));
+        assert!(is_fn_signature("fn foo(x: i32) -> i32"));
+    }
+
+    #[test]
+    fn test_is_fn_signature_async() {
+        assert!(is_fn_signature("async fn foo()"));
+        assert!(is_fn_signature("pub async fn foo()"));
+    }
+
+    #[test]
+    fn test_is_fn_signature_unsafe() {
+        assert!(is_fn_signature("unsafe fn foo()"));
+        assert!(is_fn_signature("pub unsafe fn foo()"));
+    }
+
+    #[test]
+    fn test_is_fn_signature_not_fn() {
+        assert!(!is_fn_signature("struct Foo"));
+        assert!(!is_fn_signature("impl Foo"));
+        assert!(!is_fn_signature("let x = 1;"));
+        assert!(!is_fn_signature("// fn fake()"));
+        assert!(!is_fn_signature(""));
+    }
+
+    // ── extract_fn_name ──
+
+    #[test]
+    fn test_extract_fn_name_simple() {
+        assert_eq!(extract_fn_name("fn foo()"), Some("foo"));
+        assert_eq!(extract_fn_name("pub fn bar(x: i32)"), Some("bar"));
+    }
+
+    #[test]
+    fn test_extract_fn_name_generics() {
+        assert_eq!(
+            extract_fn_name("fn do_thing<T: Debug>(x: T)"),
+            Some("do_thing")
+        );
+    }
+
+    #[test]
+    fn test_extract_fn_name_not_fn() {
+        assert_eq!(extract_fn_name("let x = 1;"), None);
+        assert_eq!(extract_fn_name(""), None);
+    }
+
+    // ── net_braces ──
+
+    #[test]
+    fn test_net_braces_open() {
+        assert_eq!(net_braces("fn foo() {"), 1);
+        assert_eq!(net_braces("if x { y }"), 0);
+    }
+
+    #[test]
+    fn test_net_braces_close() {
+        assert_eq!(net_braces("}"), -1);
+        assert_eq!(net_braces("} // end"), -1);
+    }
+
+    #[test]
+    fn test_net_braces_none() {
+        assert_eq!(net_braces("let x = 1;"), 0);
+        assert_eq!(net_braces(""), 0);
+    }
+
+    #[test]
+    fn test_net_braces_multiple() {
+        assert_eq!(net_braces("if a { if b { } }"), 0);
+        assert_eq!(net_braces("{ { } }"), 0);
+    }
+
+    // ── line_calls ──
+
+    #[test]
+    fn test_line_calls_direct() {
+        assert!(line_calls("foo(x)", "foo"));
+        assert!(line_calls("let y = foo(x);", "foo"));
+    }
+
+    #[test]
+    fn test_line_calls_method() {
+        assert!(line_calls("self.foo()", "foo"));
+        assert!(line_calls("x.foo(y)", "foo"));
+    }
+
+    #[test]
+    fn test_line_calls_namespaced() {
+        assert!(line_calls("Foo::bar()", "bar"));
+        assert!(line_calls("Foo::bar(x)", "bar"));
+    }
+
+    #[test]
+    fn test_line_calls_not_present() {
+        assert!(!line_calls("let x = 1;", "foo"));
+        assert!(!line_calls("bar(x)", "foo"));
+        assert!(!line_calls("", "foo"));
+    }
+
+    // ── collect_callees ──
+
+    #[test]
+    fn test_collect_callees_empty_body() {
+        let mut fns = HashMap::new();
+        fns.insert("foo".to_string(), (1, 1));
+        fns.insert("bar".to_string(), (3, 3));
+        let body: Vec<&str> = vec![];
+        let callees = collect_callees("foo", &body, &fns);
+        assert!(callees.is_empty());
+    }
+
+    #[test]
+    fn test_collect_callees_detected() {
+        let mut fns = HashMap::new();
+        fns.insert("foo".to_string(), (1, 5));
+        fns.insert("bar".to_string(), (7, 10));
+        let body = vec!["bar(x)", "other()"];
+        let callees = collect_callees("foo", &body, &fns);
+        // "bar" should be detected (bar(x) appears in body)
+        assert!(callees.contains("bar"));
+        // "other" should NOT be detected (not in fns keys)
+        assert!(!callees.contains("other"));
+    }
+
+    #[test]
+    fn test_collect_callees_excludes_self() {
+        let mut fns = HashMap::new();
+        fns.insert("foo".to_string(), (1, 5));
+        let body = vec!["foo(x)"];
+        let callees = collect_callees("foo", &body, &fns);
+        // "foo" calling itself should be excluded
+        assert!(!callees.contains("foo"));
+    }
+
+    // ── is_line_in_affected_function ──
+
+    #[test]
+    fn test_is_line_in_affected_function_in_range() {
+        // Use a regular string to avoid a leading blank line from r#"
+        let source = "fn foo() {\n    let x = 1;\n}\n";
+        let mut affected = HashMap::new();
+        affected.insert("test.rs".to_string(), vec!["foo".to_string()]);
+        let files = vec![("test.rs".to_string(), source.to_string())];
+        // Line 1 is fn signature, should be inside foo's range (1,3)
+        assert!(is_line_in_affected_function("test.rs", 1, &affected, &files));
+        // Line 2 is inside foo body
+        assert!(is_line_in_affected_function("test.rs", 2, &affected, &files));
+    }
+
+    #[test]
+    fn test_is_line_in_affected_function_out_of_range() {
+        let source = r#"
+fn foo() {
+    let x = 1;
+}
+
+fn bar() {
+    let y = 2;
+}
+"#;
+        let mut affected = HashMap::new();
+        affected.insert("test.rs".to_string(), vec!["foo".to_string()]);
+        let files = vec![("test.rs".to_string(), source.to_string())];
+        // Line 6 is inside bar, not foo
+        assert!(!is_line_in_affected_function("test.rs", 6, &affected, &files));
+    }
+
+    #[test]
+    fn test_is_line_in_affected_function_missing_source_falls_back() {
+        let mut affected = HashMap::new();
+        affected.insert("test.rs".to_string(), vec!["foo".to_string()]);
+        // No source file found → falls back to true (allow)
+        assert!(is_line_in_affected_function("unknown.rs", 1, &affected, &[]));
+    }
+
+    #[test]
+    fn test_is_line_in_affected_function_no_affected_fns() {
+        let source = "fn foo() { let x = 1; }";
+        let affected: HashMap<String, Vec<String>> = HashMap::new();
+        let files = vec![("test.rs".to_string(), source.to_string())];
+        // No affected functions for this file → line not in affected
+        assert!(!is_line_in_affected_function("test.rs", 1, &affected, &files));
     }
 }

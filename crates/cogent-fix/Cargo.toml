@@ -40,3 +40,6 @@ workspace = true
 
 [package.keywords]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3"

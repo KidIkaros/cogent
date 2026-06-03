@@ -236,7 +236,7 @@ pub(crate) fn explain_command(tool: &str) {
         "risk" | "riskmap" => (
             "Risk Map",
             "Identifies files that are both complex and frequently changed (high churn). These are bug hotspots.",
-            "max_risk = 10.0  (risk score per file)",
+            "max_risk = 50.0  (risk score per file, 0-100)",
             "Score combines git churn (commit count) and cyclomatic complexity. Red files need refactoring or extra tests.",
             vec![
                 "Add integration tests for the riskiest files.",

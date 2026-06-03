@@ -154,3 +154,500 @@ fn test_check_secrets_fails_with_mock() {
     assert!(!result.passed);
     assert_eq!(result.score, Some(7.0));
 }
+
+// ═══════════════════════════════════════════
+// summary_u64
+// ═══════════════════════════════════════════
+
+#[test]
+fn test_summary_u64_present() {
+    let data = serde_json::json!({"summary": {"findings": 42}});
+    assert_eq!(crate::checks::summary_u64(&data, "findings"), 42);
+}
+
+#[test]
+fn test_summary_u64_missing_field() {
+    let data = serde_json::json!({"summary": {"other": 10}});
+    assert_eq!(crate::checks::summary_u64(&data, "findings"), 0);
+}
+
+#[test]
+fn test_summary_u64_missing_summary() {
+    let data = serde_json::json!({"not_summary": {}});
+    assert_eq!(crate::checks::summary_u64(&data, "findings"), 0);
+}
+
+#[test]
+fn test_summary_u64_null_summary() {
+    let data = serde_json::json!({"summary": null});
+    assert_eq!(crate::checks::summary_u64(&data, "findings"), 0);
+}
+
+#[test]
+fn test_summary_u64_zero_value() {
+    let data = serde_json::json!({"summary": {"findings": 0}});
+    assert_eq!(crate::checks::summary_u64(&data, "findings"), 0);
+}
+
+// ═══════════════════════════════════════════
+// summary_f64
+// ═══════════════════════════════════════════
+
+#[test]
+fn test_summary_f64_present() {
+    let data = serde_json::json!({"summary": {"score": 3.5}});
+    assert_eq!(crate::checks::summary_f64(&data, "score"), 3.5);
+}
+
+#[test]
+fn test_summary_f64_missing_field() {
+    let data = serde_json::json!({"summary": {"other": 1.0}});
+    assert_eq!(crate::checks::summary_f64(&data, "score"), 0.0);
+}
+
+#[test]
+fn test_summary_f64_missing_summary() {
+    let data = serde_json::json!({});
+    assert_eq!(crate::checks::summary_f64(&data, "score"), 0.0);
+}
+
+#[test]
+fn test_summary_f64_integer_value() {
+    let data = serde_json::json!({"summary": {"score": 5}});
+    assert_eq!(crate::checks::summary_f64(&data, "score"), 5.0);
+}
+
+// ═══════════════════════════════════════════
+// Mock-based tests for remaining check_*_with_runner functions
+// ═══════════════════════════════════════════
+
+// ── taint ──
+
+#[test]
+fn test_check_taint_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "taint:.:--format:json",
+        serde_json::json!({"summary": {"violations_count": 2}}),
+    );
+    let result = crate::checks::check_taint_with_runner(".", false, 5, &runner);
+    assert!(result.passed, "2 violations <= 5");
+    assert_eq!(result.score, Some(2.0));
+}
+
+#[test]
+fn test_check_taint_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "taint:.:--format:json",
+        serde_json::json!({"summary": {"violations_count": 10}}),
+    );
+    let result = crate::checks::check_taint_with_runner(".", false, 5, &runner);
+    assert!(!result.passed, "10 violations > 5");
+}
+
+// ── duplication ──
+
+#[test]
+fn test_check_dupfind_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "dupfind:.:--format:json",
+        serde_json::json!({"summary": {"total_groups": 2.0}}),
+    );
+    let result = crate::checks::check_dupfind_with_runner(".", false, 5.0, &runner);
+    assert!(result.passed, "2 groups <= 5");
+    assert_eq!(result.score, Some(2.0));
+}
+
+#[test]
+fn test_check_dupfind_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "dupfind:.:--format:json",
+        serde_json::json!({"summary": {"total_groups": 10.0}}),
+    );
+    let result = crate::checks::check_dupfind_with_runner(".", false, 5.0, &runner);
+    assert!(!result.passed, "10 groups > 5");
+}
+
+// ── riskmap ──
+
+#[test]
+fn test_check_riskmap_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "riskmap:.:--format:json",
+        serde_json::json!({"files": [{"risk_score": 10.0}, {"risk_score": 30.0}]}),
+    );
+    let result = crate::checks::check_riskmap_with_runner(".", false, 50.0, &runner);
+    assert!(result.passed, "max risk 30 <= 50");
+}
+
+#[test]
+fn test_check_riskmap_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "riskmap:.:--format:json",
+        serde_json::json!({"files": [{"risk_score": 80.0}]}),
+    );
+    let result = crate::checks::check_riskmap_with_runner(".", false, 50.0, &runner);
+    assert!(!result.passed, "max risk 80 > 50");
+}
+
+#[test]
+fn test_check_riskmap_no_files() {
+    let runner = MockToolRunner::new().with_response(
+        "riskmap:.:--format:json",
+        serde_json::json!({"files": []}),
+    );
+    let result = crate::checks::check_riskmap_with_runner(".", false, 50.0, &runner);
+    assert!(result.passed, "no files → no risk");
+    assert_eq!(result.score, Some(0.0));
+}
+
+// ── coupling ──
+
+#[test]
+fn test_check_coupling_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "coupling:.:--format:json",
+        serde_json::json!({"summary": {"avg_fan_out": 3.0}}),
+    );
+    let result = crate::checks::check_coupling_with_runner(".", 5, &runner);
+    assert!(result.passed, "fan-out 3 <= 5");
+}
+
+#[test]
+fn test_check_coupling_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "coupling:.:--format:json",
+        serde_json::json!({"summary": {"avg_fan_out": 10.0}}),
+    );
+    let result = crate::checks::check_coupling_with_runner(".", 5, &runner);
+    assert!(!result.passed, "fan-out 10 > 5");
+}
+
+// ── propcov ──
+
+#[test]
+fn test_check_propcov_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "propcov:.:--format:json",
+        serde_json::json!({"summary": {"coverage_percentage": 85.0}}),
+    );
+    let result = crate::checks::check_propcov_with_runner(".", false, 50.0, &runner);
+    assert!(result.passed, "85% >= 50%");
+}
+
+#[test]
+fn test_check_propcov_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "propcov:.:--format:json",
+        serde_json::json!({"summary": {"coverage_percentage": 20.0}}),
+    );
+    let result = crate::checks::check_propcov_with_runner(".", false, 50.0, &runner);
+    assert!(!result.passed, "20% < 50%");
+}
+
+// ── fuzz ──
+
+#[test]
+fn test_check_fuzz_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "fuzz:.:--format:json",
+        serde_json::json!({"summary": {"fuzzable_functions": 0}}),
+    );
+    let result = crate::checks::check_fuzz_with_runner(".", false, 5, &runner);
+    assert!(result.passed, "0 fuzzable <= 5");
+}
+
+#[test]
+fn test_check_fuzz_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "fuzz:.:--format:json",
+        serde_json::json!({"summary": {"fuzzable_functions": 10}}),
+    );
+    let result = crate::checks::check_fuzz_with_runner(".", false, 5, &runner);
+    assert!(!result.passed, "10 fuzzable > 5");
+}
+
+// ── linelen ──
+
+#[test]
+fn test_check_linelen_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "linelen:.:--format:json",
+        serde_json::json!({"summary": {"fn_violations": 1, "file_violations": 0}}),
+    );
+    let result = crate::checks::check_linelen_with_runner(".", false, 5, &runner);
+    assert!(result.passed, "1 violation <= 5");
+}
+
+#[test]
+fn test_check_linelen_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "linelen:.:--format:json",
+        serde_json::json!({"summary": {"fn_violations": 8, "file_violations": 2}}),
+    );
+    let result = crate::checks::check_linelen_with_runner(".", false, 5, &runner);
+    assert!(!result.passed, "10 violations > 5");
+}
+
+// ── halstead ──
+
+#[test]
+fn test_check_halstead_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "halstead:.:--format:json:--max-bugs:2",
+        serde_json::json!({"summary": {"files_exceeding_bugs_threshold": 0, "total_bugs_estimated": 1.5}}),
+    );
+    let result = crate::checks::check_halstead_with_runner(".", false, 2.0, &runner);
+    assert!(result.passed, "0 files exceed");
+}
+
+#[test]
+fn test_check_halstead_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "halstead:.:--format:json:--max-bugs:2",
+        serde_json::json!({"summary": {"files_exceeding_bugs_threshold": 3, "total_bugs_estimated": 8.0}}),
+    );
+    let result = crate::checks::check_halstead_with_runner(".", false, 2.0, &runner);
+    assert!(!result.passed, "3 files exceed");
+}
+
+// ── deadcode ──
+
+#[test]
+fn test_check_deadcode_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "deadcode:.:--format:json",
+        serde_json::json!({"summary": {"total_findings": 3}}),
+    );
+    let result = crate::checks::check_deadcode_with_runner(".", false, 10, &runner);
+    assert!(result.passed, "3 findings <= 10");
+}
+
+#[test]
+fn test_check_deadcode_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "deadcode:.:--format:json",
+        serde_json::json!({"summary": {"total_findings": 20}}),
+    );
+    let result = crate::checks::check_deadcode_with_runner(".", false, 10, &runner);
+    assert!(!result.passed, "20 findings > 10");
+}
+
+// ── sast ──
+
+#[test]
+fn test_check_sast_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "sast:.:--format:json:--max-findings:10",
+        serde_json::json!({"summary": {"total_findings": 3, "critical": 0, "high": 1}}),
+    );
+    let result = crate::checks::check_sast_with_runner(".", false, 10, &runner);
+    assert!(result.passed, "3 findings <= 10");
+}
+
+#[test]
+fn test_check_sast_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "sast:.:--format:json:--max-findings:10",
+        serde_json::json!({"summary": {"total_findings": 15, "critical": 2, "high": 5}}),
+    );
+    let result = crate::checks::check_sast_with_runner(".", false, 10, &runner);
+    assert!(!result.passed, "15 findings > 10");
+}
+
+#[test]
+fn test_check_sast_skipped_with_null_data() {
+    let runner = MockToolRunner::new().with_response(
+        "sast:.:--format:json:--max-findings:10",
+        serde_json::Value::Null,
+    );
+    let result = crate::checks::check_sast_with_runner(".", false, 10, &runner);
+    assert!(result.passed, "skipped tools should report passed");
+    assert!(result.message.contains("Skipped"), "message should indicate skipped");
+}
+
+// ── crypto ──
+
+#[test]
+fn test_check_crypto_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "cryptocheck:.:--format:json:--max-findings:10",
+        serde_json::json!({"summary": {"total_findings": 2, "critical": 0}}),
+    );
+    let result = crate::checks::check_crypto_with_runner(".", false, 10, &runner);
+    assert!(result.passed, "2 findings <= 10");
+}
+
+#[test]
+fn test_check_crypto_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "cryptocheck:.:--format:json:--max-findings:10",
+        serde_json::json!({"summary": {"total_findings": 20, "critical": 1}}),
+    );
+    let result = crate::checks::check_crypto_with_runner(".", false, 10, &runner);
+    assert!(!result.passed, "20 findings > 10");
+}
+
+#[test]
+fn test_check_crypto_skipped_with_null_data() {
+    let runner = MockToolRunner::new().with_response(
+        "cryptocheck:.:--format:json:--max-findings:10",
+        serde_json::Value::Null,
+    );
+    let result = crate::checks::check_crypto_with_runner(".", false, 10, &runner);
+    assert!(result.passed);
+    assert!(result.message.contains("Skipped"));
+}
+
+// ── licenses ──
+
+#[test]
+fn test_check_licenses_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "licenses:.:--format:json:--max-violations:10",
+        serde_json::json!({"summary": {"violations": 2, "packages_scanned": 50}}),
+    );
+    let result = crate::checks::check_licenses_with_runner(".", 10, &runner);
+    assert!(result.passed, "2 violations <= 10");
+}
+
+#[test]
+fn test_check_licenses_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "licenses:.:--format:json:--max-violations:10",
+        serde_json::json!({"summary": {"violations": 15, "packages_scanned": 50}}),
+    );
+    let result = crate::checks::check_licenses_with_runner(".", 10, &runner);
+    assert!(!result.passed, "15 violations > 10");
+}
+
+#[test]
+fn test_check_licenses_skipped_with_null_data() {
+    let runner = MockToolRunner::new().with_response(
+        "licenses:.:--format:json:--max-violations:10",
+        serde_json::Value::Null,
+    );
+    let result = crate::checks::check_licenses_with_runner(".", 10, &runner);
+    assert!(result.passed);
+    assert!(result.message.contains("Skipped"));
+}
+
+// ── typecov ──
+
+#[test]
+fn test_check_typecov_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "typecov:.:--format:json:--min-pct:50",
+        serde_json::json!({"summary": {"overall_coverage_pct": 95.0, "files_below_threshold": 0}}),
+    );
+    let result = crate::checks::check_typecov_with_runner(".", false, 50.0, &runner);
+    assert!(result.passed, "95% >= 50%");
+}
+
+#[test]
+fn test_check_typecov_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "typecov:.:--format:json:--min-pct:50",
+        serde_json::json!({"summary": {"overall_coverage_pct": 30.0, "files_below_threshold": 5}}),
+    );
+    let result = crate::checks::check_typecov_with_runner(".", false, 50.0, &runner);
+    assert!(!result.passed, "5 files below threshold");
+}
+
+// ── vulnscan ──
+
+#[test]
+fn test_check_vulnscan_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "vulnscan:.:--format:json:--max-critical:1:--max-high:5",
+        serde_json::json!({"summary": {"critical": 0, "high": 2, "total": 2}}),
+    );
+    let result = crate::checks::check_vulnscan_with_runner(".", 1, 5, &runner);
+    assert!(result.passed, "0 critical <= 1, 2 high <= 5");
+}
+
+#[test]
+fn test_check_vulnscan_fails_critical_exceeds() {
+    let runner = MockToolRunner::new().with_response(
+        "vulnscan:.:--format:json:--max-critical:1:--max-high:5",
+        serde_json::json!({"summary": {"critical": 3, "high": 1, "total": 4}}),
+    );
+    let result = crate::checks::check_vulnscan_with_runner(".", 1, 5, &runner);
+    assert!(!result.passed, "3 critical > 1");
+}
+
+#[test]
+fn test_check_vulnscan_skipped_with_null_data() {
+    let runner = MockToolRunner::new().with_response(
+        "vulnscan:.:--format:json:--max-critical:1:--max-high:5",
+        serde_json::Value::Null,
+    );
+    let result = crate::checks::check_vulnscan_with_runner(".", 1, 5, &runner);
+    assert!(result.passed);
+    assert!(result.message.contains("Skipped"));
+}
+
+// ── cohesion ──
+
+#[test]
+fn test_check_cohesion_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "cohesion:.:--format:json",
+        serde_json::json!({"summary": {"violations": 2, "avg_lcom": 1.5}}),
+    );
+    let result = crate::checks::check_cohesion_with_runner(".", false, 5, &runner);
+    assert!(result.passed, "2 violations <= 5");
+}
+
+#[test]
+fn test_check_cohesion_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "cohesion:.:--format:json",
+        serde_json::json!({"summary": {"violations": 8, "avg_lcom": 3.2}}),
+    );
+    let result = crate::checks::check_cohesion_with_runner(".", false, 5, &runner);
+    assert!(!result.passed, "8 violations > 5");
+}
+
+// ── comments ──
+
+#[test]
+fn test_check_comments_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "comments:.:--format:json:--min-ratio:0.05",
+        serde_json::json!({"summary": {"files_below_threshold": 0, "overall_comment_ratio": 0.15}}),
+    );
+    let result = crate::checks::check_comments_with_runner(".", false, 0.05, &runner);
+    assert!(result.passed, "0 files below threshold");
+}
+
+#[test]
+fn test_check_comments_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "comments:.:--format:json:--min-ratio:0.05",
+        serde_json::json!({"summary": {"files_below_threshold": 3, "overall_comment_ratio": 0.02}}),
+    );
+    let result = crate::checks::check_comments_with_runner(".", false, 0.05, &runner);
+    assert!(!result.passed, "3 files below threshold");
+}
+
+// ── errhandle ──
+
+#[test]
+fn test_check_errhandle_passes_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "errhandle:.:--format:json",
+        serde_json::json!({"summary": {"total_findings": 10}}),
+    );
+    let result = crate::checks::check_errhandle_with_runner(".", false, 50, &runner);
+    assert!(result.passed, "10 findings <= 50");
+}
+
+#[test]
+fn test_check_errhandle_fails_with_mock() {
+    let runner = MockToolRunner::new().with_response(
+        "errhandle:.:--format:json",
+        serde_json::json!({"summary": {"total_findings": 100}}),
+    );
+    let result = crate::checks::check_errhandle_with_runner(".", false, 50, &runner);
+    assert!(!result.passed, "100 findings > 50");
+}

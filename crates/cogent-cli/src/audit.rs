@@ -772,3 +772,508 @@ pub fn enrich_finding(finding: &mut Finding) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{suggested_fix_for, controls_for};
+
+    // ── High confidence fixes ─────────────────────────────────────────────
+
+    #[test]
+    fn test_suggested_fix_sqli() {
+        let result = suggested_fix_for("test-sqli").expect("sqli should have a fix");
+        assert_eq!(result.2, "high", "sqli should be high confidence");
+        assert!(result.0.contains("parameterized"));
+        assert!(result.1.is_some(), "sqli should have a diff template");
+    }
+
+    #[test]
+    fn test_suggested_fix_xss() {
+        let result = suggested_fix_for("test-xss").expect("xss should have a fix");
+        assert_eq!(result.2, "high");
+        assert!(result.0.contains("Escape HTML"));
+        assert!(result.1.is_some());
+    }
+
+    #[test]
+    fn test_suggested_fix_path_traversal() {
+        let result = suggested_fix_for("path-traversal")
+            .or_else(|| suggested_fix_for("pathtraversal"))
+            .expect("path traversal should have a fix");
+        assert_eq!(result.2, "high");
+        assert!(result.0.contains("Canonicalize"));
+        assert!(result.1.is_some());
+    }
+
+    #[test]
+    fn test_suggested_fix_command_injection() {
+        for rule in &["cmdi", "cmd-inject", "command-inject"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high", "{} should be high", rule);
+            assert!(result.0.contains("shell=true") || result.0.contains("Avoid shell"),
+                "{}: unexpected desc: {}", rule, result.0);
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_secrets() {
+        for rule in &["secrets", "secret", "credential"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high", "{} should be high", rule);
+            assert!(result.0.contains("Remove secret") || result.0.contains("environment"),
+                "{}: unexpected desc: {}", rule, result.0);
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_crypto_weak() {
+        for rule in &["crypto-weak", "weak-hash", "md5", "sha1"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high", "{} should be high", rule);
+            assert!(result.0.contains("SHA-256") || result.0.contains("weak hash"),
+                "{}: unexpected desc: {}", rule, result.0);
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_crypto_ecb() {
+        for rule in &["crypto-ecb", "ecb"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high");
+            assert!(result.0.contains("ECB") || result.0.contains("GCM"));
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_insecure_random() {
+        for rule in &["insecure-random", "rand-weak"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high");
+            assert!(result.0.contains("OsRng") || result.0.contains("secure"));
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_license() {
+        for rule in &["license", "license-violation"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high", "{} should be high", rule);
+            assert!(result.0.contains("GPL") || result.0.contains("alternative"),
+                "{}: unexpected desc: {}", rule, result.0);
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_supply_chain() {
+        for rule in &["supply", "typo"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high");
+            assert!(result.0.contains("Verify"));
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_auth() {
+        for rule in &["acl", "auth", "access-control"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high");
+            assert!(result.0.contains("authorization"));
+            assert!(result.1.is_some());
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_reentrancy() {
+        let result = suggested_fix_for("reentrancy").expect("reentrancy should have a fix");
+        assert_eq!(result.2, "high");
+        assert!(result.0.contains("checks-effects-interactions"));
+        assert!(result.1.is_some());
+    }
+
+    #[test]
+    fn test_suggested_fix_vulnscan() {
+        for rule in &["vulnscan", "cve"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "high");
+            assert!(result.0.contains("Upgrade"));
+        }
+    }
+
+    // ── Medium confidence fixes ───────────────────────────────────────────
+
+    #[test]
+    fn test_suggested_fix_taint() {
+        let result = suggested_fix_for("taint").expect("taint should have a fix");
+        assert_eq!(result.2, "medium");
+        assert!(result.0.contains("Sanitize"));
+        assert!(result.1.is_none(), "taint should not have a diff template");
+    }
+
+    #[test]
+    fn test_suggested_fix_crap() {
+        let result = suggested_fix_for("crap").expect("crap should have a fix");
+        assert_eq!(result.2, "medium");
+        assert!(result.0.contains("CRAP") || result.0.contains("Break"));
+        assert!(result.1.is_none());
+    }
+
+    #[test]
+    fn test_suggested_fix_complexity() {
+        let result = suggested_fix_for("complexity").expect("complexity should have a fix");
+        assert_eq!(result.2, "medium");
+        assert!(result.0.contains("cyclomatic"));
+        assert!(result.1.is_none());
+    }
+
+    #[test]
+    fn test_suggested_fix_error_handling() {
+        for rule in &["errhandle", "unwrap", "expect"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "medium", "{} should be medium", rule);
+            assert!(result.0.contains("unwrap"));
+            assert!(result.1.is_some(), "{} should have a diff template", rule);
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_outdated() {
+        let result = suggested_fix_for("outdated").expect("outdated should have a fix");
+        assert_eq!(result.2, "medium");
+        assert!(result.0.contains("Upgrade"));
+        assert!(result.1.is_none());
+    }
+
+    #[test]
+    fn test_suggested_fix_coupling() {
+        let result = suggested_fix_for("coupling").expect("coupling should have a fix");
+        assert_eq!(result.2, "medium");
+        assert!(result.0.contains("abstraction"));
+        assert!(result.1.is_none());
+    }
+
+    #[test]
+    fn test_suggested_fix_cohesion() {
+        for rule in &["cohesion", "lcom"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "medium");
+            assert!(result.0.contains("Split") || result.0.contains("single-responsibility"));
+        }
+    }
+
+    // ── Low confidence fixes ──────────────────────────────────────────────
+
+    #[test]
+    fn test_suggested_fix_debt() {
+        for rule in &["debt-todo", "debt-fixme", "debt-hack"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "low", "{} should be low", rule);
+            assert!(result.0.contains("technical debt") || result.0.contains("marker"),
+                "{}: unexpected desc: {}", rule, result.0);
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_doc_coverage() {
+        for rule in &["doccov", "missing-doc"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "low", "{} should be low", rule);
+            assert!(result.0.contains("doc-comment") || result.0.contains("///"),
+                "{}: unexpected desc: {}", rule, result.0);
+            assert!(result.1.is_some(), "{} should have a diff template", rule);
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_deadcode() {
+        for rule in &["deadcode", "unused"] {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("{} should have a fix", rule));
+            assert_eq!(result.2, "low", "{} should be low", rule);
+            assert!(result.0.contains("Remove") || result.0.contains("#[allow(dead_code)]"),
+                "{}: unexpected desc: {}", rule, result.0);
+        }
+    }
+
+    // ── Edge cases ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_suggested_fix_unknown_returns_none() {
+        assert!(suggested_fix_for("nonexistent-tool").is_none());
+        assert!(suggested_fix_for("").is_none());
+        assert!(suggested_fix_for("random-rule-id").is_none());
+    }
+
+    #[test]
+    fn test_suggested_fix_case_insensitivity() {
+        // The function lowercases the input
+        let result = suggested_fix_for("SQLI").expect("SQLI (uppercase) should have a fix");
+        assert_eq!(result.2, "high");
+        assert!(result.0.contains("parameterized"));
+
+        let result = suggested_fix_for("Secret").expect("mixed case should have a fix");
+        assert_eq!(result.2, "high");
+    }
+
+    #[test]
+    fn test_suggested_fix_partial_match() {
+        // The function uses contains(), so partial matches work
+        let result = suggested_fix_for("code-sqli-injection-check")
+            .expect("partial match sqli should work");
+        assert_eq!(result.2, "high");
+    }
+
+    #[test]
+    fn test_suggested_fix_priority_order() {
+        // The if-chain checks sqli before xss, xss before secrets, etc.
+        // A rule_id matching multiple patterns should match the FIRST one.
+        // "xss-secrets" -> first matches "xss" (since xss comes before secrets in the chain)
+        let result = suggested_fix_for("xss-secrets").expect("xss-secrets should match");
+        assert_eq!(result.2, "high");
+        assert!(result.0.contains("Escape HTML"),
+            "xss-secrets should match the xss branch (first match). Got: {}", result.0);
+    }
+
+    // ── Security controls ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_controls_injection_checks() {
+        for rule in &["sqli", "xss", "cmdi", "sast"] {
+            let controls = controls_for(rule);
+            assert_eq!(
+                controls,
+                vec!["CC7.1", "CC7.4", "A.8.26", "A.8.28"],
+                "{} should return injection controls",
+                rule
+            );
+        }
+    }
+
+    #[test]
+    fn test_controls_secrets() {
+        for rule in &["secrets", "credential"] {
+            let controls = controls_for(rule);
+            assert_eq!(
+                controls,
+                vec!["CC7.1", "CC3.2", "C1.1", "A.8.12"],
+                "{} should return secrets controls",
+                rule
+            );
+        }
+    }
+
+    #[test]
+    fn test_controls_crypto() {
+        let controls = controls_for("crypto");
+        assert_eq!(controls, vec!["CC7.3", "A.8.24"]);
+    }
+
+    #[test]
+    fn test_controls_taint() {
+        let controls = controls_for("taint");
+        assert_eq!(controls, vec!["C1.1", "C1.2", "A.8.10", "A.8.11"]);
+    }
+
+    // ── Dependency controls ────────────────────────────────────────────────
+
+    #[test]
+    fn test_controls_vulnscan() {
+        for rule in &["vulnscan", "cve"] {
+            let controls = controls_for(rule);
+            assert_eq!(controls, vec!["CC7.3", "A.5.7"],
+                "{} should return vulnscan controls", rule);
+        }
+    }
+
+    #[test]
+    fn test_controls_license() {
+        let controls = controls_for("license");
+        assert_eq!(controls, vec!["A.5.9", "A.8.30"]);
+    }
+
+    #[test]
+    fn test_controls_supply() {
+        let controls = controls_for("supply");
+        assert_eq!(controls, vec!["A.8.30", "A.5.9"]);
+    }
+
+    #[test]
+    fn test_controls_outdated() {
+        let controls = controls_for("outdated");
+        assert_eq!(controls, vec!["A.5.7", "CC7.3"]);
+    }
+
+    // ── Auth controls ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_controls_auth() {
+        for rule in &["acl", "auth", "access-control"] {
+            let controls = controls_for(rule);
+            assert_eq!(
+                controls,
+                vec!["CC6.1", "CC6.2", "PI1.1", "A.6.1"],
+                "{} should return auth controls",
+                rule
+            );
+        }
+    }
+
+    // ── Code quality controls ──────────────────────────────────────────────
+
+    #[test]
+    fn test_controls_errhandle() {
+        let controls = controls_for("errhandle");
+        assert_eq!(controls, vec!["CC7.2", "A1.1", "A.8.15"]);
+    }
+
+    #[test]
+    fn test_controls_doccov() {
+        let controls = controls_for("doccov");
+        assert_eq!(controls, vec!["CC2.1", "A.5.37"]);
+    }
+
+    #[test]
+    fn test_controls_debt() {
+        let controls = controls_for("debt");
+        assert_eq!(controls, vec!["CC8.1", "CC8.2"]);
+    }
+
+    // ── HQSE controls ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_controls_observability() {
+        let controls = controls_for("observability");
+        assert_eq!(controls, vec!["HQSE:Support/7.4", "HQSE:Debug/6.6", "A.8.15", "A1.1"]);
+    }
+
+    #[test]
+    fn test_controls_test_quality() {
+        for rule in &["test-quality", "test_quality", "nondeterminism"] {
+            let controls = controls_for(rule);
+            assert_eq!(
+                controls,
+                vec!["HQSE:Test/6.1", "HQSE:Test/6.4", "CC7.2"],
+                "{} should return test quality controls",
+                rule
+            );
+        }
+    }
+
+    #[test]
+    fn test_controls_design_docs() {
+        for rule in &["design-docs", "design_docs"] {
+            let controls = controls_for(rule);
+            assert_eq!(
+                controls,
+                vec!["HQSE:Design/3.4", "HQSE:Code/4.6", "CC2.1", "A.5.37"],
+                "{} should return design docs controls",
+                rule
+            );
+        }
+    }
+
+    #[test]
+    fn test_controls_debuggability() {
+        for rule in &["debuggability", "contextless-unwrap", "contextless_unwrap"] {
+            let controls = controls_for(rule);
+            assert_eq!(
+                controls,
+                vec!["HQSE:Debug/6.6", "HQSE:Code/4.5", "CC7.2", "A.8.15"],
+                "{} should return debuggability controls",
+                rule
+            );
+        }
+    }
+
+    // ── Edge cases ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_controls_unknown_returns_empty() {
+        assert!(controls_for("nonexistent-tool").is_empty());
+        assert!(controls_for("random-rule-id").is_empty());
+    }
+
+    #[test]
+    fn test_controls_empty_string() {
+        assert!(controls_for("").is_empty());
+    }
+
+    #[test]
+    fn test_controls_case_insensitivity() {
+        let controls = controls_for("SQLI");
+        assert_eq!(controls, vec!["CC7.1", "CC7.4", "A.8.26", "A.8.28"]);
+    }
+
+    #[test]
+    fn test_controls_partial_match() {
+        let controls = controls_for("check-sqli-injection");
+        assert_eq!(controls, vec!["CC7.1", "CC7.4", "A.8.26", "A.8.28"],
+            "partial substring match should work");
+    }
+
+    #[test]
+    fn test_controls_multiple_branches_accumulate() {
+        // "crypto-secrets" matches both:
+        //   branch: secrets  → [CC7.1, CC3.2, C1.1, A.8.12]
+        //   branch: crypto   → [CC7.3, A.8.24]
+        // Combined: [CC7.1, CC3.2, C1.1, A.8.12, CC7.3, A.8.24]  (no consecutive dups to dedup)
+        let controls = controls_for("crypto-secrets");
+        assert_eq!(controls.len(), 6,
+            "crypto-secrets should produce 6 controls (secrets 4 + crypto 2). Got: {:?}", controls);
+        assert!(controls.contains(&"CC7.1".to_string()));
+        assert!(controls.contains(&"CC3.2".to_string()));
+        assert!(controls.contains(&"CC7.3".to_string()));
+        assert!(controls.contains(&"A.8.24".to_string()));
+    }
+
+    #[test]
+    fn test_controls_all_known_rules_return_controls() {
+        let known_rules = vec![
+            "sqli", "xss", "sast", "secrets", "credential", "crypto",
+            "taint", "vulnscan", "cve", "license", "supply",
+            "acl", "auth", "errhandle", "doccov", "debt",
+            "outdated", "observability", "test-quality", "design-docs", "debuggability",
+        ];
+        for rule in &known_rules {
+            let controls = controls_for(rule);
+            assert!(!controls.is_empty(),
+                "known rule '{}' should return at least one control", rule);
+        }
+    }
+
+    #[test]
+    fn test_suggested_fix_all_known_rules_have_confidence() {
+        // Every known rule should return Some with a confidence level set
+        let known_rules = vec![
+            "sqli", "xss", "cmdi", "crypto-weak", "secrets",
+            "taint", "crap", "complexity", "doccov", "errhandle",
+            "deadcode", "license", "coupling", "cohesion", "reentrancy",
+            "vulnscan", "outdated", "acl", "supply", "debt-todo",
+        ];
+        for rule in &known_rules {
+            let result = suggested_fix_for(rule)
+                .unwrap_or_else(|| panic!("known rule '{}' should have a suggested fix", rule));
+            assert!(
+                !result.0.is_empty(),
+                "known rule '{}' should have a non-empty description", rule
+            );
+            assert!(
+                result.2 == "high" || result.2 == "medium" || result.2 == "low",
+                "known rule '{}' should have a valid confidence. Got: {}",
+                rule, result.2
+            );
+        }
+    }
+}

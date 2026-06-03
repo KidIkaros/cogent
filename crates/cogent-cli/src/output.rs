@@ -363,10 +363,377 @@ pub fn print_offenders(check: &CheckResult) {
             if arr.len() > 5 {
                 eprintln!(
                     "      {}",
-                    format!("… {} more", arr.len() - 5).bright_black()
+                    format!(                    "… {} more", arr.len() - 5).bright_black()
                 );
             }
             break;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{extract_offenders, format_elapsed, format_ms, strip_ansi, visible_len};
+    use cogent_common::CheckResult;
+
+    // ── helper ────────────────────────────────────────────────────────────
+
+    fn make_check(details: serde_json::Value) -> CheckResult {
+        CheckResult {
+            name: "test-check".into(),
+            passed: false,
+            score: Some(42.0),
+            threshold: Some(50.0),
+            message: "test message".into(),
+            details,
+            severity: Some("info".into()),
+            help: Some("Test help".into()),
+            findings: Vec::new(),
+            rule_id: Some("test-rule".into()),
+        }
+    }
+
+    // ── strip_ansi ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_strip_ansi_empty() {
+        assert_eq!(strip_ansi(""), "");
+    }
+
+    #[test]
+    fn test_strip_ansi_plain_text() {
+        assert_eq!(strip_ansi("hello world"), "hello world");
+        assert_eq!(strip_ansi("no ansi here!"), "no ansi here!");
+    }
+
+    #[test]
+    fn test_strip_ansi_color_codes() {
+        let red = "\x1b[31mred\x1b[0m";
+        assert_eq!(strip_ansi(red), "red");
+
+        let bold = "\x1b[1mbold\x1b[22m";
+        assert_eq!(strip_ansi(bold), "bold");
+    }
+
+    #[test]
+    fn test_strip_ansi_multiple_codes() {
+        let input = "\x1b[31m\x1b[1mred+bold\x1b[0m";
+        assert_eq!(strip_ansi(input), "red+bold");
+    }
+
+    #[test]
+    fn test_strip_ansi_mixed_content() {
+        let input = "normal \x1b[32mgreen\x1b[0m end";
+        assert_eq!(strip_ansi(input), "normal green end");
+    }
+
+    #[test]
+    fn test_strip_ansi_complex_sequence() {
+        // Sequence with multiple parameters: \x1b[38;5;34m
+        let input = "\x1b[38;5;34mcustom\x1b[0m";
+        assert_eq!(strip_ansi(input), "custom");
+    }
+
+    #[test]
+    fn test_strip_ansi_bright_black_sequence() {
+        // Common cogent pattern: bright_black() produces \x1b[90m
+        let input = "\x1b[90mdimmed\x1b[0m";
+        assert_eq!(strip_ansi(input), "dimmed");
+    }
+
+    #[test]
+    fn test_strip_ansi_esc_without_bracket() {
+        // \x1b alone (not followed by '[') should pass through unchanged
+        let input = "escape\x1bchar";
+        assert_eq!(strip_ansi(input), "escape\x1bchar");
+    }
+
+    // ── visible_len ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_visible_len_empty() {
+        assert_eq!(visible_len(""), 0);
+    }
+
+    #[test]
+    fn test_visible_len_plain() {
+        assert_eq!(visible_len("hello"), 5);
+        assert_eq!(visible_len("a b c"), 5);
+    }
+
+    #[test]
+    fn test_visible_len_with_ansi() {
+        // ANSI codes should not count toward visible length
+        let red = "\x1b[31mred\x1b[0m";
+        assert_eq!(visible_len(red), 3);
+
+        let bold = "\x1b[1mbold\x1b[22m";
+        assert_eq!(visible_len(bold), 4);
+    }
+
+    #[test]
+    fn test_visible_len_mixed() {
+        let input = "normal \x1b[32mgreen\x1b[0m end";
+        assert_eq!(visible_len(input), 15); // "normal green end" = 15 chars
+    }
+
+    #[test]
+    fn test_visible_len_multi_byte() {
+        // Unicode characters count as a single char
+        assert_eq!(visible_len("héllo"), 5);
+        assert_eq!(visible_len("✓"), 1);
+    }
+
+    // ── format_ms ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_format_ms_zero() {
+        assert_eq!(format_ms(0), "0ms");
+    }
+
+    #[test]
+    fn test_format_ms_milliseconds() {
+        assert_eq!(format_ms(1), "1ms");
+        assert_eq!(format_ms(100), "100ms");
+        assert_eq!(format_ms(999), "999ms");
+    }
+
+    #[test]
+    fn test_format_ms_seconds() {
+        assert_eq!(format_ms(1000), "1.0s");
+        assert_eq!(format_ms(1500), "1.5s");
+        assert_eq!(format_ms(2000), "2.0s");
+        assert_eq!(format_ms(2500), "2.5s");
+    }
+
+    #[test]
+    fn test_format_ms_large() {
+        assert_eq!(format_ms(60000), "60.0s");
+        assert_eq!(format_ms(90000), "90.0s");
+    }
+
+    // ── format_elapsed ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_format_elapsed_zero() {
+        let d = std::time::Duration::from_millis(0);
+        assert_eq!(format_elapsed(d), "0.0s");
+    }
+
+    #[test]
+    fn test_format_elapsed_milliseconds() {
+        let d = std::time::Duration::from_millis(500);
+        assert_eq!(format_elapsed(d), "0.5s");
+
+        let d = std::time::Duration::from_millis(999);
+        assert_eq!(format_elapsed(d), "1.0s");
+    }
+
+    #[test]
+    fn test_format_elapsed_seconds() {
+        let d = std::time::Duration::from_secs(1);
+        assert_eq!(format_elapsed(d), "1.0s");
+
+        let d = std::time::Duration::from_secs(5);
+        assert_eq!(format_elapsed(d), "5.0s");
+    }
+
+    #[test]
+    fn test_format_elapsed_longer() {
+        let d = std::time::Duration::from_secs(120);
+        assert_eq!(format_elapsed(d), "120.0s");
+    }
+
+    #[test]
+    fn test_format_elapsed_sub_second_precision() {
+        // Under 1000ms, it formats with 1 decimal: total_ms / 1000.0
+        let d = std::time::Duration::from_millis(123);
+        assert_eq!(format_elapsed(d), "0.1s");
+    }
+
+    // ── extract_offenders ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_extract_offenders_empty_details() {
+        let check = make_check(serde_json::json!({}));
+        let result = extract_offenders(&check, 5);
+        assert!(result.is_empty(), "empty details should produce no offenders");
+    }
+
+    #[test]
+    fn test_extract_offenders_no_arrays() {
+        let check = make_check(serde_json::json!({"key": "value"}));
+        let result = extract_offenders(&check, 5);
+        assert!(result.is_empty(), "no recognized arrays should produce no offenders");
+    }
+
+    #[test]
+    fn test_extract_offenders_items_array() {
+        let check = make_check(serde_json::json!({
+            "items": [
+                {"file": "src/main.rs", "line": 10, "context": "unsafe block"},
+                {"file": "src/lib.rs", "line": 42, "context": "missing check"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], ("src/main.rs".into(), Some(10), "unsafe block".into()));
+        assert_eq!(result[1], ("src/lib.rs".into(), Some(42), "missing check".into()));
+    }
+
+    #[test]
+    fn test_extract_offenders_functions_array() {
+        let check = make_check(serde_json::json!({
+            "functions": [
+                {"file": "src/main.rs", "line": 20, "name": "complex_func"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], ("src/main.rs".into(), Some(20), "complex_func".into()));
+    }
+
+    #[test]
+    fn test_extract_offenders_findings_array() {
+        let check = make_check(serde_json::json!({
+            "findings": [
+                {"file": "/tmp/test.rs", "line": 5, "message": "hardcoded secret"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], ("/tmp/test.rs".into(), Some(5), "hardcoded secret".into()));
+    }
+
+    #[test]
+    fn test_extract_offenders_violations_array() {
+        let check = make_check(serde_json::json!({
+            "violations": [
+                {"file": "app.js", "line": 100, "kind": "E0001"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], ("app.js".into(), Some(100), "E0001".into()));
+    }
+
+    #[test]
+    fn test_extract_offenders_secrets_array() {
+        let check = make_check(serde_json::json!({
+            "secrets": [
+                {"file": ".env", "line": 1, "type": "AWS_KEY"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], (".env".into(), Some(1), "AWS_KEY".into()));
+    }
+
+    #[test]
+    fn test_extract_offenders_duplicates_array() {
+        let check = make_check(serde_json::json!({
+            "duplicates": [
+                {"file": "clone.rs", "line": 30, "context": "identical block"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], ("clone.rs".into(), Some(30), "identical block".into()));
+    }
+
+    #[test]
+    fn test_extract_offenders_item_without_file() {
+        // Items missing file/line should not appear in output
+        let check = make_check(serde_json::json!({
+            "items": [
+                {"context": "orphan item"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        // No file and no desc means empty string for both, which is filtered out
+        assert!(result.is_empty() || result[0].0.is_empty());
+    }
+
+    #[test]
+    fn test_extract_offenders_item_with_only_desc() {
+        // Item with only desc (no file) should appear with empty file
+        let check = make_check(serde_json::json!({
+            "items": [
+                {"context": "some context"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        // Has desc but no file - should still appear
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].2, "some context");
+    }
+
+    #[test]
+    fn test_extract_offenders_respects_limit() {
+        let check = make_check(serde_json::json!({
+            "items": [
+                {"file": "a.rs", "line": 1, "context": "first"},
+                {"file": "b.rs", "line": 2, "context": "second"},
+                {"file": "c.rs", "line": 3, "context": "third"},
+            ]
+        }));
+        let result = extract_offenders(&check, 2);
+        assert_eq!(result.len(), 2, "limit of 2 should return only 2 offenders");
+        assert_eq!(result[0].2, "first");
+        assert_eq!(result[1].2, "second");
+    }
+
+    #[test]
+    fn test_extract_offenders_uses_first_matching_array() {
+        // The function iterates arrays in order: items, functions, findings, violations, secrets, duplicates
+        // It should break after finding the first non-empty array.
+        let check = make_check(serde_json::json!({
+            "items": [
+                {"file": "from_items.rs", "line": 1, "context": "from items"},
+            ],
+            "functions": [
+                {"file": "from_funcs.rs", "line": 1, "name": "from functions"},
+            ],
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].2, "from items", "should use 'items' array first");
+    }
+
+    #[test]
+    fn test_extract_offenders_falls_through_to_second_array() {
+        // If the first array is empty, it should fall through to the next
+        let check = make_check(serde_json::json!({
+            "items": [],
+            "functions": [
+                {"file": "from_funcs.rs", "line": 1, "name": "from functions"},
+            ],
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].2, "from functions", "should fall through to 'functions'");
+    }
+
+    #[test]
+    fn test_extract_offenders_uses_item_kind_field() {
+        // The function tries kind, then name, then type, then message as fallback for desc
+        let check = make_check(serde_json::json!({
+            "items": [
+                {"file": "test.rs", "line": 1, "kind": "violation_kind"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result[0].2, "violation_kind");
+    }
+
+    #[test]
+    fn test_extract_offenders_uses_item_type_field() {
+        let check = make_check(serde_json::json!({
+            "items": [
+                {"file": "test.rs", "line": 1, "type": "item_type"},
+            ]
+        }));
+        let result = extract_offenders(&check, 5);
+        assert_eq!(result[0].2, "item_type");
     }
 }

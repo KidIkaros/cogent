@@ -114,6 +114,10 @@ const RULES: &[Rule] = &[
         pattern: "join(", also: Some("input"),
         description: "Path::join() called with a value named 'input' — potential traversal.",
         remediation: "Strip leading '/' and '..' from user-controlled path segments before joining." },
+    Rule { category: "path_traversal", rule_id: "SAST-PATH-005", confidence: "low", severity: "medium",
+        pattern: "open(", also: Some("input"),
+        description: "File open() called with user input — potential traversal in Python.",
+        remediation: "Validate path is within the expected directory before opening." },
     // ── Command Injection ─────────────────────────────────────────
     Rule { category: "cmd_injection", rule_id: "SAST-CMD-001", confidence: "high", severity: "critical",
         pattern: "Command::new(", also: Some("input"),

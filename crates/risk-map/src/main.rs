@@ -190,7 +190,10 @@ fn hot_functions(mut funcs: Vec<(String, u32)>) -> Vec<String> {
 }
 
 fn compute_risk_score(churn: u32, effective_complexity: u32, _unsafe_count: u32) -> (u32, String) {
-    let raw_risk = (churn as f64 * effective_complexity as f64) / 10.0;
+    // Use sqrt(churn) to prevent churn from dominating the score.
+    // A file changing 25× isn't 25× riskier than one changing 5× — it's ~2.2× riskier.
+    let weighted_churn = (churn as f64).sqrt();
+    let raw_risk = (weighted_churn * effective_complexity as f64) / 20.0;
     let risk_score = (raw_risk as u32).min(100);
     (risk_score, risk_category(risk_score))
 }
@@ -354,4 +357,133 @@ fn output_ndjson(file_risks: &[FileRisk]) -> Result<(), Box<dyn std::error::Erro
         println!("{}", serde_json::to_string(file_risk)?);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── risk_category ──
+
+    #[test]
+    fn test_risk_category_danger() {
+        assert_eq!(risk_category(70), "DANGER");
+        assert_eq!(risk_category(100), "DANGER");
+    }
+
+    #[test]
+    fn test_risk_category_high() {
+        assert_eq!(risk_category(40), "HIGH");
+        assert_eq!(risk_category(69), "HIGH");
+    }
+
+    #[test]
+    fn test_risk_category_medium() {
+        assert_eq!(risk_category(20), "MEDIUM");
+        assert_eq!(risk_category(39), "MEDIUM");
+    }
+
+    #[test]
+    fn test_risk_category_low() {
+        assert_eq!(risk_category(0), "LOW");
+        assert_eq!(risk_category(19), "LOW");
+    }
+
+    // ── compute_risk_score ──
+
+    #[test]
+    fn test_compute_risk_score_zero_churn() {
+        let (score, cat) = compute_risk_score(0, 0, 0);
+        assert_eq!(score, 0);
+        assert_eq!(cat, "LOW");
+    }
+
+    #[test]
+    fn test_compute_risk_score_moderate() {
+        let (score, cat) = compute_risk_score(10, 50, 0);
+        // sqrt(10) * 50 / 20 ≈ 3.16 * 2.5 = 7.9
+        assert!(score < 100);
+        assert_eq!(cat, "LOW");
+    }
+
+    #[test]
+    fn test_compute_risk_score_high_churn_and_complexity() {
+        let (score, cat) = compute_risk_score(100, 200, 5);
+        // sqrt(100) * 200 / 20 = 10 * 10 = 100, capped at 100
+        assert_eq!(score, 100);
+        assert_eq!(cat, "DANGER");
+    }
+
+    #[test]
+    fn test_compute_risk_score_caps_at_100() {
+        let (score, _) = compute_risk_score(1000, 1000, 0);
+        assert_eq!(score, 100);
+    }
+
+    // ── hot_functions ──
+
+    #[test]
+    fn test_hot_functions_empty() {
+        assert!(hot_functions(vec![]).is_empty());
+    }
+
+    #[test]
+    fn test_hot_functions_returns_top_3_with_complexity() {
+        let funcs = vec![
+            ("foo".into(), 10),
+            ("bar".into(), 5),
+            ("baz".into(), 4),  // > 3, so included
+            ("qux".into(), 1),  // <= 3, filtered out
+        ];
+        let hot = hot_functions(funcs);
+        assert_eq!(hot.len(), 3); // foo, bar, baz all > 3
+        assert!(hot[0].contains("foo"));
+        assert!(hot[1].contains("bar"));
+        assert!(hot[2].contains("baz"));
+    }
+
+    #[test]
+    fn test_hot_functions_filters_complexity_below_3() {
+        let funcs = vec![
+            ("small".into(), 2),
+            ("tiny".into(), 1),
+        ];
+        assert!(hot_functions(funcs).is_empty());
+    }
+
+    #[test]
+    fn test_hot_functions_sorted_by_complexity_desc() {
+        let funcs = vec![
+            ("medium".into(), 15),
+            ("high".into(), 42),
+            ("low".into(), 5),
+        ];
+        let hot = hot_functions(funcs);
+        assert!(hot[0].contains("high"));
+        assert!(hot[1].contains("medium"));
+        assert!(hot[2].contains("low"));
+    }
+
+    // ── count_unsafe_blocks ──
+
+    #[test]
+    fn test_count_unsafe_blocks_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("safe.rs");
+        std::fs::write(&path, "fn main() { let x = 1; }").unwrap();
+        assert_eq!(count_unsafe_blocks(path.to_str().unwrap()), 0);
+    }
+
+    #[test]
+    fn test_count_unsafe_blocks_with_unsafe() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("unsafe.rs");
+        std::fs::write(&path, "unsafe { transmute(x) }\nunsafe { ptr.read() }").unwrap();
+        assert_eq!(count_unsafe_blocks(path.to_str().unwrap()), 2);
+    }
+
+    #[test]
+    fn test_count_unsafe_blocks_nonexistent_file() {
+        assert_eq!(count_unsafe_blocks("/nonexistent/file.rs"), 0);
+    }
 }

@@ -449,4 +449,126 @@ mod tests {
         assert!(ts.ends_with('Z'));
         assert_eq!(ts.len(), 20);
     }
+
+    use super::*;
+
+    // ── parse_cargo_lock ──
+
+    #[test]
+    fn test_parse_cargo_lock_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let comps = parse_cargo_lock(dir.path());
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn test_parse_cargo_lock_with_packages() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.lock"), r#"
+[[package]]
+name = "serde"
+version = "1.0.0"
+
+[[package]]
+name = "tokio"
+version = "0.2.0"
+"#).unwrap();
+        let comps = parse_cargo_lock(dir.path());
+        assert_eq!(comps.len(), 2);
+        assert_eq!(comps[0].name, "serde");
+        assert_eq!(comps[0].ecosystem, "cargo");
+        assert!(comps[0].purl.contains("cargo/serde"));
+    }
+
+    // ── parse_requirements ──
+
+    #[test]
+    fn test_parse_requirements_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let comps = parse_requirements(dir.path());
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn test_parse_requirements_with_packages() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("requirements.txt"), "requests==2.28.0\nflask>=1.0\n").unwrap();
+        let comps = parse_requirements(dir.path());
+        assert_eq!(comps.len(), 2);
+        assert_eq!(comps[0].name, "requests");
+        assert_eq!(comps[0].version, "2.28.0");
+        assert_eq!(comps[0].ecosystem, "pypi");
+    }
+
+    // ── detect_project_name_version ──
+
+    #[test]
+    fn test_detect_project_name_version_from_cargo_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), r#"
+[package]
+name = "myapp"
+version = "1.2.3"
+"#).unwrap();
+        let (name, ver) = detect_project_name_version(dir.path());
+        assert_eq!(name, "myapp");
+        assert_eq!(ver, "1.2.3");
+    }
+
+    #[test]
+    fn test_detect_project_name_version_from_package_json() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("package.json"), r#"{"name": "my-app", "version": "2.0.0"}"#).unwrap();
+        let (name, ver) = detect_project_name_version(dir.path());
+        assert_eq!(name, "my-app");
+        assert_eq!(ver, "2.0.0");
+    }
+
+    #[test]
+    fn test_detect_project_name_version_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+        let (name, ver) = detect_project_name_version(dir.path());
+        assert_eq!(name, "unknown");
+        assert_eq!(ver, "0.0.0");
+    }
+
+    // ── parse_npm_lock ──
+
+    #[test]
+    fn test_parse_npm_lock_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let comps = parse_npm_lock(dir.path());
+        assert!(comps.is_empty());
+    }
+
+    #[test]
+    fn test_parse_npm_lock_with_package_json() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("package.json"), r#"{
+  "dependencies": {"lodash": "^4.17.0"},
+  "devDependencies": {"mocha": "^9.0.0"}
+}"#).unwrap();
+        let comps = parse_npm_lock(dir.path());
+        assert_eq!(comps.len(), 2);
+        assert!(comps.iter().any(|c| c.name == "lodash"));
+        assert!(comps.iter().any(|c| c.name == "mocha"));
+    }
+
+    #[test]
+    fn test_parse_npm_lock_with_lock_file() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("package-lock.json"), r#"{
+  "packages": {
+    "node_modules/lodash": {"version": "4.17.21", "license": "MIT"},
+    "node_modules/express": {"version": "4.18.0", "license": "MIT"}
+  }
+}"#).unwrap();
+        let comps = parse_npm_lock(dir.path());
+        assert_eq!(comps.len(), 2);
+        let lodash = comps.iter().find(|c| c.name == "lodash").unwrap();
+        assert_eq!(lodash.version, "4.17.21");
+        assert_eq!(lodash.license, "MIT");
+        let express = comps.iter().find(|c| c.name == "express").unwrap();
+        assert_eq!(express.version, "4.18.0");
+    }
 }

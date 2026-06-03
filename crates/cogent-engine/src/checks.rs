@@ -3,7 +3,7 @@
 use ast_parse_ts::{parse_complexity_file, parse_doc_coverage_file, Language};
 use cogent_common::{
     CheckResult, Finding,
-    crap_score, parse_lcov, CoverageRecord, find_source_files,
+    crap_score, function_coverage, parse_lcov, CoverageRecord, find_source_files,
 };
 use std::time::Instant;
 use syn::visit::Visit;
@@ -36,19 +36,12 @@ where
     (total, results)
 }
 
-fn function_coverage(coverage_records: &[CoverageRecord], func_name: &str) -> f64 {
-    coverage_records
-        .iter()
-        .find(|r| r.function == func_name)
-        .map_or(0.0, |r| if r.hits > 0 { 1.0 } else { 0.0 })
-}
-
 // ═══════════════════════════════════════════
 // PHASE HELPERS — extract typed values from tool JSON output
 // ═══════════════════════════════════════════
 
 /// Extract a `u64` from `data.summary.field`, defaulting to `0`.
-fn summary_u64(data: &serde_json::Value, field: &str) -> usize {
+pub(crate) fn summary_u64(data: &serde_json::Value, field: &str) -> usize {
     data.get("summary")
         .and_then(|s| s.get(field))
         .and_then(|v| v.as_u64())
@@ -57,7 +50,7 @@ fn summary_u64(data: &serde_json::Value, field: &str) -> usize {
 
 /// Extract an `f64` from `data.summary.field`, defaulting to `0.0`.
 #[allow(dead_code)]
-fn summary_f64(data: &serde_json::Value, field: &str) -> f64 {
+pub(crate) fn summary_f64(data: &serde_json::Value, field: &str) -> f64 {
     data.get("summary")
         .and_then(|s| s.get(field))
         .and_then(|v| v.as_f64())

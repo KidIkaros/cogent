@@ -61,6 +61,354 @@ struct FuzzSummary {
     avg_score: f64,
 }
 
+// ═══════════════════════════════════════════
+// LANGUAGE FUNCTION DETECTION TABLE
+// ═══════════════════════════════════════════
+
+/// Configuration for detecting function declarations in a given language.
+struct FnDetector {
+    /// Keywords that start a function declaration (e.g. "fn ", "def ", "function ")
+    keywords: &'static [&'static str],
+    /// Optional: full signature parser with parameter analysis (score > 10).
+    /// When set, this takes precedence over basic extraction.
+    #[allow(clippy::type_complexity)]
+    parse_sig: Option<fn(sig: &str, file: &str, line: usize) -> Option<FuzzableFunction>>,
+    /// Optional: extra line-level check beyond keyword match (e.g. arrow functions).
+    extra_check: Option<fn(trimmed: &str) -> bool>,
+    /// How to determine if a matched function is public.
+    is_public: fn(trimmed: &str) -> bool,
+}
+
+/// Extract a function name directly following a keyword prefix.
+/// Works for: `fn foo(`, `def foo(`, `func foo(`, `function foo(`, etc.
+fn extract_name_after_keyword(line: &str, keyword: &str) -> Option<String> {
+    let after = line.strip_prefix(keyword)?;
+    let name = after.split('(').next()?.trim();
+    if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        Some(name.to_string())
+    } else {
+        None
+    }
+}
+
+/// Extract name from C-style declarations: `int foo(` → `foo`
+fn extract_c_name(line: &str) -> Option<String> {
+    let name = line
+        .split('(')
+        .next()?
+        .split_whitespace()
+        .last()
+        .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_alphanumeric() || c == '_'))
+        .map(|n| n.to_string());
+    name
+}
+
+/// All function detectors keyed by Language.
+fn fn_detector(lang: Language) -> Option<FnDetector> {
+    match lang {
+        // JS/TS: function, const, let, and arrow functions
+        Language::JavaScript | Language::TypeScript => Some(FnDetector {
+            keywords: &["function ", "const ", "let "],
+            parse_sig: Some(parse_js_fn_sig),
+            extra_check: Some(|trimmed| trimmed.contains("=>")),
+            is_public: |_| true,
+        }),
+
+        // Go: func Foo(
+        Language::Go => Some(FnDetector {
+            keywords: &["func "],
+            parse_sig: Some(parse_go_fn_sig),
+            extra_check: None,
+            is_public: |trimmed| {
+                trimmed
+                    .strip_prefix("func ")
+                    .and_then(|s| s.split('(').next())
+                    .and_then(|n| n.trim().chars().next())
+                    .is_some_and(|c| c.is_uppercase())
+            },
+        }),
+
+        // C/C++: return_type func_name(
+        Language::C | Language::Cpp => Some(FnDetector {
+            keywords: &[
+                "int ", "void ", "char ", "float ", "double ", "bool ", "size_t ",
+                "unsigned ", "signed ", "long ", "short ",
+            ],
+            parse_sig: None,
+            extra_check: None,
+            is_public: |_| true,
+        }),
+
+        // C#: access_modifier return_type MethodName(
+        Language::CSharp => Some(FnDetector {
+            keywords: &[
+                "public ", "private ", "protected ", "internal ",
+                "static ", "void ", "int ", "string ", "bool ", "var ",
+            ],
+            parse_sig: None,
+            extra_check: None,
+            is_public: |trimmed| {
+                trimmed.starts_with("public ") || !trimmed.starts_with("private ")
+            },
+        }),
+
+        // Java: access_modifier return_type methodName(
+        Language::Java => Some(FnDetector {
+            keywords: &[
+                "public ", "private ", "protected ", "static ",
+                "void ", "int ", "String ", "boolean ", "long ", "double ",
+            ],
+            parse_sig: None,
+            extra_check: None,
+            is_public: |trimmed| {
+                trimmed.starts_with("public ") || !trimmed.starts_with("private ")
+            },
+        }),
+
+        // PHP: function name(
+        Language::Php => Some(FnDetector {
+            keywords: &["function "],
+            parse_sig: None,
+            extra_check: None,
+            is_public: |_| true,
+        }),
+
+        // Ruby: def name
+        Language::Ruby => Some(FnDetector {
+            keywords: &["def "],
+            parse_sig: None,
+            extra_check: None,
+            is_public: |_| true,
+        }),
+
+        // Swift: func name(
+        Language::Swift => Some(FnDetector {
+            keywords: &["func "],
+            parse_sig: None,
+            extra_check: None,
+            is_public: |trimmed| {
+                trimmed.starts_with("public ") || trimmed.starts_with("open ")
+            },
+        }),
+
+        // Kotlin: fun name(
+        Language::Kotlin => Some(FnDetector {
+            keywords: &["fun "],
+            parse_sig: None,
+            extra_check: None,
+            is_public: |trimmed| {
+                trimmed.starts_with("public ") || trimmed.starts_with("internal ")
+                    || !trimmed.starts_with("private ")
+            },
+        }),
+
+        // Solidity: function name(
+        Language::Solidity => Some(FnDetector {
+            keywords: &["function "],
+            parse_sig: None,
+            extra_check: None,
+            is_public: |trimmed| {
+                trimmed.starts_with("public ") || trimmed.starts_with("external ")
+                    || !trimmed.starts_with("private ")
+            },
+        }),
+
+        _ => None,
+    }
+}
+
+/// Generic single-line function detector. Scans lines for keyword matches
+/// and either runs a full signature parser or does basic name extraction.
+fn detect_functions(source: &str, file: &str, lang: Language) -> Vec<FuzzableFunction> {
+    let detector = match fn_detector(lang) {
+        Some(d) => d,
+        None => return vec![],
+    };
+    let mut functions = Vec::new();
+
+    for (line_num, line) in source.lines().enumerate() {
+        let trimmed = line.trim();
+
+        // Skip comments
+        if trimmed.starts_with("//") || trimmed.starts_with('#') || trimmed.starts_with("/*") {
+            continue;
+        }
+        // Skip attributes/annotations
+        if trimmed.starts_with('[') || trimmed.starts_with('@') || trimmed.starts_with('*') {
+            continue;
+        }
+
+        let has_keyword = detector.keywords.iter().any(|kw| trimmed.starts_with(kw));
+        let has_arrow = detector.extra_check.is_some_and(|check| check(trimmed));
+        if !has_keyword && !has_arrow {
+            continue;
+        }
+        // Require parens for arrow-function-only matches (no keyword), but
+        // not for keyword matches — some languages (e.g. Ruby: `def helper`)
+        // declare parameterless functions without parentheses. The
+        // name-extraction logic in `extract_name_after_keyword` already
+        // rejects false positives (e.g. `int x = 5;` → None).
+        if !has_keyword && !trimmed.contains('(') {
+            continue;
+        }
+
+        if let Some(parse_fn) = detector.parse_sig {
+            // Full signature parser with parameter analysis
+            if let Some(f) = parse_fn(trimmed, file, line_num) {
+                let actual = parse_complexity(source, file, lang)
+                    .into_iter()
+                    .find(|func| func.name == f.name)
+                    .map_or(f.complexity, |func| func.complexity);
+                functions.push(FuzzableFunction { complexity: actual, ..f });
+            }
+        } else {
+            // Basic name extraction for languages without parameter analysis
+            let name = detector.keywords.iter().find_map(|kw| {
+                if trimmed.starts_with(kw) {
+                    extract_name_after_keyword(trimmed, kw)
+                } else {
+                    None
+                }
+            })
+            .or_else(|| extract_c_name(trimmed)); // Fallback for C-style
+
+            if let Some(name) = name {
+                functions.push(FuzzableFunction {
+                    name,
+                    file: file.to_string(),
+                    line: line_num,
+                    params: vec![],
+                    score: 10,
+                    is_public: (detector.is_public)(trimmed),
+                    complexity: 1,
+                    has_harness: false,
+                });
+            }
+        }
+    }
+
+    functions
+}
+
+// ═══════════════════════════════════════════
+// RUST-SPECIFIC ANALYSIS (multi-line + harness)
+// ═══════════════════════════════════════════
+
+fn analyze_rust_file(
+    source: &str,
+    file: &str,
+    harnesses: &HashSet<String>,
+) -> Vec<FuzzableFunction> {
+    let mut functions = Vec::new();
+    let mut in_fn = false;
+    let mut fn_sig = String::new();
+    let mut fn_start_line = 0;
+    let mut brace_depth = 0;
+
+    for (line_num, line) in source.lines().enumerate() {
+        let trimmed = line.trim();
+
+        if in_fn {
+            fn_sig.push(' ');
+            fn_sig.push_str(trimmed);
+            brace_depth += trimmed.matches('{').count();
+            brace_depth = brace_depth.saturating_sub(trimmed.matches('}').count());
+
+            if brace_depth == 0 && trimmed.contains('}') {
+                if let Some(mut f) = parse_rust_fn_sig(&fn_sig, file, fn_start_line, harnesses) {
+                    f.complexity = parse_complexity(source, file, Language::Rust)
+                        .into_iter()
+                        .find(|func| func.name == f.name)
+                        .map_or(10, |func| func.complexity);
+                    functions.push(f);
+                }
+                in_fn = false;
+                fn_sig.clear();
+            }
+        } else {
+            if (trimmed.starts_with("pub fn ")
+                || trimmed.starts_with("fn ")
+                || trimmed.starts_with("pub async fn ")
+                || trimmed.starts_with("async fn "))
+                && trimmed.contains('(')
+            {
+                in_fn = true;
+                fn_start_line = line_num;
+                fn_sig = trimmed.to_string();
+                brace_depth = trimmed.matches('{').count() - trimmed.matches('}').count();
+                if brace_depth > 0 {
+                    if let Some(f) = parse_rust_fn_sig(&fn_sig, file, fn_start_line, harnesses) {
+                        functions.push(f);
+                    }
+                    in_fn = false;
+                    fn_sig.clear();
+                }
+            }
+        }
+    }
+
+    functions
+}
+
+// ═══════════════════════════════════════════
+// PYTHON-SPECIFIC ANALYSIS (indentation tracking)
+// ═══════════════════════════════════════════
+
+fn analyze_python_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
+    let mut functions = Vec::new();
+    let mut in_fn = false;
+    let mut fn_sig = String::new();
+    let mut fn_start_line = 0;
+    let mut indent_level = 0;
+
+    for (line_num, line) in source.lines().enumerate() {
+        let trimmed = line.trim();
+        let current_indent = line.len() - line.trim_start().len();
+
+        if in_fn {
+            if current_indent <= indent_level && !trimmed.is_empty() {
+                if let Some(mut f) = parse_python_fn_sig(&fn_sig, file, fn_start_line) {
+                    f.complexity = parse_complexity(source, file, Language::Python)
+                        .into_iter()
+                        .find(|func| func.name == f.name)
+                        .map_or(10, |func| func.complexity);
+                    functions.push(f);
+                }
+                in_fn = false;
+                fn_sig.clear();
+            } else {
+                fn_sig.push(' ');
+                fn_sig.push_str(trimmed);
+            }
+        } else {
+            if (trimmed.starts_with("def ") || trimmed.starts_with("async def "))
+                && trimmed.contains(':')
+            {
+                in_fn = true;
+                fn_start_line = line_num;
+                fn_sig = trimmed.to_string();
+                indent_level = current_indent;
+
+                if let Some(pos) = trimmed.find(':') {
+                    if pos + 1 < trimmed.len() {
+                        if let Some(f) = parse_python_fn_sig(&fn_sig, file, fn_start_line) {
+                            functions.push(f);
+                        }
+                        in_fn = false;
+                        fn_sig.clear();
+                    }
+                }
+            }
+        }
+    }
+
+    functions
+}
+
+// ═══════════════════════════════════════════
+// MAIN ENTRY POINT
+// ═══════════════════════════════════════════
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     run(cli)?;
@@ -70,10 +418,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let target_path = Path::new(&cli.path);
 
-    // Supported languages for fuzzing analysis
     let supported_exts = [
         "rs", "py", "js", "ts", "go", "c", "cpp", "h", "cs", "java", "php", "rb", "swift", "kt",
-        "kts", "sol", // Solidity smart contracts
+        "kts", "sol",
     ];
 
     let source_files = if target_path.is_dir() {
@@ -101,9 +448,7 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             .into());
     }
 
-    // Check for existing fuzz harnesses (Rust only for now)
     let harnesses = find_fuzz_harnesses(target_path);
-
     let mut all_functions: Vec<FuzzableFunction> = Vec::new();
 
     for file_path in &source_files {
@@ -111,15 +456,12 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             Ok(s) => s,
             Err(_) => continue,
         };
-
         let file_str = file_path.to_string_lossy().to_string();
         let lang = Language::from_extension(&file_str);
-
         let functions = analyze_file(&source, file_path, &harnesses, lang);
         all_functions.extend(functions);
     }
 
-    // Filter by min score and sort by score descending
     all_functions.retain(|f| f.score >= cli.min_score);
     all_functions.sort_by_key(|b| std::cmp::Reverse(b.score));
 
@@ -134,6 +476,34 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 }
+
+// ═══════════════════════════════════════════
+// FILE DISPATCH
+// ═══════════════════════════════════════════
+
+fn analyze_file(
+    source: &str,
+    file_path: &Path,
+    harnesses: &HashSet<String>,
+    lang: Language,
+) -> Vec<FuzzableFunction> {
+    let file_str = file_path.to_string_lossy().to_string();
+
+    // Rust: needs multi-line brace tracking + harness detection
+    if lang == Language::Rust {
+        return analyze_rust_file(source, &file_str, harnesses);
+    }
+    // Python: needs indentation-based dedent tracking
+    if lang == Language::Python {
+        return analyze_python_file(source, &file_str);
+    }
+    // All other languages: data-driven single-line detection
+    detect_functions(source, &file_str, lang)
+}
+
+// ═══════════════════════════════════════════
+// FUZZ HARNESS DETECTION
+// ═══════════════════════════════════════════
 
 fn find_fuzz_harnesses(base: &Path) -> HashSet<String> {
     let fuzz_dir = base.join("fuzz");
@@ -156,7 +526,6 @@ fn find_fuzz_harnesses(base: &Path) -> HashSet<String> {
 }
 
 fn extract_harness_names(content: &str, harnesses: &mut HashSet<String>) {
-    // Look for fuzz_target! macro invocations: fuzz_target!(|data: &[u8]| { ... })
     for line in content.lines() {
         if line.contains("fuzz_target!") {
             for word in line.split(|c: char| !c.is_alphanumeric() && c != '_') {
@@ -168,538 +537,9 @@ fn extract_harness_names(content: &str, harnesses: &mut HashSet<String>) {
     }
 }
 
-fn analyze_file(
-    source: &str,
-    file_path: &Path,
-    harnesses: &HashSet<String>,
-    lang: Language,
-) -> Vec<FuzzableFunction> {
-    let file_str = file_path.to_string_lossy().to_string();
-
-    // Use language-specific analysis
-    match lang {
-        Language::Rust => analyze_rust_file(source, &file_str, harnesses),
-        Language::Python => analyze_python_file(source, &file_str),
-        Language::JavaScript | Language::TypeScript => analyze_js_file(source, &file_str),
-        Language::Go => analyze_go_file(source, &file_str),
-        Language::C | Language::Cpp => analyze_c_file(source, &file_str),
-        Language::CSharp => analyze_csharp_file(source, &file_str),
-        Language::Java => analyze_java_file(source, &file_str),
-        Language::Php => analyze_php_file(source, &file_str),
-        Language::Ruby => analyze_ruby_file(source, &file_str),
-        Language::Swift => analyze_swift_file(source, &file_str),
-        Language::Kotlin => analyze_kotlin_file(source, &file_str),
-        Language::Solidity => analyze_solidity_file(source, &file_str),
-        _ => Vec::new(),
-    }
-}
-
-fn analyze_rust_file(
-    source: &str,
-    file: &str,
-    harnesses: &HashSet<String>,
-) -> Vec<FuzzableFunction> {
-    // Simple heuristic-based analysis (string-based, no full AST parse)
-    let mut functions = Vec::new();
-    let mut in_fn = false;
-    let mut fn_sig = String::new();
-    let mut fn_start_line = 0;
-    let mut brace_depth = 0;
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        if in_fn {
-            fn_sig.push(' ');
-            fn_sig.push_str(trimmed);
-            brace_depth += trimmed.matches('{').count();
-            brace_depth = brace_depth.saturating_sub(trimmed.matches('}').count());
-
-            if brace_depth == 0 && trimmed.contains('}') {
-                // End of function - process signature
-                if let Some(mut f) = parse_rust_fn_sig(&fn_sig, file, fn_start_line, harnesses) {
-                    f.complexity = parse_complexity(source, file, Language::Rust)
-                        .into_iter()
-                        .find(|func| func.name == f.name)
-                        .map_or(10, |func| func.complexity);
-                    functions.push(f);
-                }
-                in_fn = false;
-                fn_sig.clear();
-            }
-        } else {
-            // Check for function signature
-            if (trimmed.starts_with("pub fn ")
-                || trimmed.starts_with("fn ")
-                || trimmed.starts_with("pub async fn ")
-                || trimmed.starts_with("async fn "))
-                && trimmed.contains('(')
-            {
-                in_fn = true;
-                fn_start_line = line_num;
-                fn_sig = trimmed.to_string();
-                brace_depth = trimmed.matches('{').count() - trimmed.matches('}').count();
-                if brace_depth > 0 {
-                    if let Some(f) = parse_rust_fn_sig(&fn_sig, file, fn_start_line, harnesses) {
-                        functions.push(f);
-                    }
-                    in_fn = false;
-                    fn_sig.clear();
-                }
-            }
-        }
-    }
-
-    functions
-}
-
-fn analyze_python_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let mut in_fn = false;
-    let mut fn_sig = String::new();
-    let mut fn_start_line = 0;
-    let mut indent_level = 0;
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Track indentation level for Python
-        let current_indent = line.len() - line.trim_start().len();
-
-        if in_fn {
-            if current_indent <= indent_level && !trimmed.is_empty() {
-                // End of function (dedent)
-                if let Some(mut f) = parse_python_fn_sig(&fn_sig, file, fn_start_line) {
-                    f.complexity = parse_complexity(source, file, Language::Python)
-                        .into_iter()
-                        .find(|func| func.name == f.name)
-                        .map_or(10, |func| func.complexity);
-                    functions.push(f);
-                }
-                in_fn = false;
-                fn_sig.clear();
-            } else {
-                fn_sig.push(' ');
-                fn_sig.push_str(trimmed);
-            }
-        } else {
-            // Check for function signature
-            if (trimmed.starts_with("def ") || trimmed.starts_with("async def "))
-                && trimmed.contains(':')
-            {
-                in_fn = true;
-                fn_start_line = line_num;
-                fn_sig = trimmed.to_string();
-                indent_level = current_indent;
-
-                // Handle single-line functions
-                if let Some(pos) = trimmed.find(':') {
-                    if pos + 1 < trimmed.len() {
-                        // Has code after colon - single line
-                        if let Some(f) = parse_python_fn_sig(&fn_sig, file, fn_start_line) {
-                            functions.push(f);
-                        }
-                        in_fn = false;
-                        fn_sig.clear();
-                    }
-                }
-            }
-        }
-    }
-
-    functions
-}
-
-fn analyze_js_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Look for function definitions
-        if (trimmed.starts_with("function ")
-            || trimmed.starts_with("const ")
-            || trimmed.starts_with("let ")
-            || trimmed.contains("=>"))
-            && trimmed.contains('(')
-        {
-            if let Some(mut f) = parse_js_fn_sig(trimmed, file, line_num) {
-                f.complexity = parse_complexity(source, file, Language::JavaScript)
-                    .into_iter()
-                    .find(|func| func.name == f.name)
-                    .map_or(10, |func| func.complexity);
-                functions.push(f);
-            }
-        }
-    }
-
-    functions
-}
-
-fn analyze_go_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Look for Go function definitions
-        if trimmed.starts_with("func ") && trimmed.contains('(') {
-            if let Some(mut f) = parse_go_fn_sig(trimmed, file, line_num) {
-                f.complexity = parse_complexity(source, file, Language::Go)
-                    .into_iter()
-                    .find(|func| func.name == f.name)
-                    .map_or(10, |func| func.complexity);
-                functions.push(f);
-            }
-        }
-    }
-
-    functions
-}
-
-// C/C++ function analysis (simplified)
-fn analyze_c_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Detect C/C++ function declarations
-        let is_func = (trimmed.starts_with("int ")
-            || trimmed.starts_with("void ")
-            || trimmed.starts_with("char ")
-            || trimmed.starts_with("float ")
-            || trimmed.starts_with("double ")
-            || trimmed.starts_with("bool ")
-            || trimmed.starts_with("size_t ")
-            || trimmed.starts_with("uint")
-            || trimmed.starts_with("int"))
-            && trimmed.contains('(')
-            && trimmed.contains(')');
-
-        if is_func {
-            let name = trimmed
-                .split_whitespace()
-                .find(|t| t.contains('('))
-                .map(|t| t.split('(').next().unwrap_or("").trim().to_string())
-                .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_alphanumeric() || c == '_'));
-
-            if let Some(name) = name {
-                functions.push(FuzzableFunction {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    params: vec![],
-                    score: 10,
-                    is_public: true,
-                    complexity: 1,
-                    has_harness: false,
-                });
-            }
-        }
-    }
-
-    functions
-}
-
-// C# function analysis (simplified)
-fn analyze_csharp_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Skip comments and attributes
-        if trimmed.starts_with("//") || trimmed.starts_with("[") || trimmed.starts_with("*") {
-            continue;
-        }
-
-        // Detect C# methods
-        let is_func = trimmed.contains('(')
-            && (trimmed.starts_with("public ")
-                || trimmed.starts_with("private ")
-                || trimmed.starts_with("protected ")
-                || trimmed.starts_with("internal ")
-                || trimmed.starts_with("static ")
-                || trimmed.starts_with("void ")
-                || trimmed.starts_with("int ")
-                || trimmed.starts_with("string ")
-                || trimmed.starts_with("bool ")
-                || trimmed.starts_with("var "));
-
-        if is_func {
-            let name = trimmed
-                .split_whitespace()
-                .find(|t| t.contains('('))
-                .map(|t| t.split('(').next().unwrap_or("").trim().to_string())
-                .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_alphanumeric() || c == '_'));
-
-            if let Some(name) = name {
-                functions.push(FuzzableFunction {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    params: vec![],
-                    score: 10,
-                    is_public: trimmed.starts_with("public "),
-                    complexity: 1,
-                    has_harness: false,
-                });
-            }
-        }
-    }
-
-    functions
-}
-
-// Java function analysis (simplified)
-fn analyze_java_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Skip comments
-        if trimmed.starts_with("//") || trimmed.starts_with("*") || trimmed.starts_with("@") {
-            continue;
-        }
-
-        // Detect Java methods
-        let is_func = trimmed.contains('(')
-            && (trimmed.starts_with("public ")
-                || trimmed.starts_with("private ")
-                || trimmed.starts_with("protected ")
-                || trimmed.starts_with("static ")
-                || trimmed.starts_with("void ")
-                || trimmed.starts_with("int ")
-                || trimmed.starts_with("String ")
-                || trimmed.starts_with("boolean ")
-                || trimmed.starts_with("long ")
-                || trimmed.starts_with("double "));
-
-        if is_func {
-            let name = trimmed
-                .split_whitespace()
-                .find(|t| t.contains('('))
-                .map(|t| t.split('(').next().unwrap_or("").trim().to_string())
-                .filter(|n| !n.is_empty() && n.chars().all(|c| c.is_alphanumeric() || c == '_'));
-
-            if let Some(name) = name {
-                functions.push(FuzzableFunction {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    params: vec![],
-                    score: 10,
-                    is_public: trimmed.starts_with("public "),
-                    complexity: 1,
-                    has_harness: false,
-                });
-            }
-        }
-    }
-
-    functions
-}
-
-// PHP function analysis (simplified)
-fn analyze_php_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Detect PHP functions
-        if trimmed.starts_with("function ") && trimmed.contains('(') {
-            let name = trimmed
-                .strip_prefix("function ")
-                .unwrap_or("")
-                .split('(')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-
-            if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                functions.push(FuzzableFunction {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    params: vec![],
-                    score: 10,
-                    is_public: true,
-                    complexity: 1,
-                    has_harness: false,
-                });
-            }
-        }
-    }
-
-    functions
-}
-
-// Ruby function analysis (simplified)
-fn analyze_ruby_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        if trimmed.starts_with("def ") {
-            let name = trimmed
-                .strip_prefix("def ")
-                .unwrap_or("")
-                .split(|c: char| ['(', ' '].contains(&c))
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-
-            if !name.is_empty()
-                && name
-                    .chars()
-                    .all(|c| c.is_alphanumeric() || c == '_' || c == '?')
-            {
-                functions.push(FuzzableFunction {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    params: vec![],
-                    score: 10,
-                    is_public: true,
-                    complexity: 1,
-                    has_harness: false,
-                });
-            }
-        }
-    }
-
-    functions
-}
-
-// Swift function analysis (simplified)
-fn analyze_swift_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Detect Swift functions
-        if trimmed.starts_with("func ") && trimmed.contains('(') {
-            let name = trimmed
-                .strip_prefix("func ")
-                .unwrap_or("")
-                .split('(')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-
-            if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                functions.push(FuzzableFunction {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    params: vec![],
-                    score: 10,
-                    is_public: trimmed.starts_with("public ") || trimmed.starts_with("open "),
-                    complexity: 1,
-                    has_harness: false,
-                });
-            }
-        }
-    }
-
-    functions
-}
-
-// Kotlin function analysis (simplified)
-fn analyze_kotlin_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Detect Kotlin functions
-        if trimmed.starts_with("fun ") && trimmed.contains('(') {
-            let name = trimmed
-                .strip_prefix("fun ")
-                .unwrap_or("")
-                .split('(')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-
-            if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                functions.push(FuzzableFunction {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    params: vec![],
-                    score: 10,
-                    is_public: trimmed.starts_with("public ")
-                        || !trimmed.starts_with("private ")
-                        || trimmed.starts_with("internal "),
-                    complexity: 1,
-                    has_harness: false,
-                });
-            }
-        }
-    }
-
-    functions
-}
-
-// Solidity function analysis (simplified)
-fn analyze_solidity_file(source: &str, file: &str) -> Vec<FuzzableFunction> {
-    let mut functions = Vec::new();
-    let _line_num = 0;
-
-    for (line_num, line) in source.lines().enumerate() {
-        let trimmed = line.trim();
-
-        // Detect Solidity functions
-        if trimmed.starts_with("function ") && trimmed.contains('(') {
-            let name = trimmed
-                .strip_prefix("function ")
-                .unwrap_or("")
-                .split('(')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-
-            if !name.is_empty() && name.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                functions.push(FuzzableFunction {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    params: vec![],
-                    score: 10,
-                    is_public: trimmed.starts_with("public ")
-                        || !trimmed.starts_with("private ")
-                        || trimmed.starts_with("internal "),
-                    complexity: 1,
-                    has_harness: false,
-                });
-            }
-        }
-    }
-
-    functions
-}
+// ═══════════════════════════════════════════
+// SIGNATURE PARSERS (with parameter analysis)
+// ═══════════════════════════════════════════
 
 fn parse_rust_fn_sig(
     sig: &str,
@@ -707,7 +547,6 @@ fn parse_rust_fn_sig(
     line: usize,
     harnesses: &HashSet<String>,
 ) -> Option<FuzzableFunction> {
-    // Extract function name
     let after_fn = if let Some(pos) = sig.find("fn ") {
         &sig[pos + 3..]
     } else {
@@ -719,7 +558,6 @@ fn parse_rust_fn_sig(
         .unwrap_or(after_fn.len());
     let name = after_fn[..name_end].trim().to_string();
 
-    // Extract parameters
     let params_start = after_fn.find('(')?;
     let params_end = after_fn.rfind(')')?;
     let params_str = &after_fn[params_start + 1..params_end];
@@ -733,32 +571,23 @@ fn parse_rust_fn_sig(
             .collect()
     };
 
-    // Check visibility
     let is_public = sig.trim_start().starts_with("pub ");
 
-    // Calculate fuzzability score
     let mut score = 0u32;
     let mut fuzzable_params = Vec::new();
 
     for param in &params {
         let param_lower = param.to_lowercase();
-        // Raw byte input is very fuzzable
         if param_lower.contains("&[u8]") || param_lower.contains("bytes") {
             score += 30;
             fuzzable_params.push(param.clone());
-        }
-        // String inputs are good fuzz targets
-        else if param_lower.contains("string") || param_lower.contains("&str") {
+        } else if param_lower.contains("string") || param_lower.contains("&str") {
             score += 20;
             fuzzable_params.push(param.clone());
-        }
-        // Vec<u8> is also fuzzable
-        else if param_lower.contains("vec<u8>") {
+        } else if param_lower.contains("vec<u8>") {
             score += 25;
             fuzzable_params.push(param.clone());
-        }
-        // Path/IO types can be fuzz targets
-        else if param_lower.contains("path")
+        } else if param_lower.contains("path")
             || param_lower.contains("reader")
             || param_lower.contains("stream")
         {
@@ -767,20 +596,15 @@ fn parse_rust_fn_sig(
         }
     }
 
-    // No fuzzable params = not worth fuzzing
     if score == 0 {
         return None;
     }
 
-    // Public functions are more valuable targets (higher impact)
     if is_public {
         score += 10;
     }
-
-    // More parameters = more combinations to explore
     score += params.len() as u32 * 2;
 
-    // Functions with more complexity are more likely to have bugs
     let complexity = estimate_rust_complexity(sig);
     if complexity > 5 {
         score += 5;
@@ -788,7 +612,6 @@ fn parse_rust_fn_sig(
 
     let has_harness = harnesses.contains(&name);
     if has_harness {
-        // Already has a harness, reduce score (not a gap)
         score = score.saturating_sub(5);
     }
 
@@ -805,7 +628,6 @@ fn parse_rust_fn_sig(
 }
 
 fn parse_python_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunction> {
-    // Extract function name
     let after_def = if let Some(pos) = sig.find("def ") {
         &sig[pos + 4..]
     } else {
@@ -815,7 +637,6 @@ fn parse_python_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFun
     let name_end = after_def.find('(')?;
     let name = after_def[..name_end].trim().to_string();
 
-    // Extract parameters
     let params_start = sig.find('(')?;
     let params_end = sig.rfind(')')?;
     let params_str = &sig[params_start + 1..params_end];
@@ -829,41 +650,30 @@ fn parse_python_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFun
             .collect()
     };
 
-    // Calculate fuzzability score
     let mut score = 0u32;
     let mut fuzzable_params = Vec::new();
 
     for param in &params {
         let param_lower = param.to_lowercase();
-        // Raw byte input is very fuzzable
         if param_lower.contains("bytes") || param_lower.contains("bytearray") {
             score += 30;
             fuzzable_params.push(param.clone());
-        }
-        // String inputs are good fuzz targets
-        else if param_lower.contains("str") {
+        } else if param_lower.contains("str") {
             score += 20;
             fuzzable_params.push(param.clone());
-        }
-        // Lists can be fuzz targets
-        else if param_lower.contains("list") {
+        } else if param_lower.contains("list") {
             score += 15;
             fuzzable_params.push(param.clone());
         }
     }
 
-    // No fuzzable params = not worth fuzzing
     if score == 0 {
         return None;
     }
 
-    // Python functions don't have explicit visibility, but we can infer from name
     let is_public = !name.starts_with('_');
-
-    // More parameters = more combinations to explore
     score += params.len() as u32 * 2;
 
-    // Functions with more complexity are more likely to have bugs
     let complexity = estimate_python_complexity(sig);
     if complexity > 5 {
         score += 5;
@@ -877,17 +687,15 @@ fn parse_python_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFun
         score,
         is_public,
         complexity,
-        has_harness: false, // No harness tracking for Python yet
+        has_harness: false,
     })
 }
 
 fn parse_js_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunction> {
-    // Extract function name
     let name = if let Some(after_func) = sig.strip_prefix("function ") {
         let name_end = after_func.find('(')?;
         after_func[..name_end].trim().to_string()
     } else if sig.starts_with("const ") || sig.starts_with("let ") {
-        // Handle arrow functions: const foo = (a, b) => {}
         let after_kw = sig.split_whitespace().nth(1)?;
         let name_part = after_kw.split('=').next()?.trim();
         let name_end = name_part.find('(')?;
@@ -900,7 +708,6 @@ fn parse_js_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunctio
         return None;
     }
 
-    // Extract parameters
     let params_start = sig.find('(')?;
     let params_end = sig.rfind(')')?;
     let params_str = &sig[params_start + 1..params_end];
@@ -914,41 +721,30 @@ fn parse_js_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunctio
             .collect()
     };
 
-    // Calculate fuzzability score
     let mut score = 0u32;
     let mut fuzzable_params = Vec::new();
 
     for param in &params {
         let param_lower = param.to_lowercase();
-        // Raw byte input is very fuzzable (Uint8Array)
         if param_lower.contains("uint8array") || param_lower.contains("buffer") {
             score += 30;
             fuzzable_params.push(param.clone());
-        }
-        // String inputs are good fuzz targets
-        else if param_lower.contains("string") {
+        } else if param_lower.contains("string") {
             score += 20;
             fuzzable_params.push(param.clone());
-        }
-        // Arrays can be fuzz targets
-        else if param_lower.contains("array") || param_lower.contains("[]") {
+        } else if param_lower.contains("array") || param_lower.contains("[]") {
             score += 15;
             fuzzable_params.push(param.clone());
         }
     }
 
-    // No fuzzable params = not worth fuzzing
     if score == 0 {
         return None;
     }
 
-    // JavaScript functions don't have explicit visibility
     let is_public = true;
-
-    // More parameters = more combinations to explore
     score += params.len() as u32 * 2;
 
-    // Functions with more complexity are more likely to have bugs
     let complexity = estimate_js_complexity(sig);
     if complexity > 5 {
         score += 5;
@@ -962,12 +758,11 @@ fn parse_js_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunctio
         score,
         is_public,
         complexity,
-        has_harness: false, // No harness tracking for JS yet
+        has_harness: false,
     })
 }
 
 fn parse_go_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunction> {
-    // Extract function name
     let after_func = if let Some(pos) = sig.find("func ") {
         &sig[pos + 5..]
     } else {
@@ -977,7 +772,6 @@ fn parse_go_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunctio
     let name_end = after_func.find('(')?;
     let name = after_func[..name_end].trim().to_string();
 
-    // Extract parameters
     let params_start = sig.find('(')?;
     let params_end = sig.rfind(')')?;
     let params_str = &sig[params_start + 1..params_end];
@@ -991,41 +785,30 @@ fn parse_go_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunctio
             .collect()
     };
 
-    // Calculate fuzzability score
     let mut score = 0u32;
     let mut fuzzable_params = Vec::new();
 
     for param in &params {
         let param_lower = param.to_lowercase();
-        // Raw byte input is very fuzzable
         if param_lower.contains("[]byte") {
             score += 30;
             fuzzable_params.push(param.clone());
-        }
-        // String inputs are good fuzz targets
-        else if param_lower.contains("string") {
+        } else if param_lower.contains("string") {
             score += 20;
             fuzzable_params.push(param.clone());
-        }
-        // Interfaces can be fuzz targets
-        else if param_lower.contains("interface") {
+        } else if param_lower.contains("interface") {
             score += 10;
             fuzzable_params.push(param.clone());
         }
     }
 
-    // No fuzzable params = not worth fuzzing
     if score == 0 {
         return None;
     }
 
-    // Go functions starting with uppercase are exported (public)
     let is_public = name.chars().next().is_some_and(|c| c.is_uppercase());
-
-    // More parameters = more combinations to explore
     score += params.len() as u32 * 2;
 
-    // Functions with more complexity are more likely to have bugs
     let complexity = estimate_go_complexity(sig);
     if complexity > 5 {
         score += 5;
@@ -1039,83 +822,54 @@ fn parse_go_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunctio
         score,
         is_public,
         complexity,
-        has_harness: false, // No harness tracking for Go yet
+        has_harness: false,
     })
 }
 
+// ═══════════════════════════════════════════
+// COMPLEXITY ESTIMATORS
+// ═══════════════════════════════════════════
+
 fn estimate_rust_complexity(sig: &str) -> u32 {
-    // Simple heuristic: count control flow keywords in signature
     let mut complexity = 1;
-    if sig.contains("if ") {
-        complexity += 1;
-    }
-    if sig.contains("match ") {
-        complexity += 1;
-    }
-    if sig.contains("for ") {
-        complexity += 1;
-    }
-    if sig.contains("while ") {
-        complexity += 1;
-    }
+    if sig.contains("if ") { complexity += 1; }
+    if sig.contains("match ") { complexity += 1; }
+    if sig.contains("for ") { complexity += 1; }
+    if sig.contains("while ") { complexity += 1; }
     complexity
 }
 
 fn estimate_python_complexity(sig: &str) -> u32 {
-    // Simple heuristic: count control flow keywords
     let mut complexity = 1;
-    if sig.contains("if ") {
-        complexity += 1;
-    }
-    if sig.contains("for ") {
-        complexity += 1;
-    }
-    if sig.contains("while ") {
-        complexity += 1;
-    }
-    if sig.contains("except ") {
-        complexity += 1;
-    }
+    if sig.contains("if ") { complexity += 1; }
+    if sig.contains("for ") { complexity += 1; }
+    if sig.contains("while ") { complexity += 1; }
+    if sig.contains("except ") { complexity += 1; }
     complexity
 }
 
 fn estimate_js_complexity(sig: &str) -> u32 {
-    // Simple heuristic: count control flow keywords
     let mut complexity = 1;
-    if sig.contains("if") {
-        complexity += 1;
-    }
-    if sig.contains("for") {
-        complexity += 1;
-    }
-    if sig.contains("while") {
-        complexity += 1;
-    }
-    if sig.contains("switch") {
-        complexity += 1;
-    }
+    if sig.contains("if") { complexity += 1; }
+    if sig.contains("for") { complexity += 1; }
+    if sig.contains("while") { complexity += 1; }
+    if sig.contains("switch") { complexity += 1; }
     complexity
 }
 
 fn estimate_go_complexity(sig: &str) -> u32 {
-    // Simple heuristic: count control flow keywords
     let mut complexity = 1;
-    if sig.contains("if ") {
-        complexity += 1;
-    }
-    if sig.contains("for ") {
-        complexity += 1;
-    }
-    if sig.contains("switch ") {
-        complexity += 1;
-    }
-    if sig.contains("select ") {
-        complexity += 1;
-    }
+    if sig.contains("if ") { complexity += 1; }
+    if sig.contains("for ") { complexity += 1; }
+    if sig.contains("switch ") { complexity += 1; }
+    if sig.contains("select ") { complexity += 1; }
     complexity
 }
 
-/// Generate guided hints for fuzzable functions
+// ═══════════════════════════════════════════
+// HINT GENERATION
+// ═══════════════════════════════════════════
+
 fn get_fuzz_hint(f: &FuzzableFunction) -> String {
     if f.has_harness {
         "Already has fuzz harness. Consider expanding test cases.".to_string()
@@ -1138,6 +892,10 @@ fn get_fuzz_hint(f: &FuzzableFunction) -> String {
         )
     }
 }
+
+// ═══════════════════════════════════════════
+// OUTPUT FORMATTERS
+// ═══════════════════════════════════════════
 
 fn output_table(display: &[FuzzableFunction], all: &[FuzzableFunction]) {
     println!("FUZZING SURFACE ANALYSIS");
@@ -1232,6 +990,10 @@ fn output_json(
     Ok(())
 }
 
+// ═══════════════════════════════════════════
+// TESTS
+// ═══════════════════════════════════════════
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1305,5 +1067,213 @@ mod tests {
         .unwrap();
         assert!(f.has_harness);
         assert_eq!(f.score, 37); // 30 + 10 + 1 param*2 - 5 for having harness
+    }
+
+    // ── Generic detector tests ─────────────────────
+
+    #[test]
+    fn test_detect_functions_go() {
+        let src = "package main\nfunc ParseData(data []byte) string {\n    return string(data)\n}\nfunc helper(x int) int { return x }\n";
+        let funcs = detect_functions(src, "test.go", Language::Go);
+        assert_eq!(funcs.len(), 1, "Only ParseData has fuzzable params");
+        assert_eq!(funcs[0].name, "ParseData");
+    }
+
+    #[test]
+    fn test_detect_functions_c() {
+        let src = "int process_data(char *data, int len) {\n    return 0;\n}\nvoid helper(void) {}\n";
+        let funcs = detect_functions(src, "test.c", Language::C);
+        assert_eq!(funcs.len(), 2, "C should detect both functions");
+        assert_eq!(funcs[0].name, "process_data");
+        assert_eq!(funcs[1].name, "helper");
+    }
+
+    #[test]
+    fn test_detect_functions_php() {
+        let src = "<?php\nfunction process_data($data) { return $data; }\nfunction helper() { return 1; }\n";
+        let funcs = detect_functions(src, "test.php", Language::Php);
+        assert_eq!(funcs.len(), 2);
+        assert_eq!(funcs[0].name, "process_data");
+    }
+
+    #[test]
+    fn test_detect_functions_ruby() {
+        let src = "def process_data(data)\n  data\nend\ndef helper\n  1\nend\n";
+        let funcs = detect_functions(src, "test.rb", Language::Ruby);
+        assert_eq!(funcs.len(), 2);
+        assert_eq!(funcs[0].name, "process_data");
+    }
+
+    #[test]
+    fn test_detect_functions_swift() {
+        let src = "func processData(data: String) -> String { return data }\nfunc helper() -> Int { return 1 }\n";
+        let funcs = detect_functions(src, "test.swift", Language::Swift);
+        assert_eq!(funcs.len(), 2);
+        assert_eq!(funcs[0].name, "processData");
+    }
+
+    #[test]
+    fn test_extract_name_after_keyword() {
+        assert_eq!(
+            extract_name_after_keyword("fn foo(x: i32)", "fn "),
+            Some("foo".to_string())
+        );
+        assert_eq!(
+            extract_name_after_keyword("def bar():", "def "),
+            Some("bar".to_string())
+        );
+        assert_eq!(
+            extract_name_after_keyword("function baz() {", "function "),
+            Some("baz".to_string())
+        );
+        assert_eq!(
+            extract_name_after_keyword("func qux()", "func "),
+            Some("qux".to_string())
+        );
+    }
+
+    // ── FnDetector table tests ──────────────
+
+    #[test]
+    fn test_fn_detector_go_keywords() {
+        let d = fn_detector(Language::Go).unwrap();
+        assert_eq!(d.keywords, &["func "]);
+        assert!(d.parse_sig.is_some());
+        assert!(d.extra_check.is_none());
+    }
+
+    #[test]
+    fn test_fn_detector_js_has_arrow_check() {
+        let d = fn_detector(Language::JavaScript).unwrap();
+        assert!(d.keywords.contains(&"function "));
+        assert!(d.keywords.contains(&"const "));
+        assert!(d.parse_sig.is_some());
+        assert!(d.extra_check.is_some());
+    }
+
+    #[test]
+    fn test_fn_detector_ruby_keywords() {
+        let d = fn_detector(Language::Ruby).unwrap();
+        assert_eq!(d.keywords, &["def "]);
+        assert!(d.parse_sig.is_none());
+        assert!((d.is_public)("def foo"));
+    }
+
+    #[test]
+    fn test_fn_detector_c_keywords() {
+        let d = fn_detector(Language::C).unwrap();
+        assert!(d.keywords.contains(&"int "));
+        assert!(d.keywords.contains(&"void "));
+        assert!(d.parse_sig.is_none());
+        assert!((d.is_public)("int foo()"));
+    }
+
+    #[test]
+    fn test_fn_detector_csharp_public_check() {
+        let d = fn_detector(Language::CSharp).unwrap();
+        assert!((d.is_public)("public void Foo()"));
+        assert!(!(d.is_public)("private void Foo()"));
+    }
+
+    #[test]
+    fn test_fn_detector_java_public_check() {
+        let d = fn_detector(Language::Java).unwrap();
+        assert!((d.is_public)("public void Foo()"));
+        assert!(!(d.is_public)("private void Foo()"));
+    }
+
+    #[test]
+    fn test_fn_detector_swift_public_check() {
+        let d = fn_detector(Language::Swift).unwrap();
+        assert!((d.is_public)("public func foo()"));
+        assert!((d.is_public)("open func foo()"));
+        assert!(!(d.is_public)("func foo()"));
+    }
+
+    #[test]
+    fn test_fn_detector_kotlin_keywords() {
+        let d = fn_detector(Language::Kotlin).unwrap();
+        assert_eq!(d.keywords, &["fun "]);
+    }
+
+    #[test]
+    fn test_fn_detector_solidity_keywords() {
+        let d = fn_detector(Language::Solidity).unwrap();
+        assert_eq!(d.keywords, &["function "]);
+    }
+
+    #[test]
+    fn test_fn_detector_rust_python_return_none() {
+        // Rust and Python are special-cased (multi-line), not in the table
+        assert!(fn_detector(Language::Rust).is_none());
+        assert!(fn_detector(Language::Python).is_none());
+    }
+
+    #[test]
+    fn test_fn_detector_unknown_return_none() {
+        assert!(fn_detector(Language::Unknown).is_none());
+    }
+
+    // ── Edge case detection tests ───────────
+
+    #[test]
+    fn test_detect_functions_csharp() {
+        let src = "public void ProcessData(string data) { }\nprivate void Helper() { }\n";
+        let funcs = detect_functions(src, "test.cs", Language::CSharp);
+        assert_eq!(funcs.len(), 2);
+        assert_eq!(funcs[0].name, "ProcessData");
+        assert!(funcs[0].is_public);
+        assert!(!funcs[1].is_public);
+    }
+
+    #[test]
+    fn test_detect_functions_java() {
+        let src = "public void processData(String data) { }\nprivate void helper() { }\n";
+        let funcs = detect_functions(src, "test.java", Language::Java);
+        assert_eq!(funcs.len(), 2);
+        assert_eq!(funcs[0].name, "processData");
+        assert!(funcs[0].is_public);
+        assert!(!funcs[1].is_public);
+    }
+
+    #[test]
+    fn test_detect_functions_kotlin() {
+        let src = "fun processData(data: String) { }\nfun helper() { }\n";
+        let funcs = detect_functions(src, "test.kt", Language::Kotlin);
+        assert_eq!(funcs.len(), 2);
+        assert_eq!(funcs[0].name, "processData");
+    }
+
+    #[test]
+    fn test_detect_functions_solidity() {
+        let src = "function processData(bytes memory data) public { }\nfunction helper() private { }\n";
+        let funcs = detect_functions(src, "test.sol", Language::Solidity);
+        assert_eq!(funcs.len(), 2);
+        assert_eq!(funcs[0].name, "processData");
+    }
+
+    #[test]
+    fn test_detect_functions_cpp() {
+        let src = "int process_data(char *data, int len) {\n    return 0;\n}\nvoid helper() {}\n";
+        let funcs = detect_functions(src, "test.cpp", Language::Cpp);
+        assert_eq!(funcs.len(), 2);
+        assert_eq!(funcs[0].name, "process_data");
+    }
+
+    #[test]
+    fn test_detect_functions_js_fuzzable() {
+        // parse_js_fn_sig requires fuzzable params (string, buffer, uint8array, array)
+        let src = "function parseBuffer(data: Buffer) { return data; }\n";
+        let funcs = detect_functions(src, "test.js", Language::JavaScript);
+        assert_eq!(funcs.len(), 1, "Only parseBuffer has fuzzable params");
+        assert_eq!(funcs[0].name, "parseBuffer");
+    }
+
+    #[test]
+    fn test_detect_functions_ignores_comments() {
+        let src = "// fn unused()\n/* fn commented() */\n# fn hash_comment()\nfn real() { }\n";
+        let funcs = detect_functions(src, "test.rs", Language::Rust);
+        // Rust is special-cased, so detect_functions returns empty for it
+        assert!(funcs.is_empty());
     }
 }

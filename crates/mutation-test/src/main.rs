@@ -10,7 +10,187 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
-use cogent_common::{print_table_header, print_table_row, separator, wrap_tool_response, Column};
+use cogent_common::{separator, wrap_tool_response, Column};
+
+// ═══════════════════════════════════════════
+// LANGUAGE MUTATION CONFIG TABLE
+// ═══════════════════════════════════════════
+
+/// Configuration for counting potential mutation points in a given language.
+struct MutationLangConfig {
+    /// Operator patterns to count (e.g. "==", "&&")
+    operators: &'static [&'static str],
+    /// Control-flow keywords to count (e.g. "if ", "for ")
+    keywords: &'static [&'static str],
+    /// Human-readable language name
+    display_name: &'static str,
+    /// Installation/usage instructions for mutation tools
+    tool_instructions: &'static [&'static str],
+}
+
+const LANGUAGE_CONFIGS: &[(&[&str], MutationLangConfig)] = &[
+    (
+        &["rb"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if ", "for ", "while "],
+            display_name: "Ruby",
+            tool_instructions: &[
+                "  $ gem install mutant-rs",
+                "  $ mutant path/to/file.rb",
+            ],
+        },
+    ),
+    (
+        &["swift"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if ", "for ", "while ", "switch ", "guard "],
+            display_name: "Swift",
+            tool_instructions: &[
+                "  # Swift mutation tools require manual setup",
+                "  # Consider using SwiftMutator or SwiftCheck",
+            ],
+        },
+    ),
+    (
+        &["py"],
+        MutationLangConfig {
+            operators: &["==", "!=", "and ", "or "],
+            keywords: &["if ", "for ", "while "],
+            display_name: "Python",
+            tool_instructions: &[
+                "  $ pip install cosmic-ray",
+                "  $ cosmic-ray run --test-runner pytest path/to/file.py",
+            ],
+        },
+    ),
+    (
+        &["c", "h"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if ", "for ", "while ", "switch ", "case "],
+            display_name: "C",
+            tool_instructions: &[
+                "  # C mutation testing",
+                "  $ cargo install mull",
+                "  $ mull-cpp -mutators=all path/to/file.c",
+            ],
+        },
+    ),
+    (
+        &["cpp", "cc", "cxx"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if ", "for ", "while ", "switch ", "case "],
+            display_name: "C++",
+            tool_instructions: &[
+                "  # C/C++ mutation testing",
+                "  $ cargo install mull",
+                "  $ mull-cpp -mutators=all path/to/file.cpp",
+            ],
+        },
+    ),
+    (
+        &["cs"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if", "for", "while", "switch", "try"],
+            display_name: "C#",
+            tool_instructions: &[
+                "  # C# mutation testing",
+                "  $ dotnet tool install --global dotnet-mutator",
+                "  $ dotnet-mutator run path/to/File.cs",
+            ],
+        },
+    ),
+    (
+        &["java"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if", "for", "while", "switch", "case", "try", "catch"],
+            display_name: "Java",
+            tool_instructions: &[
+                "  # Java mutation testing",
+                "  $ mvn org.pitest:pitest-maven:calculate-coverage",
+                "  $ mvn org.pitest:pitest-maven:mutationCoverage path/to/file.java",
+            ],
+        },
+    ),
+    (
+        &["php"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if ", "for ", "while ", "switch ", "case ", "foreach"],
+            display_name: "PHP",
+            tool_instructions: &[
+                "  # PHP mutation testing",
+                "  $ composer require --dev infection/infection",
+                "  $ vendor/bin/infection path/to/file.php",
+            ],
+        },
+    ),
+    (
+        &["go"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if ", "for ", "switch ", "case ", "select "],
+            display_name: "Go",
+            tool_instructions: &[
+                "  $ go install github.com/zimmsja/go-mutesting@latest",
+                "  $ go-mutesting ./path/to/file.go",
+            ],
+        },
+    ),
+    (
+        &["js", "ts"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if", "for", "while", "switch", "case", "try", "catch"],
+            display_name: "JavaScript/TypeScript",
+            tool_instructions: &[
+                "  $ npm install -g stryker-mutator-core",
+                "  $ npx stryker run path/to/file.js",
+            ],
+        },
+    ),
+    (
+        &["kt", "kts"],
+        MutationLangConfig {
+            operators: &["==", "!=", "&&", "||"],
+            keywords: &["if ", "for ", "while ", "when "],
+            display_name: "Kotlin",
+            tool_instructions: &[
+                "  # Kotlin mutation testing",
+                "  # https://github.com/Fleshgrinder/kotlin-mutation-testing",
+            ],
+        },
+    ),
+];
+
+/// Look up config for a given file extension.
+fn lang_config_for(ext: &str) -> Option<&'static MutationLangConfig> {
+    LANGUAGE_CONFIGS
+        .iter()
+        .find(|(exts, _)| exts.contains(&ext))
+        .map(|(_, config)| config)
+}
+
+/// Count potential mutation points in source code for the given language config.
+fn count_potential_mutations(source: &str, config: &MutationLangConfig) -> usize {
+    let mut count = 0;
+    for op in config.operators {
+        if source.contains(op) {
+            count += source.matches(op).count();
+        }
+    }
+    for kw in config.keywords {
+        if source.contains(kw) {
+            count += source.matches(kw).count();
+        }
+    }
+    count
+}
 
 mod delta;
 
@@ -105,377 +285,55 @@ struct MutationSummary {
 }
 
 fn analyze_non_rust_file(path: &str, _cli: &Cli) -> Result<(), String> {
-    println!("MUTATION ANALYSIS (analysis mode - no test execution)");
-    println!("Note: Full mutation testing with test execution is Rust-only.");
-    println!("For Ruby/Swift/other languages: Use language-specific mutation frameworks.");
-    println!();
-    println!("To run full mutation tests:");
-    println!("  Ruby: mutant-rs, mutant, rspec-mocks");
-    println!("  Swift: SwiftMutator");
-    println!("  Python: cosmic-ray, mutmut");
-    println!();
-
     let source = match std::fs::read_to_string(path) {
         Ok(s) => s,
         Err(e) => return Err(format!("Failed to read {}: {}", path, e)),
     };
 
-    // Determine language
-    let lang = if path.ends_with(".rs") {
-        "Rust"
-    } else if path.ends_with(".rb") {
-        "Ruby"
-    } else if path.ends_with(".swift") {
-        "Swift"
-    } else if path.ends_with(".py") {
-        "Python"
-    } else if path.ends_with(".js") || path.ends_with(".ts") {
-        "JavaScript/TypeScript"
-    } else if path.ends_with(".go") {
-        "Go"
-    } else if path.ends_with(".c") || path.ends_with(".h") {
-        "C"
-    } else if path.ends_with(".cpp") || path.ends_with(".cc") || path.ends_with(".cxx") {
-        "C++"
-    } else if path.ends_with(".cs") {
-        "C#"
-    } else if path.ends_with(".java") {
-        "Java"
-    } else if path.ends_with(".php") {
-        "PHP"
-    } else if path.ends_with(".kt") || path.ends_with(".kts") {
-        "Kotlin"
-    } else {
-        "Unknown"
-    };
-
-    println!("Language: {}", lang);
-    println!("File: {}", path);
-    println!();
-
-    // Count potential mutation points (simplified analysis)
-    let potential_mutations = count_potential_mutations(&source, lang);
-
-    println!("Analysis complete:");
-    println!("  Potential mutation points: {}", potential_mutations);
-    println!(
-        "  Estimated test coverage needed: {}-{}%",
-        potential_mutations * 2,
-        potential_mutations * 3
-    );
-    println!();
-    println!("Use language-specific mutation tools for actual mutation testing:");
-    if lang == "Ruby" {
-        println!("  $ gem install mutant-rs");
-        println!("  $ mutant path/to/file.rb");
-    } else if lang == "Swift" {
-        println!("  # Swift mutation tools require manual setup");
-        println!("  # Consider using SwiftMutator or SwiftCheck");
-    } else if lang == "Python" {
-        println!("  $ pip install cosmic-ray");
-        println!("  $ cosmic-ray run --test-runner pytest path/to/file.py");
-    } else if lang == "C" || lang == "C++" {
-        println!("  # C/C++ mutation testing");
-        println!("  $ cargo install mull");
-        println!("  $ mull-cpp -mutators=all path/to/file.cpp");
-    } else if lang == "C#" {
-        println!("  # C# mutation testing");
-        println!("  $ dotnet tool install --global dotnet-mutator");
-        println!("  $ dotnet-mutator run path/to/File.cs");
-    } else if lang == "Java" {
-        println!("  # Java mutation testing");
-        println!("  $ mvn org.pitest:pitest-maven:calculate-coverage");
-        println!("  $ mvn org.pitest:pitest-maven:mutationCoverage path/to/file.java");
-    } else if lang == "PHP" {
-        println!("  # PHP mutation testing");
-        println!("  $ composer require --dev infection/infection");
-        println!("  $ vendor/bin/infection path/to/file.php");
-    } else if lang == "JavaScript/TypeScript" {
-        println!("  $ npm install -g stryker-mutator-core");
-        println!("  $ npx stryker run path/to/file.js");
-    } else if lang == "Go" {
-        println!("  $ go install github.com/zimmsja/go-mutesting@latest");
-        println!("  $ go-mutesting ./path/to/file.go");
-    }
-
+    let config = lang_config_for(path.rsplit('.').next().unwrap_or(""));
+    print!("{}", format_mutation_analysis(path, &source, config));
     Ok(())
 }
 
-fn count_potential_mutations(source: &str, lang: &str) -> usize {
-    let mut count = 0;
+fn format_mutation_analysis(path: &str, source: &str, config: Option<&MutationLangConfig>) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
 
-    match lang {
-        "Ruby" => {
-            // Count operators that could be mutated
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("&&") {
-                count += source.matches("&&").count();
-            }
-            if source.contains("||") {
-                count += source.matches("||").count();
-            }
-            if source.contains("if ") {
-                count += source.matches("if ").count();
-            }
-            if source.contains("for ") {
-                count += source.matches("for ").count();
-            }
-            if source.contains("while ") {
-                count += source.matches("while ").count();
-            }
-        }
-        "Swift" => {
-            // Count Swift operators
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("&&") {
-                count += source.matches("&&").count();
-            }
-            if source.contains("||") {
-                count += source.matches("||").count();
-            }
-            if source.contains("if ") {
-                count += source.matches("if ").count();
-            }
-            if source.contains("for ") {
-                count += source.matches("for ").count();
-            }
-            if source.contains("while ") {
-                count += source.matches("while ").count();
-            }
-            if source.contains("switch ") {
-                count += source.matches("switch ").count();
-            }
-            if source.contains("guard ") {
-                count += source.matches("guard ").count();
-            }
-        }
-        "Python" => {
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("and ") {
-                count += source.matches("and ").count();
-            }
-            if source.contains("or ") {
-                count += source.matches("or ").count();
-            }
-            if source.contains("if ") {
-                count += source.matches("if ").count();
-            }
-            if source.contains("for ") {
-                count += source.matches("for ").count();
-            }
-            if source.contains("while ") {
-                count += source.matches("while ").count();
-            }
-        }
-        "C" | "C++" => {
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("&&") {
-                count += source.matches("&&").count();
-            }
-            if source.contains("||") {
-                count += source.matches("||").count();
-            }
-            if source.contains("if ") {
-                count += source.matches("if ").count();
-            }
-            if source.contains("for ") {
-                count += source.matches("for ").count();
-            }
-            if source.contains("while ") {
-                count += source.matches("while ").count();
-            }
-            if source.contains("switch ") {
-                count += source.matches("switch ").count();
-            }
-            if source.contains("case ") {
-                count += source.matches("case ").count();
-            }
-        }
-        "C#" => {
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("&&") {
-                count += source.matches("&&").count();
-            }
-            if source.contains("||") {
-                count += source.matches("||").count();
-            }
-            if source.contains("if") {
-                count += source.matches("if").count();
-            }
-            if source.contains("for") {
-                count += source.matches("for").count();
-            }
-            if source.contains("while") {
-                count += source.matches("while").count();
-            }
-            if source.contains("switch") {
-                count += source.matches("switch").count();
-            }
-            if source.contains("try") {
-                count += source.matches("try").count();
-            }
-        }
-        "Java" => {
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("&&") {
-                count += source.matches("&&").count();
-            }
-            if source.contains("||") {
-                count += source.matches("||").count();
-            }
-            if source.contains("if") {
-                count += source.matches("if").count();
-            }
-            if source.contains("for") {
-                count += source.matches("for").count();
-            }
-            if source.contains("while") {
-                count += source.matches("while").count();
-            }
-            if source.contains("switch") {
-                count += source.matches("switch").count();
-            }
-            if source.contains("case") {
-                count += source.matches("case").count();
-            }
-            if source.contains("try") {
-                count += source.matches("try").count();
-            }
-            if source.contains("catch") {
-                count += source.matches("catch").count();
-            }
-        }
-        "PHP" => {
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("&&") {
-                count += source.matches("&&").count();
-            }
-            if source.contains("||") {
-                count += source.matches("||").count();
-            }
-            if source.contains("if ") {
-                count += source.matches("if ").count();
-            }
-            if source.contains("for ") {
-                count += source.matches("for ").count();
-            }
-            if source.contains("while ") {
-                count += source.matches("while ").count();
-            }
-            if source.contains("switch ") {
-                count += source.matches("switch ").count();
-            }
-            if source.contains("case ") {
-                count += source.matches("case ").count();
-            }
-            if source.contains("foreach") {
-                count += source.matches("foreach").count();
-            }
-        }
-        "Go" => {
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("&&") {
-                count += source.matches("&&").count();
-            }
-            if source.contains("||") {
-                count += source.matches("||").count();
-            }
-            if source.contains("if ") {
-                count += source.matches("if ").count();
-            }
-            if source.contains("for ") {
-                count += source.matches("for ").count();
-            }
-            if source.contains("switch ") {
-                count += source.matches("switch ").count();
-            }
-            if source.contains("case ") {
-                count += source.matches("case ").count();
-            }
-            if source.contains("select ") {
-                count += source.matches("select ").count();
-            }
-        }
-        "JavaScript/TypeScript" => {
-            if source.contains("==") {
-                count += source.matches("==").count();
-            }
-            if source.contains("!=") {
-                count += source.matches("!=").count();
-            }
-            if source.contains("&&") {
-                count += source.matches("&&").count();
-            }
-            if source.contains("||") {
-                count += source.matches("||").count();
-            }
-            if source.contains("if") {
-                count += source.matches("if").count();
-            }
-            if source.contains("for") {
-                count += source.matches("for").count();
-            }
-            if source.contains("while") {
-                count += source.matches("while").count();
-            }
-            if source.contains("switch") {
-                count += source.matches("switch").count();
-            }
-            if source.contains("case") {
-                count += source.matches("case").count();
-            }
-            if source.contains("try") {
-                count += source.matches("try").count();
-            }
-            if source.contains("catch") {
-                count += source.matches("catch").count();
-            }
-        }
-        _ => {}
+    let lang_name = config.map(|c| c.display_name).unwrap_or("Unknown");
+
+    writeln!(out, "MUTATION ANALYSIS (analysis mode - no test execution)").unwrap();
+    writeln!(out, "Note: Full mutation testing with test execution is Rust-only.").unwrap();
+    writeln!(out, "For non-Rust languages: Use language-specific mutation frameworks.").unwrap();
+    writeln!(out).unwrap();
+    writeln!(out, "To run full mutation tests:").unwrap();
+    for instr in config.map_or(&[] as &[&str], |c| c.tool_instructions) {
+        writeln!(out, "{}", instr).unwrap();
     }
+    writeln!(out).unwrap();
 
-    count
+    writeln!(out, "Language: {}", lang_name).unwrap();
+    writeln!(out, "File: {}", path).unwrap();
+    writeln!(out).unwrap();
+
+    let potential_mutations = config
+        .map(|c| count_potential_mutations(source, c))
+        .unwrap_or(0);
+
+    writeln!(out, "Analysis complete:").unwrap();
+    writeln!(out, "  Potential mutation points: {}", potential_mutations).unwrap();
+    writeln!(
+        out,
+        "  Estimated test coverage needed: {}-{}%",
+        potential_mutations * 2,
+        potential_mutations * 3
+    ).unwrap();
+
+    out
 }
+
+
+
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
@@ -483,95 +341,80 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn run(cli: Cli) -> Result<(), String> {
-    let start = std::time::Instant::now();
-    let crate_root_raw = Path::new(&cli.path);
-
-    let crate_root_buf = crate_root_raw
+fn resolve_crate_root(path: &str) -> Result<PathBuf, String> {
+    Path::new(path)
         .canonicalize()
-        .map_err(|e| format!("Cannot resolve path {}: {}", cli.path, e))?;
-    let crate_root = crate_root_buf.as_path();
+        .map_err(|e| format!("Cannot resolve path {}: {}", path, e))
+}
 
-    // Check if this is a Rust crate or other language
-    let is_rust_crate = crate_root.join("Cargo.toml").exists();
-    if !is_rust_crate {
-        // For non-Rust files, provide mutation analysis without test execution
-        if crate_root_raw.is_file() {
-            return analyze_non_rust_file(&cli.path, &cli);
-        } else {
-            return Err("Mutation test execution requires Rust crate (Cargo.toml). For other languages, pass individual files for mutation analysis only.".to_string());
-        }
-    }
+fn compute_delta_analysis(
+    crate_root: &Path,
+    base_ref: &str,
+    source_files: &[PathBuf],
+) -> delta::DeltaAnalysis {
+    let loaded_files: Vec<(String, String)> = source_files
+        .iter()
+        .filter_map(|f| {
+            let s = std::fs::read_to_string(f).ok()?;
+            Some((f.to_string_lossy().to_string(), s))
+        })
+        .collect();
 
-    // Determine package name: use CLI flag, or auto-detect from Cargo.toml
-    let package_name = if let Some(ref pkg) = cli.package {
-        pkg.clone()
+    let analysis =
+        delta::run_delta_analysis(crate_root, base_ref, &loaded_files, source_files.len());
+
+    let affected_count: usize = analysis.affected_functions.values().map(|v| v.len()).sum();
+    let changed_fn_count: usize = analysis.changed_functions.values().map(|v| v.len()).sum();
+
+    println!("  Changed files:    {}", analysis.changed_files.len());
+    println!("  Changed functions: {}", changed_fn_count);
+    println!(
+        "  Affected by calls: {}",
+        affected_count.saturating_sub(changed_fn_count)
+    );
+    println!(
+        "  Reduction:        {:.1}% fewer mutants\n",
+        analysis.reduction_pct
+    );
+
+    analysis
+}
+
+fn auto_detect_package_name(crate_root: &Path, cli_package: &Option<String>) -> Result<String, String> {
+    if let Some(ref pkg) = cli_package {
+        Ok(pkg.clone())
     } else {
-        // Try to find package from [package] section, or first member from [workspace]
         find_package_name(crate_root)
             .or_else(|_| find_first_workspace_member(crate_root))
             .map_err(|e| {
                 format!("Could not auto-detect package name. Use -p/--package flag or pass a crate with [package] name. Error: {}", e)
-            })?
-    };
-
-    // Hard ceiling to prevent runaway test sessions
-    let max_mutants = cli.max_mutants.min(50);
-    if cli.max_mutants > 50 {
-        eprintln!("Warning: --max-mutants capped at 50 to prevent system overload.");
-    }
-
-    // Verify tests pass in the ORIGINAL crate first (uses existing build cache)
-    verify_tests_pass(crate_root, &package_name, cli.timeout)?;
-
-    // Build the scratch directory once; all mutations run there
-    let scratch = ScratchCrate::new(crate_root)?;
-    eprintln!("Scratch dir: {}", scratch.root.display());
-
-    let source_files = find_source_files(crate_root, &package_name, &cli.files);
-    if source_files.is_empty() {
-        return Err("No source files found to mutate.".to_string());
-    }
-
-    // Delta mutation testing: compute affected functions from git diff
-    let delta_analysis = if cli.delta {
-        println!(
-            "Computing delta mutation analysis against {}...",
-            cli.base_ref
-        );
-        let loaded_files: Vec<(String, String)> = source_files
-            .iter()
-            .filter_map(|f| {
-                let s = std::fs::read_to_string(f).ok()?;
-                Some((f.to_string_lossy().to_string(), s))
             })
-            .collect();
+    }
+}
 
-        let analysis =
-            delta::run_delta_analysis(crate_root, &cli.base_ref, &loaded_files, source_files.len());
+/// Results collected from running mutations against all source files.
+struct MutationResults {
+    results: Vec<MutantResult>,
+    total: usize,
+    killed: usize,
+    survived: usize,
+    timeouts: usize,
+    errors: usize,
+}
 
-        let affected_count: usize = analysis.affected_functions.values().map(|v| v.len()).sum();
-        let changed_fn_count: usize = analysis.changed_functions.values().map(|v| v.len()).sum();
-
-        println!("  Changed files:    {}", analysis.changed_files.len());
-        println!("  Changed functions: {}", changed_fn_count);
-        println!(
-            "  Affected by calls: {}",
-            affected_count.saturating_sub(changed_fn_count)
-        );
-        println!(
-            "  Reduction:        {:.1}% fewer mutants\n",
-            analysis.reduction_pct
-        );
-
-        Some(analysis)
-    } else {
-        println!("Found {} source files to mutate.\n", source_files.len());
-        None
-    };
-
-    let workspace_root = find_workspace_root(crate_root);
-
+#[allow(clippy::too_many_arguments)]
+fn run_mutation_loop(
+    source_files: &[PathBuf],
+    max_mutants: usize,
+    strategy: &str,
+    delta_analysis: &Option<delta::DeltaAnalysis>,
+    crate_root: &Path,
+    workspace_root: &Path,
+    scratch: &ScratchCrate,
+    package_name: &str,
+    timeout: u64,
+    nextest: bool,
+) -> MutationResults {
     let mut all_results: Vec<MutantResult> = Vec::new();
     let mut total_mutants = 0usize;
     let mut killed = 0usize;
@@ -579,7 +422,7 @@ fn run(cli: Cli) -> Result<(), String> {
     let mut timeouts = 0usize;
     let mut errors = 0usize;
 
-    for file_path in &source_files {
+    for file_path in source_files {
         if total_mutants >= max_mutants {
             break;
         }
@@ -590,12 +433,7 @@ fn run(cli: Cli) -> Result<(), String> {
         };
 
         let remaining = max_mutants.saturating_sub(total_mutants);
-        let mut file_mutants = generate_mutants_for_file(
-            &source,
-            &file_path.to_string_lossy(),
-            &cli.strategy,
-            remaining,
-        );
+        let mut file_mutants = generate_mutants_for_file(&source, &file_path.to_string_lossy(), strategy, remaining);
 
         // In delta mode, filter mutants to only those in affected functions
         if let Some(ref delta) = delta_analysis {
@@ -620,31 +458,21 @@ fn run(cli: Cli) -> Result<(), String> {
         }
 
         let file_count = file_mutants.len();
-        println!(
-            "\nTesting {} mutants from {}...",
-            file_count,
-            file_path.display()
-        );
+        println!("\nTesting {} mutants from {}...", file_count, file_path.display());
 
         for (i, mutant) in file_mutants.iter().enumerate() {
-            print!(
-                "  [{}/{}] mutant {} (line {})... ",
-                i + 1,
-                file_count,
-                mutant.id,
-                mutant.line
-            );
+            print!("  [{}/{}] mutant {} (line {})... ", i + 1, file_count, mutant.id, mutant.line);
             use std::io::Write;
             let _ = std::io::stdout().flush();
 
             let result = test_mutant_isolated(
                 mutant,
                 crate_root,
-                &workspace_root,
-                &scratch,
-                &package_name,
-                cli.timeout,
-                cli.nextest,
+                workspace_root,
+                scratch,
+                package_name,
+                timeout,
+                nextest,
             );
             match result.status.as_str() {
                 "killed" => println!("✓ KILLED"),
@@ -669,6 +497,85 @@ fn run(cli: Cli) -> Result<(), String> {
         drop(file_mutants);
     }
 
+    MutationResults {
+        results: all_results,
+        total: total_mutants,
+        killed,
+        survived,
+        timeouts,
+        errors,
+    }
+}
+
+fn run(cli: Cli) -> Result<(), String> {
+    let start = std::time::Instant::now();
+    let crate_root_raw = Path::new(&cli.path);
+    let crate_root = resolve_crate_root(&cli.path)?;
+
+    // Check if this is a Rust crate or other language
+    let is_rust_crate = crate_root.join("Cargo.toml").exists();
+    if !is_rust_crate {
+        // For non-Rust files, provide mutation analysis without test execution
+        if crate_root_raw.is_file() {
+            return analyze_non_rust_file(&cli.path, &cli);
+        } else {
+            return Err("Mutation test execution requires Rust crate (Cargo.toml). For other languages, pass individual files for mutation analysis only.".to_string());
+        }
+    }
+
+    let package_name = auto_detect_package_name(&crate_root, &cli.package)?;
+
+    // Hard ceiling to prevent runaway test sessions
+    let max_mutants = cli.max_mutants.min(50);
+    if cli.max_mutants > 50 {
+        eprintln!("Warning: --max-mutants capped at 50 to prevent system overload.");
+    }
+
+    // Verify tests pass in the ORIGINAL crate first (uses existing build cache)
+    verify_tests_pass(&crate_root, &package_name, cli.timeout)?;
+
+    // Build the scratch directory once; all mutations run there
+    let scratch = ScratchCrate::new(&crate_root)?;
+    eprintln!("Scratch dir: {}", scratch.root.display());
+
+    let source_files = find_source_files(&crate_root, &package_name, &cli.files);
+    if source_files.is_empty() {
+        return Err("No source files found to mutate.".to_string());
+    }
+
+    // Delta mutation testing: compute affected functions from git diff
+    let delta_analysis = if cli.delta {
+        println!(
+            "Computing delta mutation analysis against {}...",
+            cli.base_ref
+        );
+        Some(compute_delta_analysis(&crate_root, &cli.base_ref, &source_files))
+    } else {
+        println!("Found {} source files to mutate.\n", source_files.len());
+        None
+    };
+
+    let workspace_root = find_workspace_root(&crate_root);
+
+    let res = run_mutation_loop(
+        &source_files,
+        max_mutants,
+        &cli.strategy,
+        &delta_analysis,
+        &crate_root,
+        &workspace_root,
+        &scratch,
+        &package_name,
+        cli.timeout,
+        cli.nextest,
+    );
+    let total_mutants = res.total;
+    let killed = res.killed;
+    let survived = res.survived;
+    let timeouts = res.timeouts;
+    let errors = res.errors;
+    let all_results = res.results;
+
     // scratch dir cleaned up automatically via Drop
     drop(scratch);
 
@@ -677,30 +584,7 @@ fn run(cli: Cli) -> Result<(), String> {
         return Ok(());
     }
 
-    println!("\nTested {} mutants total.", total_mutants);
-
-    match cli.format.as_str() {
-        "json" => {
-            let duration_ms = start.elapsed().as_millis() as u64;
-            let _ = output_json_streaming(
-                &all_results,
-                total_mutants,
-                killed,
-                survived,
-                timeouts,
-                errors,
-                duration_ms,
-            );
-        }
-        _ => output_table_streaming(
-            &all_results,
-            total_mutants,
-            killed,
-            survived,
-            timeouts,
-            errors,
-        ),
-    }
+    output_mutation_results(&all_results, total_mutants, killed, survived, timeouts, errors, &cli.format, start);
 
     Ok(())
 }
@@ -1537,6 +1421,48 @@ fn find_rs_files(dir: &Path, files: &mut Vec<PathBuf>) {
     }
 }
 
+// ── Format helpers (string-returning versions of cogent_common print functions) ──
+
+fn format_table_header(columns: &[Column]) -> String {
+    let mut line = String::new();
+    for col in columns {
+        if col.align_right {
+            use std::fmt::Write;
+            write!(line, "{:>width$} ", col.header, width = col.width).unwrap();
+        } else {
+            use std::fmt::Write;
+            write!(line, "{:<width$} ", col.header, width = col.width).unwrap();
+        }
+    }
+    let header = line.trim_end().to_string();
+    let total_width: usize = columns.iter().map(|c| c.width + 1).sum();
+    format!("{}\n{}", header, separator(total_width))
+}
+
+fn format_table_row(columns: &[Column], values: &[&str]) -> String {
+    let mut line = String::new();
+    for (col, val) in columns.iter().zip(values.iter()) {
+        let truncated = cogent_common::truncate(val, col.width);
+        if col.align_right {
+            use std::fmt::Write;
+            write!(line, "{:>width$} ", truncated, width = col.width).unwrap();
+        } else {
+            use std::fmt::Write;
+            write!(line, "{:<width$} ", truncated, width = col.width).unwrap();
+        }
+    }
+    line.trim_end().to_string()
+}
+
+fn format_summary(items: &[(&str, String)]) -> String {
+    let mut out = String::new();
+    for (key, value) in items {
+        use std::fmt::Write;
+        writeln!(out, "  {:<25} {}", key, value).unwrap();
+    }
+    out
+}
+
 fn output_table_streaming(
     results: &[MutantResult],
     total: usize,
@@ -1545,13 +1471,109 @@ fn output_table_streaming(
     timeouts: usize,
     errors: usize,
 ) {
-    println!();
-    println!("MUTATION TESTING RESULTS");
-    println!("{}", separator(80));
+    println!("{}", format_mutation_table(results, total, killed, survived, timeouts, errors));
+}
+
+fn output_json_streaming(
+    results: &[MutantResult],
+    total: usize,
+    killed: usize,
+    survived: usize,
+    timeouts: usize,
+    errors: usize,
+    duration_ms: u64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let value = build_mutation_report_json(results, total, killed, survived, timeouts, errors, duration_ms);
+    println!("{}", format_mutation_report_json(&value));
+    Ok(())
+}
+
+fn build_mutation_report_json(
+    results: &[MutantResult],
+    total: usize,
+    killed: usize,
+    survived: usize,
+    timeouts: usize,
+    errors: usize,
+    duration_ms: u64,
+) -> serde_json::Value {
+    let score = if total > 0 {
+        killed as f64 / total as f64 * 100.0
+    } else {
+        0.0
+    };
+
+    let report = MutationReport {
+        results: results.to_vec(),
+        summary: MutationSummary {
+            total_mutants: total,
+            killed,
+            survived,
+            timeout: timeouts,
+            error: errors,
+            mutation_score: score,
+        },
+    };
+
+    serde_json::to_value(wrap_tool_response(
+        "mutate",
+        env!("CARGO_PKG_VERSION"),
+        true,
+        duration_ms,
+        serde_json::to_value(&report).unwrap(),
+        Some(serde_json::json!({
+            "total_mutants": total,
+            "killed": killed,
+            "survived": survived,
+            "mutation_score": score,
+            "passed": survived == 0 && errors == 0,
+        })),
+        None,
+    )).unwrap()
+}
+
+fn format_mutation_report_json(report: &serde_json::Value) -> String {
+    serde_json::to_string_pretty(report).unwrap()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn output_mutation_results(
+    results: &[MutantResult],
+    total: usize,
+    killed: usize,
+    survived: usize,
+    timeouts: usize,
+    errors: usize,
+    format: &str,
+    start: std::time::Instant,
+) {
+    match format {
+        "json" => {
+            let duration_ms = start.elapsed().as_millis() as u64;
+            let _ = output_json_streaming(results, total, killed, survived, timeouts, errors, duration_ms);
+        }
+        _ => output_table_streaming(results, total, killed, survived, timeouts, errors),
+    }
+}
+
+fn format_mutation_table(
+    results: &[MutantResult],
+    total: usize,
+    killed: usize,
+    survived: usize,
+    timeouts: usize,
+    errors: usize,
+) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+
+    writeln!(out).unwrap();
+    writeln!(out, "MUTATION TESTING RESULTS").unwrap();
+    writeln!(out, "{}", separator(80)).unwrap();
 
     if survived > 0 {
-        println!();
-        println!("SURVIVED MUTANTS (tests didn't catch these changes):");
+        writeln!(out).unwrap();
+        writeln!(out, "SURVIVED MUTANTS (tests didn't catch these changes):").unwrap();
 
         let columns = [
             Column::left("ID", 6),
@@ -1559,17 +1581,18 @@ fn output_table_streaming(
             Column::right("LINE", 5),
             Column::left("DESCRIPTION", 30),
         ];
-        print_table_header(&columns);
+
+        writeln!(out, "{}", format_table_header(&columns)).unwrap();
 
         for r in results.iter().filter(|r| r.status == "survived") {
             let id_str = format!("[{}]", r.id);
             let line_str = r.line.to_string();
-            print_table_row(&columns, &[&id_str, &r.file, &line_str, &r.description]);
+            writeln!(out, "{}", format_table_row(&columns, &[&id_str, &r.file, &line_str, &r.description])).unwrap();
         }
     }
 
-    println!();
-    println!("{}", separator(80));
+    writeln!(out).unwrap();
+    writeln!(out, "{}", separator(80)).unwrap();
 
     let score = if total > 0 {
         killed as f64 / total as f64 * 100.0
@@ -1594,79 +1617,32 @@ fn output_table_streaming(
         ),
         (
             "Survived:",
-            format!(
-                "{} ({:.0}%)",
-                survived,
-                survived as f64 / total as f64 * 100.0
-            ),
+            format!("{} ({:.0}%)", survived, survived as f64 / total as f64 * 100.0),
         ),
         ("Mutation Score:", format!("{:.0}%", score)),
         ("Verdict:", verdict.to_string()),
     ];
-    cogent_common::print_summary(&summary);
+    write!(out, "{}", format_summary(&summary)).unwrap();
 
     if timeouts > 0 {
-        println!("  Timeout:        {}", timeouts);
+        writeln!(out, "  Timeout:        {}", timeouts).unwrap();
     }
     if errors > 0 {
-        println!("  Error:          {}", errors);
+        writeln!(out, "  Error:          {}", errors).unwrap();
     }
 
     if survived > 0 {
-        println!();
-        println!(
+        writeln!(out).unwrap();
+        writeln!(
+            out,
             "  {} mutant(s) survived. Your tests didn't detect these code changes.",
             survived
-        );
-        println!("    Consider adding tests for the affected functions.");
+        )
+        .unwrap();
+        writeln!(out, "    Consider adding tests for the affected functions.").unwrap();
     }
-}
 
-fn output_json_streaming(
-    results: &[MutantResult],
-    total: usize,
-    killed: usize,
-    survived: usize,
-    timeouts: usize,
-    errors: usize,
-    duration_ms: u64,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let score = if total > 0 {
-        killed as f64 / total as f64 * 100.0
-    } else {
-        0.0
-    };
-
-    let report = MutationReport {
-        results: results.to_vec(),
-        summary: MutationSummary {
-            total_mutants: total,
-            killed,
-            survived,
-            timeout: timeouts,
-            error: errors,
-            mutation_score: score,
-        },
-    };
-
-    let response = wrap_tool_response(
-        "mutate",
-        env!("CARGO_PKG_VERSION"),
-        true,
-        duration_ms,
-        serde_json::to_value(&report).unwrap(),
-        Some(serde_json::json!({
-            "total_mutants": total,
-            "killed": killed,
-            "survived": survived,
-            "mutation_score": score,
-            "passed": survived == 0 && errors == 0,
-        })),
-        None,
-    );
-
-    println!("{}", serde_json::to_string_pretty(&response)?);
-    Ok(())
+    out
 }
 
 #[cfg(test)]
@@ -1702,7 +1678,7 @@ fn test() {
         let mut id = 0;
         let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
 
-        assert!(!mutants.is_empty(), "Should generate arithmetic mutants");
+        assert_eq!(mutants.len(), 2, "Should generate 2 arithmetic mutants");
         assert!(mutants
             .iter()
             .any(|m| m.description.contains("wrapping") || m.description.contains("saturating")));
@@ -1749,5 +1725,816 @@ fn test() {
             category: "standard".to_string(),
         }];
         assert_eq!(mutants[0].category, "standard");
+    }
+
+    // ── Boundary mutation tests ──────────────
+
+    #[test]
+    fn test_generate_boundary_less_than() {
+        let source = "if x < 5 {\n    let y = 1;\n}\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(mutants[0].description, "Replace '<' with '<=' (boundary)");
+        assert_eq!(mutants[0].mutated, "if x <= 5 {", "< should become <=");
+        assert_eq!(mutants[0].category, "boundary");
+        assert_eq!(mutants[0].line, 1);
+    }
+
+    #[test]
+    fn test_generate_boundary_less_than_or_equal() {
+        let source = "if x <= 5 {\n    let y = 1;\n}\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(mutants[0].description, "Replace '<=' with '<' (boundary)");
+        assert_eq!(mutants[0].mutated, "if x < 5 {", "<= should become <");
+    }
+
+    #[test]
+    fn test_generate_boundary_greater_than() {
+        let source = "if x > 5 {\n}\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(mutants[0].description, "Replace '>' with '>=' (boundary)");
+        assert_eq!(mutants[0].mutated, "if x >= 5 {", "> should become >=");
+    }
+
+    #[test]
+    fn test_generate_boundary_greater_than_or_equal() {
+        let source = "if x >= 5 {\n}\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(mutants[0].description, "Replace '>=' with '>' (boundary)");
+        assert_eq!(mutants[0].mutated, "if x > 5 {", ">= should become >");
+    }
+
+    #[test]
+    fn test_generate_boundary_skips_comment_lines() {
+        let source = "// if x < 5 {\nlet y = 1;\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
+        assert!(mutants.is_empty(), "Commented lines should not produce mutants");
+    }
+
+    #[test]
+    fn test_generate_boundary_no_matches() {
+        let source = "let x = 1 + 2;\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
+        assert!(mutants.is_empty(), "No boundary ops should yield no mutants");
+    }
+
+    #[test]
+    fn test_generate_boundary_skips_when_equal_already_present() {
+        // When line has both < and <=, only <= should be mutated (not <)
+        let source = "if x <= 5 && y < 3 {\n}\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
+        // <= becomes < produces 1 mutant; < is skipped because <= is on the same line
+        assert_eq!(mutants.len(), 1, "Should only mutate <=, not <");
+        assert_eq!(mutants[0].description, "Replace '<=' with '<' (boundary)");
+    }
+
+    // ── Extended arithmetic mutation tests ───
+
+    #[test]
+    fn test_generate_arithmetic_wrapping_add_exact() {
+        let source = "let a = 1u32.wrapping_add(2);\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(
+            mutants[0].description,
+            "Replace wrapping_add with + (overflow check)"
+        );
+        // .wrapping_add( is replaced with ., consuming the opening paren
+        assert_eq!(
+            mutants[0].mutated,
+            "let a = 1u32.2);",
+            ".wrapping_add( -> ., consuming the ("
+        );
+        assert_eq!(mutants[0].category, "arithmetic");
+    }
+
+    #[test]
+    fn test_generate_arithmetic_saturating_sub_exact() {
+        let source = "let b = 3u32.saturating_sub(1);\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(
+            mutants[0].description,
+            "Replace saturating_sub with - (overflow check)"
+        );
+        assert_eq!(mutants[0].mutated, "let b = 3u32.1);");
+    }
+
+    #[test]
+    fn test_generate_arithmetic_checked_add_exact() {
+        let source = "let a = 5u32.checked_add(3);\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(
+            mutants[0].description,
+            "Replace checked_add with + (unwrap result)"
+        );
+        assert_eq!(mutants[0].mutated, "let a = 5u32.3);");
+    }
+
+    #[test]
+    fn test_generate_arithmetic_checked_sub_exact() {
+        let source = "let b = 8u32.checked_sub(2);\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(
+            mutants[0].description,
+            "Replace checked_sub with - (unwrap result)"
+        );
+        assert_eq!(mutants[0].mutated, "let b = 8u32.2);");
+    }
+
+    #[test]
+    fn test_generate_arithmetic_checked_mul_exact() {
+        let source = "let c = 5u32.checked_mul(3);\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
+        assert_eq!(mutants.len(), 1);
+        assert_eq!(
+            mutants[0].description,
+            "Replace checked_mul with * (unwrap result)"
+        );
+        assert_eq!(mutants[0].mutated, "let c = 5u32.3);");
+    }
+
+    #[test]
+    fn test_generate_arithmetic_skips_comment_lines() {
+        let source = "// let a = 1u32.wrapping_add(2);\nlet b = 5;\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
+        assert!(mutants.is_empty(), "Commented lines should not produce mutants");
+    }
+
+    #[test]
+    fn test_generate_arithmetic_no_matches() {
+        let source = "let x = 1 + 2;\n";
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
+        assert!(mutants.is_empty(), "No arithmetic ops should yield no mutants");
+    }
+
+    #[test]
+    fn test_generate_arithmetic_all_variants() {
+        let source = r#"
+fn test() {
+    let a = 1u32.wrapping_add(2);
+    let b = 3u32.wrapping_sub(1);
+    let c = 5u32.wrapping_mul(2);
+    let d = 7u32.saturating_add(2);
+    let e = 9u32.saturating_sub(1);
+    let f = 11u32.saturating_mul(2);
+}
+"#;
+        let mut id = 0;
+        let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
+        assert_eq!(mutants.len(), 6, "Should find all 6 arithmetic variants");
+        assert!(mutants.iter().all(|m| m.category == "arithmetic"));
+        // Check that all variants are present
+        let descs: Vec<&str> = mutants.iter().map(|m| m.description.as_str()).collect();
+        assert!(descs.iter().any(|d| d.contains("wrapping_add")));
+        assert!(descs.iter().any(|d| d.contains("wrapping_sub")));
+        assert!(descs.iter().any(|d| d.contains("wrapping_mul")));
+        assert!(descs.iter().any(|d| d.contains("saturating_add")));
+        assert!(descs.iter().any(|d| d.contains("saturating_sub")));
+        assert!(descs.iter().any(|d| d.contains("saturating_mul")));
+    }
+
+    // ── Language config lookup tests ─────────
+
+    #[test]
+    fn test_lang_config_for_ruby() {
+        let cfg = lang_config_for("rb").unwrap();
+        assert_eq!(cfg.display_name, "Ruby");
+        assert!(cfg.operators.contains(&"=="));
+        assert!(cfg.keywords.contains(&"if "));
+    }
+
+    #[test]
+    fn test_lang_config_for_python() {
+        let cfg = lang_config_for("py").unwrap();
+        assert_eq!(cfg.display_name, "Python");
+        assert!(cfg.operators.contains(&"and "));
+        assert!(cfg.operators.contains(&"or "));
+        assert!(!cfg.operators.contains(&"&&"));
+    }
+
+    #[test]
+    fn test_lang_config_for_cpp() {
+        let cfg = lang_config_for("cpp").unwrap();
+        assert_eq!(cfg.display_name, "C++");
+        assert!(cfg.keywords.contains(&"switch "));
+        assert!(cfg.keywords.contains(&"case "));
+    }
+
+    #[test]
+    fn test_lang_config_for_csharp() {
+        let cfg = lang_config_for("cs").unwrap();
+        assert_eq!(cfg.display_name, "C#");
+        // C# uses "if" without trailing space
+        assert!(cfg.keywords.contains(&"if"));
+    }
+
+    #[test]
+    fn test_lang_config_for_java() {
+        let cfg = lang_config_for("java").unwrap();
+        assert_eq!(cfg.display_name, "Java");
+        assert!(cfg.keywords.contains(&"try"));
+        assert!(cfg.keywords.contains(&"catch"));
+    }
+
+    #[test]
+    fn test_lang_config_for_go() {
+        let cfg = lang_config_for("go").unwrap();
+        assert_eq!(cfg.display_name, "Go");
+        assert!(cfg.keywords.contains(&"select "));
+    }
+
+    #[test]
+    fn test_lang_config_for_php() {
+        let cfg = lang_config_for("php").unwrap();
+        assert_eq!(cfg.display_name, "PHP");
+        assert!(cfg.keywords.contains(&"foreach"));
+    }
+
+    #[test]
+    fn test_lang_config_for_swift() {
+        let cfg = lang_config_for("swift").unwrap();
+        assert_eq!(cfg.display_name, "Swift");
+        assert!(cfg.keywords.contains(&"guard "));
+    }
+
+    #[test]
+    fn test_lang_config_for_kotlin() {
+        let cfg = lang_config_for("kt").unwrap();
+        assert_eq!(cfg.display_name, "Kotlin");
+        assert!(cfg.keywords.contains(&"when "));
+    }
+
+    #[test]
+    fn test_lang_config_for_js() {
+        let cfg = lang_config_for("js").unwrap();
+        assert_eq!(cfg.display_name, "JavaScript/TypeScript");
+    }
+
+    #[test]
+    fn test_lang_config_for_ts() {
+        let cfg = lang_config_for("ts").unwrap();
+        assert_eq!(cfg.display_name, "JavaScript/TypeScript");
+    }
+
+    #[test]
+    fn test_lang_config_for_kts() {
+        let cfg = lang_config_for("kts").unwrap();
+        assert_eq!(cfg.display_name, "Kotlin");
+    }
+
+    #[test]
+    fn test_lang_config_for_unknown_ext() {
+        assert!(lang_config_for("xyz").is_none());
+        assert!(lang_config_for("rs").is_none());
+    }
+
+    #[test]
+    fn test_lang_config_for_c_and_h() {
+        let cfg_c = lang_config_for("c").unwrap();
+        let cfg_h = lang_config_for("h").unwrap();
+        assert_eq!(cfg_c.display_name, "C");
+        assert_eq!(cfg_h.display_name, "C");
+    }
+
+    // ── count_potential_mutations tests ──────
+
+    #[test]
+    fn test_count_potential_mutations_empty() {
+        let cfg = lang_config_for("py").unwrap();
+        assert_eq!(count_potential_mutations("", cfg), 0);
+    }
+
+    #[test]
+    fn test_count_potential_mutations_python_and_or() {
+        let cfg = lang_config_for("py").unwrap();
+        // Python uses "and " / "or " instead of "&&" / "||"
+        let src = "if x > 0 and y < 5:\n    pass\nif a or b:\n    pass\n";
+        let count = count_potential_mutations(src, cfg);
+        // operators: == x0, != x0, and x1, or x1 = 2
+        // keywords: if x2, for x0, while x0 = 2
+        // total = 4
+        assert!(count >= 4, "expected >= 4, got {}", count);
+    }
+
+    #[test]
+    fn test_count_potential_mutations_python_no_and_or() {
+        let cfg = lang_config_for("py").unwrap();
+        let src = "x = 1 + 2\n";
+        let count = count_potential_mutations(src, cfg);
+        // No "==", "!=", "and ", "or ", "if ", "for ", "while "
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_count_potential_mutations_go() {
+        let cfg = lang_config_for("go").unwrap();
+        let src = "if x > 0 {\n    switch y {\n    case 1:\n        select {}\n    }\n}\n";
+        let count = count_potential_mutations(src, cfg);
+        // operators: == x0, != x0, && x0, || x0 = 0
+        // keywords: if x1, for x0, switch x1, case x1, select x1 = 4
+        // total = 4
+        assert!(count >= 4, "expected >= 4, got {}", count);
+    }
+
+    #[test]
+    fn test_count_potential_mutations_csharp() {
+        let cfg = lang_config_for("cs").unwrap();
+        let src = "if (x == y) {\n    try { }\n    catch { }\n}\nwhile (true) { }\n";
+        let count = count_potential_mutations(src, cfg);
+        // operators: == x1, != x0, && x0, || x0 = 1
+        // keywords: if x1, for x0, while x1, switch x0, try x1 = 3
+        // total = 4
+        // Note: C# keywords don't have trailing spaces
+        assert!(count >= 4, "expected >= 4, got {}", count);
+    }
+
+    // ── replace_line ────────────────────────
+
+    #[test]
+    fn test_replace_line_basic() {
+        let src = "line1\nline2\nline3\n";
+        let result = replace_line(src, 2, "REPLACED");
+        // .lines() strips trailing newline, .join("\n") doesn't add it back
+        assert_eq!(result, "line1\nREPLACED\nline3");
+    }
+
+    #[test]
+    fn test_replace_line_first_line() {
+        let src = "first\nsecond\n";
+        let result = replace_line(src, 1, "newfirst");
+        assert_eq!(result, "newfirst\nsecond");
+    }
+
+    #[test]
+    fn test_replace_line_last_line() {
+        let src = "a\nb\nc";
+        let result = replace_line(src, 3, "last");
+        assert_eq!(result, "a\nb\nlast");
+    }
+
+    #[test]
+    fn test_replace_line_out_of_bounds() {
+        let src = "hello\n";
+        let result = replace_line(src, 10, "x");
+        assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn test_replace_line_empty_source() {
+        assert_eq!(replace_line("", 1, "x"), "");
+    }
+
+    // ── find_package_name ───────────────────
+
+    #[test]
+    fn test_find_package_name_found() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), r#"
+[package]
+name = "my-crate"
+version = "0.1.0"
+"#).unwrap();
+        let name = find_package_name(dir.path()).unwrap();
+        assert_eq!(name, "my-crate");
+    }
+
+    #[test]
+    fn test_find_package_name_no_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(find_package_name(dir.path()).is_err());
+    }
+
+    #[test]
+    fn test_find_package_name_no_package_section() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), r#"[workspace]
+members = ["crates/*"]
+"#).unwrap();
+        assert!(find_package_name(dir.path()).is_err());
+    }
+
+    // ── find_workspace_root ─────────────────
+
+    #[test]
+    fn test_find_workspace_root_self() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), r#"[workspace]
+"#).unwrap();
+        let root = find_workspace_root(dir.path());
+        assert_eq!(root, dir.path().canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_find_workspace_root_no_workspace_falls_back() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), r#"[package]
+name = "x"
+"#).unwrap();
+        let root = find_workspace_root(dir.path());
+        assert_eq!(root, dir.path().canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_find_workspace_root_no_toml() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = find_workspace_root(dir.path());
+        // Falls back to crate_root itself
+        #[allow(deprecated)]
+        let expected = dir.path().canonicalize().unwrap_or_else(|_| dir.path().to_path_buf());
+        assert_eq!(root, expected);
+    }
+
+    // ── find_first_workspace_member ─────────
+
+    #[test]
+    fn test_find_first_workspace_member_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let crates_dir = dir.path().join("crates");
+        std::fs::create_dir_all(&crates_dir).unwrap();
+        let sub_crate = crates_dir.join("util");
+        std::fs::create_dir_all(&sub_crate).unwrap();
+        std::fs::write(sub_crate.join("Cargo.toml"), r#"[package]
+name = "util-crate"
+"#).unwrap();
+        let name = find_first_workspace_member(dir.path()).unwrap();
+        assert_eq!(name, "util-crate");
+    }
+
+    #[test]
+    fn test_find_first_workspace_member_none() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(find_first_workspace_member(dir.path()).is_err());
+    }
+
+    // ── find_source_files / find_rs_files ───
+
+    #[test]
+    fn test_find_rs_files_in_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("lib.rs"), "fn x() {}").unwrap();
+        std::fs::write(dir.path().join("main.rs"), "fn main() {}").unwrap();
+        std::fs::write(dir.path().join("README.md"), "docs").unwrap();
+        let mut files = Vec::new();
+        find_rs_files(dir.path(), &mut files);
+        assert_eq!(files.len(), 2);
+        assert!(files.iter().any(|p| p.ends_with("lib.rs")));
+        assert!(files.iter().any(|p| p.ends_with("main.rs")));
+    }
+
+    #[test]
+    fn test_find_rs_files_empty_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut files = Vec::new();
+        find_rs_files(dir.path(), &mut files);
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn test_find_rs_files_nested_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("sub")).unwrap();
+        std::fs::write(dir.path().join("sub").join("mod.rs"), "fn f() {}").unwrap();
+        let mut files = Vec::new();
+        find_rs_files(dir.path(), &mut files);
+        assert_eq!(files.len(), 1);
+    }
+
+    #[test]
+    fn test_find_source_files_with_filter() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "").unwrap();
+        std::fs::write(dir.path().join("b.rs"), "").unwrap();
+        // Only select a.rs
+        let filter = Some("a.rs".to_string());
+        let files = find_source_files(dir.path(), "x", &filter);
+        assert_eq!(files.len(), 1);
+        assert!(files[0].ends_with("a.rs"));
+    }
+
+    #[test]
+    fn test_find_source_files_std_src_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("lib.rs"), "").unwrap();
+        let files = find_source_files(dir.path(), "x", &None);
+        assert_eq!(files.len(), 1);
+    }
+
+    // ── home_target_dir ─────────────────────
+
+    #[test]
+    fn test_home_target_dir_from_env() {
+        std::env::set_var("CARGO_TARGET_DIR", "/tmp/my-target");
+        let dir = home_target_dir();
+        assert_eq!(dir, std::path::PathBuf::from("/tmp/my-target"));
+        std::env::remove_var("CARGO_TARGET_DIR");
+    }
+
+    #[test]
+    fn test_home_target_dir_fallback() {
+        std::env::remove_var("CARGO_TARGET_DIR");
+        let dir = home_target_dir();
+        // Falls back to a path (might be from current_exe or "target")
+        assert!(!dir.as_os_str().is_empty());
+    }
+
+    // ── copy_dir_recursive_filtered ─────────
+
+    #[test]
+    fn test_copy_dir_recursive_filtered_basic() {
+        let src = tempfile::tempdir().unwrap();
+        let dst = tempfile::tempdir().unwrap().path().join("copied");
+        std::fs::write(src.path().join("file.txt"), "hello").unwrap();
+        std::fs::create_dir_all(src.path().join("sub")).unwrap();
+        std::fs::write(src.path().join("sub").join("nested.txt"), "nested").unwrap();
+
+        copy_dir_recursive_filtered(src.path(), &dst).unwrap();
+
+        assert!(dst.join("file.txt").exists());
+        assert!(dst.join("sub").join("nested.txt").exists());
+        assert_eq!(std::fs::read_to_string(dst.join("file.txt")).unwrap(), "hello");
+    }
+
+    #[test]
+    fn test_copy_dir_recursive_filtered_skips_target_and_git() {
+        let src = tempfile::tempdir().unwrap();
+        let dst = tempfile::tempdir().unwrap().path().join("copied");
+        std::fs::create_dir_all(src.path().join("target")).unwrap();
+        std::fs::write(src.path().join("target").join("big.bin"), "data").unwrap();
+        std::fs::create_dir_all(src.path().join(".git")).unwrap();
+        std::fs::write(src.path().join(".git").join("HEAD"), "ref").unwrap();
+        std::fs::write(src.path().join("keep.txt"), "keep").unwrap();
+
+        copy_dir_recursive_filtered(src.path(), &dst).unwrap();
+
+        assert!(dst.join("keep.txt").exists());
+        assert!(!dst.join("target").exists());
+        assert!(!dst.join(".git").exists());
+    }
+
+    // ── format_mutation_analysis ────────────
+
+    #[test]
+    fn test_format_mutation_analysis_python() {
+        let source = "if x > 0 and y < 0:\n    pass\n";
+        let config = lang_config_for("py");
+        let out = format_mutation_analysis("/tmp/test.py", source, config);
+
+        assert!(out.contains("MUTATION ANALYSIS"));
+        assert!(out.contains("Language: Python"));
+        assert!(out.contains("File: /tmp/test.py"));
+        assert!(out.contains("Potential mutation points: 2"));
+        assert!(out.contains("Estimated test coverage needed: 4-6%"));
+        assert!(out.contains("pip install cosmic-ray"));
+    }
+
+    #[test]
+    fn test_format_mutation_analysis_unknown_language() {
+        let source = "fn main() {}\n";
+        let out = format_mutation_analysis("/tmp/test.rs", source, None);
+
+        assert!(out.contains("Language: Unknown"));
+        assert!(out.contains("Potential mutation points: 0"));
+        assert!(out.contains("Estimated test coverage needed: 0-0%"));
+    }
+
+    #[test]
+    fn test_format_mutation_analysis_empty_source() {
+        let source = "";
+        let config = lang_config_for("go");
+        let out = format_mutation_analysis("main.go", source, config);
+
+        assert!(out.contains("Language: Go"));
+        assert!(out.contains("Potential mutation points: 0"));
+    }
+
+    #[test]
+    fn test_format_mutation_analysis_no_newline_trailing() {
+        let source = "if (x == y) { }";
+        let config = lang_config_for("cs");
+        let out = format_mutation_analysis("file.cs", source, config);
+
+        assert!(out.contains("Language: C#"));
+        // C# has == as operator, if/for/while/try as keywords
+        assert!(out.contains("Potential mutation points: 2")); // == x1, if x1
+    }
+
+    // ── analyze_non_rust_file (thin wrapper smoke) ──
+
+    #[test]
+    fn test_analyze_non_rust_file_python() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.py");
+        std::fs::write(&path, "if x > 0 and y < 0:\n    pass\n").unwrap();
+        let result = analyze_non_rust_file(path.to_str().unwrap(), &Cli::parse_from(["test", "."]));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_analyze_non_rust_file_nonexistent() {
+        let result = analyze_non_rust_file("/nonexistent/file.py", &Cli::parse_from(["test", "."]));
+        assert!(result.is_err());
+    }
+
+    // ── build_mutation_report_json / format_mutation_report_json ──
+
+    fn make_test_results() -> Vec<MutantResult> {
+        vec![
+            MutantResult {
+                id: 1,
+                file: "src/main.rs".to_string(),
+                line: 42,
+                description: "Replace '==' with '!='".to_string(),
+                status: "killed".to_string(),
+                test_output: "tests passed".to_string(),
+            },
+            MutantResult {
+                id: 2,
+                file: "src/lib.rs".to_string(),
+                line: 10,
+                description: "Replace 'true' with 'false'".to_string(),
+                status: "survived".to_string(),
+                test_output: "all tests passed".to_string(),
+            },
+        ]
+    }
+
+    #[test]
+    fn test_build_mutation_report_json_structure() {
+        let results = make_test_results();
+        let value = build_mutation_report_json(&results, 2, 1, 1, 0, 0, 100);
+
+        assert_eq!(value["tool"], "mutate");
+        assert!(value["success"].as_bool().unwrap());
+        assert_eq!(value["duration_ms"], 100);
+
+        assert_eq!(value["data"]["results"].as_array().unwrap().len(), 2);
+        assert_eq!(value["data"]["results"][0]["id"], 1);
+        assert_eq!(value["data"]["results"][0]["status"], "killed");
+
+        assert_eq!(value["data"]["summary"]["total_mutants"], 2);
+        assert_eq!(value["data"]["summary"]["killed"], 1);
+        assert_eq!(value["data"]["summary"]["survived"], 1);
+        assert!((value["data"]["summary"]["mutation_score"].as_f64().unwrap() - 50.0).abs() < 1e-9);
+
+        assert_eq!(value["summary"]["total_mutants"], 2);
+        assert_eq!(value["summary"]["passed"], false);
+    }
+
+    #[test]
+    fn test_build_mutation_report_json_all_passed() {
+        let results = vec![
+            MutantResult {
+                id: 1, file: "a.rs".to_string(), line: 1,
+                description: "test".to_string(), status: "killed".to_string(),
+                test_output: "".to_string(),
+            },
+        ];
+        let value = build_mutation_report_json(&results, 1, 1, 0, 0, 0, 50);
+        assert_eq!(value["summary"]["passed"], true);
+        assert!((value["data"]["summary"]["mutation_score"].as_f64().unwrap() - 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_format_mutation_report_json_roundtrip() {
+        let results = make_test_results();
+        let value = build_mutation_report_json(&results, 2, 1, 1, 0, 0, 100);
+        let json_str = format_mutation_report_json(&value);
+
+        // Parses back and has expected content
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(parsed["tool"], "mutate");
+        assert!(json_str.contains('\n')); // pretty-printed
+    }
+
+    // ── format_mutation_table ─────────────────
+
+    #[test]
+    fn test_format_mutation_table_with_survived() {
+        let results = make_test_results();
+        let table = format_mutation_table(&results, 2, 1, 1, 0, 0);
+
+        assert!(table.contains("MUTATION TESTING RESULTS"));
+        assert!(table.contains("SURVIVED MUTANTS"));
+        assert!(table.contains("[2]")); // survived mutant id
+        assert!(table.contains("src/lib.rs")); // survived mutant file
+        assert!(table.contains("50%")); // mutation score
+        assert!(table.contains("Weak")); // score 50% = "Weak"
+        assert!(table.contains("1 mutant(s) survived"));
+    }
+
+    #[test]
+    fn test_format_mutation_table_all_killed() {
+        let results = vec![
+            MutantResult {
+                id: 1, file: "a.rs".to_string(), line: 1,
+                description: "test".to_string(), status: "killed".to_string(),
+                test_output: "".to_string(),
+            },
+        ];
+        let table = format_mutation_table(&results, 1, 1, 0, 0, 0);
+
+        assert!(table.contains("MUTATION TESTING RESULTS"));
+        assert!(!table.contains("SURVIVED MUTANTS")); // no survived section
+        assert!(table.contains("100%")); // mutation score
+        assert!(table.contains("Excellent")); // score 100% = "Excellent"
+        assert!(!table.contains("survived. Your tests")); // no survived message
+    }
+
+    #[test]
+    fn test_format_mutation_table_zero_mutants() {
+        let table = format_mutation_table(&[], 0, 0, 0, 0, 0);
+        assert!(table.contains("MUTATION TESTING RESULTS"));
+        assert!(table.contains("0%")); // mutation score
+        assert!(table.contains("Poor")); // score 0% = "Poor"
+    }
+
+    // ── resolve_crate_root ─────────────────
+
+    #[test]
+    fn test_resolve_crate_root_valid_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = resolve_crate_root(dir.path().to_str().unwrap());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), dir.path().canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_crate_root_nonexistent() {
+        let result = resolve_crate_root("/nonexistent/path/that/does/not/exist");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("Cannot resolve path"));
+        assert!(err.contains("/nonexistent/path/that/does/not/exist"));
+    }
+
+    // ── auto_detect_package_name ────────────
+
+    #[test]
+    fn test_auto_detect_package_name_uses_cli_flag() {
+        let dir = tempfile::tempdir().unwrap();
+        // cli_package overrides everything — even with no Cargo.toml
+        let result = auto_detect_package_name(dir.path(), &Some("my-pkg".to_string()));
+        assert_eq!(result.unwrap(), "my-pkg");
+    }
+
+    #[test]
+    fn test_auto_detect_package_name_falls_back_to_find_package_name() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), r#"[package]
+name = "detected-crate"
+"#).unwrap();
+        let result = auto_detect_package_name(dir.path(), &None);
+        assert_eq!(result.unwrap(), "detected-crate");
+    }
+
+    #[test]
+    fn test_auto_detect_package_name_falls_back_to_workspace_member() {
+        let dir = tempfile::tempdir().unwrap();
+        // No [package] in root Cargo.toml, but crates/ has one
+        std::fs::write(dir.path().join("Cargo.toml"), r#"[workspace]
+members = ["crates/*"]
+"#).unwrap();
+        let crates_dir = dir.path().join("crates");
+        std::fs::create_dir_all(&crates_dir).unwrap();
+        let sub_crate = crates_dir.join("util");
+        std::fs::create_dir_all(&sub_crate).unwrap();
+        std::fs::write(sub_crate.join("Cargo.toml"), r#"[package]
+name = "util-crate"
+"#).unwrap();
+        let result = auto_detect_package_name(dir.path(), &None);
+        assert_eq!(result.unwrap(), "util-crate");
+    }
+
+    #[test]
+    fn test_auto_detect_package_name_both_fail() {
+        let dir = tempfile::tempdir().unwrap();
+        // Empty directory — no Cargo.toml at all
+        let result = auto_detect_package_name(dir.path(), &None);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("Could not auto-detect package name"));
+        assert!(err.contains("Use -p/--package flag"));
     }
 }

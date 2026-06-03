@@ -123,21 +123,7 @@ fn find_tool(names: &[&str]) -> Option<String> {
     None
 }
 
-fn run_cargo_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
-    let canonical = std::fs::canonicalize(path)
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| path.to_string());
-
-    // Always invoke as `cargo audit --json` (cargo-audit plugin)
-    let output = Command::new("cargo")
-        .args(["audit", "--json"])
-        .current_dir(&canonical)
-        .output()
-        .map_err(|e| format!("Failed to run cargo audit: {}", e))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Empty output means cargo-audit not installed
+fn parse_cargo_audit_output(stdout: &str) -> Result<Vec<Vulnerability>, String> {
     if stdout.trim().is_empty() {
         return Err(
             "cargo audit produced no output. Install with: cargo install cargo-audit".to_string(),
@@ -145,7 +131,7 @@ fn run_cargo_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
     }
 
     // cargo audit JSON: { "vulnerabilities": { "list": [...] } }
-    let v: serde_json::Value = serde_json::from_str(&stdout)
+    let v: serde_json::Value = serde_json::from_str(stdout)
         .map_err(|e| format!("Failed to parse cargo audit output: {}", e))?;
 
     let list = v
@@ -180,7 +166,6 @@ fn run_cargo_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
             .and_then(|c| c.as_str())
             .map(|s| {
                 // CVSS v3 base score is in the string "CVSS:3.1/AV:N/... /E:..."
-                // Use presence of "CRITICAL" or "HIGH" words or score-based heuristic
                 if s.contains("9.") || s.contains("10.") {
                     "critical"
                 } else if s.contains("7.") || s.contains("8.") {
@@ -207,21 +192,23 @@ fn run_cargo_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
     Ok(vulns)
 }
 
-fn run_npm_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
-    let tool = find_tool(&["npm", "yarn"])
-        .ok_or_else(|| "npm/yarn not found. Install Node.js to enable npm audit.".to_string())?;
+fn run_cargo_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
     let canonical = std::fs::canonicalize(path)
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| path.to_string());
 
-    let output = Command::new(&tool)
+    let output = Command::new("cargo")
         .args(["audit", "--json"])
         .current_dir(&canonical)
         .output()
-        .map_err(|e| format!("Failed to run {} audit: {}", tool, e))?;
+        .map_err(|e| format!("Failed to run cargo audit: {}", e))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let v: serde_json::Value = serde_json::from_str(&stdout)
+    parse_cargo_audit_output(&stdout)
+}
+
+fn parse_npm_audit_output(stdout: &str) -> Result<Vec<Vulnerability>, String> {
+    let v: serde_json::Value = serde_json::from_str(stdout)
         .map_err(|e| format!("Failed to parse npm audit output: {}", e))?;
 
     let mut vulns = Vec::new();
@@ -270,21 +257,25 @@ fn run_npm_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
     Ok(vulns)
 }
 
-fn run_safety(path: &str) -> Result<Vec<Vulnerability>, String> {
-    let _ = find_tool(&["safety"])
-        .ok_or_else(|| "safety not found. Install with: pip install safety".to_string())?;
+fn run_npm_audit(path: &str) -> Result<Vec<Vulnerability>, String> {
+    let tool = find_tool(&["npm", "yarn"])
+        .ok_or_else(|| "npm/yarn not found. Install Node.js to enable npm audit.".to_string())?;
     let canonical = std::fs::canonicalize(path)
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|_| path.to_string());
 
-    let output = Command::new("safety")
-        .args(["check", "--json"])
+    let output = Command::new(&tool)
+        .args(["audit", "--json"])
         .current_dir(&canonical)
         .output()
-        .map_err(|e| format!("Failed to run safety: {}", e))?;
+        .map_err(|e| format!("Failed to run {} audit: {}", tool, e))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let v: serde_json::Value = serde_json::from_str(&stdout)
+    parse_npm_audit_output(&stdout)
+}
+
+fn parse_safety_output(stdout: &str) -> Result<Vec<Vulnerability>, String> {
+    let v: serde_json::Value = serde_json::from_str(stdout)
         .map_err(|e| format!("Failed to parse safety output: {}", e))?;
 
     let mut vulns = Vec::new();
@@ -309,6 +300,28 @@ fn run_safety(path: &str) -> Result<Vec<Vulnerability>, String> {
         }
     }
     Ok(vulns)
+}
+
+fn run_safety(path: &str) -> Result<Vec<Vulnerability>, String> {
+    let _ = find_tool(&["safety"])
+        .ok_or_else(|| "safety not found. Install with: pip install safety".to_string())?;
+    let canonical = std::fs::canonicalize(path)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| path.to_string());
+
+    let output = Command::new("safety")
+        .args(["check", "--json"])
+        .current_dir(&canonical)
+        .output()
+        .map_err(|e| format!("Failed to run safety: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    parse_safety_output(&stdout)
+}
+
+/// Returns `true` if the vulnerability counts exceed the configured thresholds.
+fn check_thresholds(critical: usize, high: usize, max_critical: usize, max_high: usize) -> bool {
+    critical > max_critical || high > max_high
 }
 
 fn run(cli: Cli) {
@@ -423,7 +436,7 @@ fn run(cli: Cli) {
                     );
                 }
             }
-            let status = if critical > cli.max_critical || high > cli.max_high {
+            let status = if check_thresholds(critical, high, cli.max_critical, cli.max_high) {
                 "FAIL"
             } else {
                 "PASS"
@@ -436,7 +449,7 @@ fn run(cli: Cli) {
     }
 
     // Exit 1 if thresholds exceeded
-    if critical > cli.max_critical || high > cli.max_high {
+    if check_thresholds(critical, high, cli.max_critical, cli.max_high) {
         std::process::exit(1);
     }
 }
@@ -449,29 +462,354 @@ fn main() {
 mod tests {
     use super::*;
 
+    // ── detect_ecosystem ──
+
     #[test]
-    fn test_detect_ecosystem_rust() {
-        // Use the Cogent workspace root — has Cargo.toml
-        let eco = detect_ecosystem(".", None);
+    fn test_detect_ecosystem_forced_rust() {
+        let eco = detect_ecosystem("/tmp", Some("rust"));
         assert_eq!(eco, Ecosystem::Rust);
     }
 
     #[test]
-    fn test_detect_ecosystem_forced() {
-        let eco = detect_ecosystem(".", Some("python"));
+    fn test_detect_ecosystem_forced_node_aliases() {
+        assert_eq!(detect_ecosystem(".", Some("node")), Ecosystem::Node);
+        assert_eq!(detect_ecosystem(".", Some("nodejs")), Ecosystem::Node);
+        assert_eq!(detect_ecosystem(".", Some("js")), Ecosystem::Node);
+        assert_eq!(detect_ecosystem(".", Some("npm")), Ecosystem::Node);
+    }
+
+    #[test]
+    fn test_detect_ecosystem_forced_python_aliases() {
+        assert_eq!(detect_ecosystem(".", Some("python")), Ecosystem::Python);
+        assert_eq!(detect_ecosystem(".", Some("py")), Ecosystem::Python);
+    }
+
+    #[test]
+    fn test_detect_ecosystem_forced_unknown() {
+        let eco = detect_ecosystem(".", Some("cobol"));
+        assert_eq!(eco, Ecosystem::Unknown);
+    }
+
+    #[test]
+    fn test_detect_ecosystem_auto_rust() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "").unwrap();
+        let eco = detect_ecosystem(dir.path().to_str().unwrap(), None);
+        assert_eq!(eco, Ecosystem::Rust);
+    }
+
+    #[test]
+    fn test_detect_ecosystem_auto_node() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("package.json"), "{}").unwrap();
+        let eco = detect_ecosystem(dir.path().to_str().unwrap(), None);
+        assert_eq!(eco, Ecosystem::Node);
+    }
+
+    #[test]
+    fn test_detect_ecosystem_auto_python_requirements() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("requirements.txt"), "").unwrap();
+        let eco = detect_ecosystem(dir.path().to_str().unwrap(), None);
         assert_eq!(eco, Ecosystem::Python);
     }
 
     #[test]
-    fn test_detect_ecosystem_unknown() {
-        let eco = detect_ecosystem("/tmp", None);
+    fn test_detect_ecosystem_auto_python_pipfile() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Pipfile"), "").unwrap();
+        let eco = detect_ecosystem(dir.path().to_str().unwrap(), None);
+        assert_eq!(eco, Ecosystem::Python);
+    }
+
+    #[test]
+    fn test_detect_ecosystem_auto_python_pyproject() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("pyproject.toml"), "").unwrap();
+        let eco = detect_ecosystem(dir.path().to_str().unwrap(), None);
+        assert_eq!(eco, Ecosystem::Python);
+    }
+
+    #[test]
+    fn test_detect_ecosystem_auto_unknown() {
+        let dir = tempfile::tempdir().unwrap();
+        let eco = detect_ecosystem(dir.path().to_str().unwrap(), None);
         assert_eq!(eco, Ecosystem::Unknown);
     }
+
+    #[test]
+    fn test_detect_ecosystem_rust_takes_priority() {
+        // If both Cargo.toml and package.json exist, Rust should win
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("Cargo.toml"), "").unwrap();
+        std::fs::write(dir.path().join("package.json"), "{}").unwrap();
+        let eco = detect_ecosystem(dir.path().to_str().unwrap(), None);
+        assert_eq!(eco, Ecosystem::Rust);
+    }
+
+    // ── Ecosystem display ──
 
     #[test]
     fn test_ecosystem_display() {
         assert_eq!(Ecosystem::Rust.to_string(), "rust");
         assert_eq!(Ecosystem::Node.to_string(), "node");
         assert_eq!(Ecosystem::Python.to_string(), "python");
+        assert_eq!(Ecosystem::Unknown.to_string(), "unknown");
+    }
+
+    // ── parse_cargo_audit_output ──
+
+    #[test]
+    fn test_parse_cargo_audit_empty() {
+        let result = parse_cargo_audit_output("").unwrap_err();
+        assert!(result.contains("no output"));
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_whitespace_only() {
+        let result = parse_cargo_audit_output("   \n\n").unwrap_err();
+        assert!(result.contains("no output"));
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_no_vulns() {
+        let json = r#"{"vulnerabilities": {"list": []}}"#;
+        let vulns = parse_cargo_audit_output(json).unwrap();
+        assert!(vulns.is_empty());
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_single_vuln() {
+        let json = r#"{
+            "vulnerabilities": {
+                "list": [{
+                    "package": {"name": "openssl", "version": "0.10.0"},
+                    "advisory": {
+                        "id": "RUSTSEC-2024-0001",
+                        "title": "OpenSSL memory corruption",
+                        "url": "https://rustsec.org/advisories/RUSTSEC-2024-0001",
+                        "cvss": "7.5"
+                    }
+                }]
+            }
+        }"#;
+        let vulns = parse_cargo_audit_output(json).unwrap();
+        assert_eq!(vulns.len(), 1);
+        assert_eq!(vulns[0].package, "openssl");
+        assert_eq!(vulns[0].version, "0.10.0");
+        assert_eq!(vulns[0].advisory_id, "RUSTSEC-2024-0001");
+        assert_eq!(vulns[0].title, "OpenSSL memory corruption");
+        assert_eq!(vulns[0].severity, "high"); // "7.5" contains "7."
+        assert!(vulns[0].url.is_some());
+        assert_eq!(vulns[0].ecosystem, "rust");
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_cvss_severity_critical() {
+        // cvss "9.8" contains "9." -> critical
+        let json = r#"{"vulnerabilities":{"list":[{"package":{"name":"libx","version":"1.0"},"advisory":{"id":"RUSTSEC-0001","title":"Critical bug","cvss":"9.8"}}]}}"#;
+        let vulns = parse_cargo_audit_output(json).unwrap();
+        assert_eq!(vulns[0].severity, "critical");
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_cvss_severity_medium() {
+        // Score in 5.x range
+        let json = r#"{"vulnerabilities":{"list":[{"package":{"name":"libx","version":"1.0"},"advisory":{"id":"RUSTSEC-0002","title":"Medium issue","cvss":"5.4"}}]}}"#;
+        let vulns = parse_cargo_audit_output(json).unwrap();
+        assert_eq!(vulns[0].severity, "medium");
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_cvss_severity_low() {
+        // Score in 3.x range
+        let json = r#"{"vulnerabilities":{"list":[{"package":{"name":"libx","version":"1.0"},"advisory":{"id":"RUSTSEC-0003","title":"Low issue","cvss":"3.2"}}]}}"#;
+        let vulns = parse_cargo_audit_output(json).unwrap();
+        assert_eq!(vulns[0].severity, "low");
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_cvss_missing_severity() {
+        let json = r#"{"vulnerabilities":{"list":[{"package":{"name":"libx","version":"1.0"},"advisory":{"id":"RUSTSEC-0004","title":"No CVSS"}}]}}"#;
+        let vulns = parse_cargo_audit_output(json).unwrap();
+        assert_eq!(vulns[0].severity, "unknown");
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_bad_json() {
+        let result = parse_cargo_audit_output("not valid json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_multiple_vulns() {
+        let json = r#"{
+            "vulnerabilities": {
+                "list": [
+                    {"package":{"name":"a","version":"1"},"advisory":{"id":"A-001","title":"Issue A"}},
+                    {"package":{"name":"b","version":"2"},"advisory":{"id":"B-002","title":"Issue B"}}
+                ]
+            }
+        }"#;
+        let vulns = parse_cargo_audit_output(json).unwrap();
+        assert_eq!(vulns.len(), 2);
+        assert_eq!(vulns[0].advisory_id, "A-001");
+        assert_eq!(vulns[1].advisory_id, "B-002");
+    }
+
+    #[test]
+    fn test_parse_cargo_audit_missing_vulnerabilities_key() {
+        let json = r#"{}"#;
+        let vulns = parse_cargo_audit_output(json).unwrap();
+        assert!(vulns.is_empty());
+    }
+
+    // ── parse_npm_audit_output ──
+
+    #[test]
+    fn test_parse_npm_audit_empty() {
+        let json = r#"{}"#;
+        let vulns = parse_npm_audit_output(json).unwrap();
+        assert!(vulns.is_empty());
+    }
+
+    #[test]
+    fn test_parse_npm_audit_with_vuln() {
+        let json = r#"{
+            "vulnerabilities": {
+                "lodash": {
+                    "severity": "high",
+                    "range": ">=4.0.0",
+                    "via": [{
+                        "source": 12345,
+                        "title": "Prototype Pollution in lodash",
+                        "url": "https://npmjs.com/advisories/12345"
+                    }]
+                }
+            }
+        }"#;
+        let vulns = parse_npm_audit_output(json).unwrap();
+        assert_eq!(vulns.len(), 1);
+        assert_eq!(vulns[0].package, "lodash");
+        assert_eq!(vulns[0].version, ">=4.0.0");
+        assert_eq!(vulns[0].advisory_id, "12345");
+        assert_eq!(vulns[0].severity, "high");
+        assert_eq!(vulns[0].title, "Prototype Pollution in lodash");
+        assert_eq!(vulns[0].ecosystem, "node");
+        assert!(vulns[0].url.is_some());
+    }
+
+    #[test]
+    fn test_parse_npm_audit_skips_string_via() {
+        // `via` can contain advisory IDs as strings (not objects)
+        let json = r#"{
+            "vulnerabilities": {
+                "express": {
+                    "severity": "high",
+                    "range": ">=4.0.0",
+                    "via": ["GHSA-xxx", {"source": 42, "title": "Specific advisory", "url": "https://example.com"}]
+                }
+            }
+        }"#;
+        let vulns = parse_npm_audit_output(json).unwrap();
+        assert_eq!(vulns.len(), 1); // only the object entry
+        assert_eq!(vulns[0].advisory_id, "42");
+    }
+
+    #[test]
+    fn test_parse_npm_audit_bad_json() {
+        let result = parse_npm_audit_output("not json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_npm_audit_multiple_packages() {
+        let json = r#"{
+            "vulnerabilities": {
+                "a": {"severity":"low","range":"1.0","via":[{"source":1,"title":"A"}]},
+                "b": {"severity":"critical","range":"2.0","via":[{"source":2,"title":"B"}]}
+            }
+        }"#;
+        let vulns = parse_npm_audit_output(json).unwrap();
+        assert_eq!(vulns.len(), 2);
+    }
+
+    // ── parse_safety_output ──
+
+    #[test]
+    fn test_parse_safety_empty() {
+        let json = r#"[]"#;
+        let vulns = parse_safety_output(json).unwrap();
+        assert!(vulns.is_empty());
+    }
+
+    #[test]
+    fn test_parse_safety_with_vuln() {
+        let json = r#"[["requests", ">=2.0.0", "2.25.1", "Requests uses urllib3 which has a CRITICAL vulnerability", "48232"]]"#;
+        let vulns = parse_safety_output(json).unwrap();
+        assert_eq!(vulns.len(), 1);
+        assert_eq!(vulns[0].package, "requests");
+        assert_eq!(vulns[0].version, "2.25.1");
+        assert_eq!(vulns[0].advisory_id, "48232");
+        assert_eq!(vulns[0].severity, "unknown");
+        assert!(vulns[0].title.contains("CRITICAL"));
+        assert_eq!(vulns[0].ecosystem, "python");
+    }
+
+    #[test]
+    fn test_parse_safety_multiple_vulns() {
+        let json = r#"[["pkg1", ">=1", "1.0", "Issue one", "V-001"], ["pkg2", ">=2", "2.0", "Issue two", "V-002"]]"#;
+        let vulns = parse_safety_output(json).unwrap();
+        assert_eq!(vulns.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_safety_bad_json() {
+        let result = parse_safety_output("{invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_safety_not_an_array() {
+        let json = r#"{"error": "safety check failed"}"#;
+        let vulns = parse_safety_output(json).unwrap();
+        assert!(vulns.is_empty());
+    }
+
+    // ── Severity counting ──
+
+    #[test]
+    fn test_count_severities_all_returns_zero() {
+        let vulns: Vec<Vulnerability> = vec![];
+        assert_eq!(vulns.iter().filter(|v| v.severity == "critical").count(), 0);
+        assert_eq!(vulns.iter().filter(|v| v.severity == "high").count(), 0);
+    }
+
+    // ── check_thresholds ──
+
+    #[test]
+    fn test_check_thresholds_pass_below() {
+        assert!(!check_thresholds(0, 0, 5, 5));
+    }
+
+    #[test]
+    fn test_check_thresholds_pass_equal() {
+        assert!(!check_thresholds(5, 3, 5, 3));
+    }
+
+    #[test]
+    fn test_check_thresholds_fail_critical_exceeds() {
+        assert!(check_thresholds(6, 3, 5, 3));
+    }
+
+    #[test]
+    fn test_check_thresholds_fail_high_exceeds() {
+        assert!(check_thresholds(5, 4, 5, 3));
+    }
+
+    #[test]
+    fn test_check_thresholds_fail_both_exceed() {
+        assert!(check_thresholds(6, 4, 5, 3));
     }
 }
+

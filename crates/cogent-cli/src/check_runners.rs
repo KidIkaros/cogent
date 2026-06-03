@@ -6,7 +6,7 @@ use crate::progress::{box_row, format_ms, Bar};
 use crate::types::{extract_findings_from_details, CheckResult, Finding};
 use ast_parse_ts::{parse_complexity_file, parse_doc_coverage_file, Language};
 use cogent_common::memory::MemoryMonitor;
-use cogent_common::{crap_score, find_source_files, parse_lcov, CoverageRecord, ToolResult};
+use cogent_common::{crap_score, find_source_files, function_coverage, parse_lcov, CoverageRecord, ToolResult};
 use colored::Colorize;
 use std::time::Instant;
 
@@ -42,13 +42,6 @@ where
         }
     }
     (total, results)
-}
-
-pub(crate) fn function_coverage(coverage_records: &[CoverageRecord], func_name: &str) -> f64 {
-    coverage_records
-        .iter()
-        .find(|r| r.function == func_name)
-        .map_or(0.0, |r| if r.hits > 0 { 1.0 } else { 0.0 })
 }
 
 pub(crate) fn check_crap(
@@ -543,545 +536,208 @@ pub(crate) fn check_complexity(
     }
 }
 
+// HELPERS
+// ═══════════════════════════════════════════
+
+/// Build standard args for a delegated tool check.
+fn build_check_args(path: &str, recursive: bool, extra: &[&str]) -> Vec<String> {
+    let mut args = vec![path.to_string(), "--format".to_string(), "json".to_string()];
+    if recursive {
+        args.push("--recursive".to_string());
+    }
+    args.extend(extra.iter().map(|s| s.to_string()));
+    args
+}
+
+/// Convert standard Vec<String> to Vec<&str> for run_tool calls.
+fn args_ref(args: &[String]) -> Vec<&str> {
+    args.iter().map(|s| s.as_str()).collect()
+}
+
+/// Extract an f64 value from nested JSON, returning 0.0 on missing path.
+fn extract_f64(data: &serde_json::Value, path: &[&str]) -> f64 {
+    let mut current = data;
+    for key in path {
+        match current.get(*key) {
+            Some(v) => current = v,
+            None => return 0.0,
+        }
+    }
+    current.as_f64().unwrap_or(0.0)
+}
+
+/// Construct a standard CheckResult for delegated tool checks.
+#[allow(clippy::too_many_arguments)]
+fn make_check_result(
+    name: &str,
+    passed: bool,
+    value: f64,
+    threshold: f64,
+    data: serde_json::Value,
+    severity: &str,
+    rule_id: &str,
+    message: String,
+    help: Option<&str>,
+) -> CheckResult {
+    let findings = extract_findings_from_details(&data, rule_id, severity);
+    CheckResult {
+        name: name.to_string(),
+        passed,
+        score: Some(value),
+        threshold: Some(threshold),
+        message,
+        details: data,
+        severity: Some(severity.to_string()),
+        help: help.map(|s| s.to_string()),
+        findings,
+        rule_id: Some(rule_id.to_string()),
+    }
+}
+
 // NEW 6 CHECK WRAPPERS & SETUP
 // ═══════════════════════════════════════════
 
 pub(crate) fn check_taint(path: &str, recursive: bool, max_taint: usize) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("taint-scan", "taint", &args, Instant::now());
-    let violations = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("violations_count"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = violations <= max_taint;
-    CheckResult {
-        name: "taint".into(),
-        passed,
-        score: Some(violations as f64),
-        threshold: Some(max_taint as f64),
-        message: if passed {
-            format!("{} taint violations <= {}", violations, max_taint)
-        } else {
-            format!("{} taint violations > allowed {}", violations, max_taint)
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
-        help: None,
-        findings: extract_findings_from_details(&res.data, "taint_limit", "high"),
-        rule_id: Some("taint_limit".into()),
-    }
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("taint-scan", "taint", &args_ref(&args), Instant::now());
+    let value = extract_f64(&res.data, &["summary", "violations_count"]);
+    let threshold = max_taint as f64;
+    let passed = value <= threshold;
+    let msg = if passed { format!("{} taint violations <= {}", value, max_taint) } else { format!("{} taint violations > allowed {}", value, max_taint) };
+    make_check_result("taint", passed, value, threshold, res.data, if passed { "info" } else { "high" }, "taint_limit", msg, None)
 }
 
 pub(crate) fn check_dupfind(path: &str, recursive: bool, max_duplication: f64) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("duplication", "dupfind", &args, Instant::now());
-    let groups = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total_groups"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
-    let passed = groups <= max_duplication;
-    CheckResult {
-        name: "duplication".into(),
-        passed,
-        score: Some(groups),
-        threshold: Some(max_duplication),
-        message: if passed {
-            format!("{} duplicated groups <= {}", groups, max_duplication)
-        } else {
-            format!("{} duplicated groups > allowed {}", groups, max_duplication)
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("medium".into())
-        },
-        help: None,
-        findings: extract_findings_from_details(&res.data, "duplication_limit", "medium"),
-        rule_id: Some("duplication_limit".into()),
-    }
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("duplication", "dupfind", &args_ref(&args), Instant::now());
+    let value = extract_f64(&res.data, &["summary", "total_groups"]);
+    let passed = value <= max_duplication;
+    let msg = if passed { format!("{} duplicated groups <= {}", value, max_duplication) } else { format!("{} duplicated groups > allowed {}", value, max_duplication) };
+    make_check_result("duplication", passed, value, max_duplication, res.data, if passed { "info" } else { "medium" }, "duplication_limit", msg, None)
 }
 
 pub(crate) fn check_riskmap(path: &str, _recursive: bool, max_risk: f64) -> CheckResult {
-    let args = vec![path, "--format", "json"];
-    // riskmap doesn't use recursive flag, it always scans dir
-    let res = run_tool("risk-map", "riskmap", &args, Instant::now());
-    let max_found_risk = res
-        .data
-        .get("files")
-        .and_then(|a| a.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|f| f.get("risk_score").and_then(|v| v.as_f64()))
-                .fold(0.0f64, f64::max)
-        })
-        .unwrap_or(0.0);
-    let passed = max_found_risk <= max_risk;
-    CheckResult {
-        name: "riskmap".into(),
-        passed,
-        score: Some(max_found_risk),
-        threshold: Some(max_risk),
-        message: if passed {
-            format!("Max risk score {:.1} <= {:.1}", max_found_risk, max_risk)
-        } else {
-            format!(
-                "Max risk score {:.1} > allowed {:.1}",
-                max_found_risk, max_risk
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
-        help: None,
-        findings: extract_findings_from_details(&res.data, "riskmap_limit", "high"),
-        rule_id: Some("riskmap_limit".into()),
-    }
+    let args = build_check_args(path, false, &[]);
+    let res = run_tool("risk-map", "riskmap", &args_ref(&args), Instant::now());
+    let max_found = res.data.get("files").and_then(|a| a.as_array()).map(|arr| arr.iter().filter_map(|f| f.get("risk_score").and_then(|v| v.as_f64())).fold(0.0f64, f64::max)).unwrap_or(0.0);
+    let passed = max_found <= max_risk;
+    let msg = if passed { format!("Max risk score {:.1} <= {:.1}", max_found, max_risk) } else { format!("Max risk score {:.1} > allowed {:.1}", max_found, max_risk) };
+    make_check_result("riskmap", passed, max_found, max_risk, res.data, if passed { "info" } else { "high" }, "riskmap_limit", msg, None)
 }
 
 pub(crate) fn check_coupling(path: &str, max_coupling: usize) -> CheckResult {
-    let args = vec![path, "--format", "json"];
-    let res = run_tool("coupling", "coupling", &args, Instant::now());
-    let avg_fan_out = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("avg_fan_out"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
-    let passed = avg_fan_out <= max_coupling as f64;
-    CheckResult {
-        name: "coupling".into(),
-        passed,
-        score: Some(avg_fan_out),
-        threshold: Some(max_coupling as f64),
-        message: if passed {
-            format!("Avg fan-out {:.1} <= {}", avg_fan_out, max_coupling)
-        } else {
-            format!("Avg fan-out {:.1} > allowed {}", avg_fan_out, max_coupling)
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("medium".into())
-        },
-        help: None,
-        findings: extract_findings_from_details(&res.data, "coupling_limit", "medium"),
-        rule_id: Some("coupling_limit".into()),
-    }
+    let args = build_check_args(path, false, &[]);
+    let res = run_tool("coupling", "coupling", &args_ref(&args), Instant::now());
+    let value = extract_f64(&res.data, &["summary", "avg_fan_out"]);
+    let threshold = max_coupling as f64;
+    let passed = value <= threshold;
+    let msg = if passed { format!("Avg fan-out {:.1} <= {}", value, max_coupling) } else { format!("Avg fan-out {:.1} > allowed {}", value, max_coupling) };
+    make_check_result("coupling", passed, value, threshold, res.data, if passed { "info" } else { "medium" }, "coupling_limit", msg, None)
 }
 
 pub(crate) fn check_propcov(path: &str, recursive: bool, min_propcov: f64) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("prop-cov", "propcov", &args, Instant::now());
-    let coverage = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("coverage_percentage"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
-    let passed = coverage >= min_propcov;
-    CheckResult {
-        name: "propcov".into(),
-        passed,
-        score: Some(coverage),
-        threshold: Some(min_propcov),
-        message: if passed {
-            format!("PropCov {:.1}% >= {:.1}%", coverage, min_propcov)
-        } else {
-            format!("PropCov {:.1}% < required {:.1}%", coverage, min_propcov)
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
-        help: None,
-        findings: extract_findings_from_details(&res.data, "propcov_limit", "high"),
-        rule_id: Some("propcov_limit".into()),
-    }
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("prop-cov", "propcov", &args_ref(&args), Instant::now());
+    let value = extract_f64(&res.data, &["summary", "coverage_percentage"]);
+    let passed = value >= min_propcov;
+    let msg = if passed { format!("PropCov {:.1}% >= {:.1}%", value, min_propcov) } else { format!("PropCov {:.1}% < required {:.1}%", value, min_propcov) };
+    make_check_result("propcov", passed, value, min_propcov, res.data, if passed { "info" } else { "high" }, "propcov_limit", msg, None)
 }
 
 pub(crate) fn check_fuzz(path: &str, recursive: bool, max_fuzz_risk: usize) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("fuzz-surface", "fuzz", &args, Instant::now());
-    let fuzzable = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("fuzzable_functions"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = fuzzable <= max_fuzz_risk;
-    CheckResult {
-        name: "fuzz".into(),
-        passed,
-        score: Some(fuzzable as f64),
-        threshold: Some(max_fuzz_risk as f64),
-        message: if passed {
-            format!("{} fuzzable endpoints <= {}", fuzzable, max_fuzz_risk)
-        } else {
-            format!(
-                "{} fuzzable endpoints > allowed {}",
-                fuzzable, max_fuzz_risk
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
-        help: None,
-        findings: extract_findings_from_details(&res.data, "fuzz_limit", "high"),
-        rule_id: Some("fuzz_limit".into()),
-    }
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("fuzz-surface", "fuzz", &args_ref(&args), Instant::now());
+    let value = extract_f64(&res.data, &["summary", "fuzzable_functions"]);
+    let threshold = max_fuzz_risk as f64;
+    let passed = value <= threshold;
+    let msg = if passed { format!("{} fuzzable endpoints <= {}", value, max_fuzz_risk) } else { format!("{} fuzzable endpoints > allowed {}", value, max_fuzz_risk) };
+    make_check_result("fuzz", passed, value, threshold, res.data, if passed { "info" } else { "high" }, "fuzz_limit", msg, None)
 }
 
 pub(crate) fn check_linelen(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("line-length", "linelen", &args, Instant::now());
-    let fn_viols = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("fn_violations"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let file_viols = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("file_violations"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let total = fn_viols + file_viols;
-    let passed = total <= max_violations;
-    CheckResult {
-        name: "linelen".into(),
-        passed,
-        score: Some(total as f64),
-        threshold: Some(max_violations as f64),
-        message: if passed {
-            if total == 0 {
-                "All functions and files within size limits".to_string()
-            } else {
-                format!("{} violations <= allowed {}", total, max_violations)
-            }
-        } else {
-            format!(
-                "{} line-length violations > allowed {}",
-                total, max_violations
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("warning".into())
-        },
-        help: Some("Functions should be <= 40 lines; files should be <= 500 lines.".into()),
-        findings: extract_findings_from_details(&res.data, "linelen_limit", "warning"),
-        rule_id: Some("linelen_limit".into()),
-    }
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("line-length", "linelen", &args_ref(&args), Instant::now());
+    let total = extract_f64(&res.data, &["summary", "fn_violations"]) + extract_f64(&res.data, &["summary", "file_violations"]);
+    let threshold = max_violations as f64;
+    let passed = total <= threshold;
+    let msg = if passed && total == 0.0 { "All functions and files within size limits".into() } else if passed { format!("{} violations <= allowed {}", total, max_violations) } else { format!("{} line-length violations > allowed {}", total, max_violations) };
+    make_check_result("linelen", passed, total, threshold, res.data, if passed { "info" } else { "warning" }, "linelen_limit", msg, Some("Functions should be <= 40 lines; files should be <= 500 lines."))
 }
 
 pub(crate) fn check_halstead(path: &str, recursive: bool, max_bugs: f64) -> CheckResult {
-    let max_bugs_str = format!("{}", max_bugs);
-    let mut args = vec![path, "--format", "json", "--max-bugs", &max_bugs_str];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("halstead", "halstead", &args, Instant::now());
-    let exceeding = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("files_exceeding_bugs_threshold"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let total_bugs = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total_bugs_estimated"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
-    let passed = exceeding == 0;
-    CheckResult {
-        name: "halstead".into(),
-        passed,
-        score: Some(total_bugs),
-        threshold: Some(max_bugs),
-        message: if passed {
-            format!(
-                "Halstead bugs estimated {:.2} (no file exceeds {:.1})",
-                total_bugs.max(0.0),
-                max_bugs
-            )
-        } else {
-            format!(
-                "{} files exceed Halstead bugs threshold of {:.1}",
-                exceeding, max_bugs
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("warning".into())
-        },
-        help: Some(
-            "Halstead bugs = Volume/3000. High values indicate complex, error-prone code.".into(),
-        ),
-        findings: extract_findings_from_details(&res.data, "halstead_bugs", "warning"),
-        rule_id: Some("halstead_bugs".into()),
-    }
+    let bugs_str = format!("{}", max_bugs);
+    let args = build_check_args(path, recursive, &["--max-bugs", &bugs_str]);
+    let res = run_tool("halstead", "halstead", &args_ref(&args), Instant::now());
+    let exceeding = extract_f64(&res.data, &["summary", "files_exceeding_bugs_threshold"]);
+    let total_bugs = extract_f64(&res.data, &["summary", "total_bugs_estimated"]);
+    let passed = exceeding == 0.0;
+    let msg = if passed { format!("Halstead bugs estimated {:.2} (no file exceeds {:.1})", total_bugs.max(0.0), max_bugs) } else { format!("{} files exceed Halstead bugs threshold of {:.1}", exceeding, max_bugs) };
+    make_check_result("halstead", passed, total_bugs, max_bugs, res.data, if passed { "info" } else { "warning" }, "halstead_bugs", msg, Some("Halstead bugs = Volume/3000. High values indicate complex, error-prone code."))
 }
 
 pub(crate) fn check_secrets(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("secrets", "secrets", &args, Instant::now());
-    let findings = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("findings_count"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = findings <= max_violations;
-    CheckResult {
-        name: "secrets".into(),
-        passed,
-        score: Some(findings as f64),
-        threshold: Some(max_violations as f64),
-        message: if passed {
-            if findings == 0 {
-                "No hardcoded secrets detected".into()
-            } else {
-                format!("{} secret findings <= allowed {}", findings, max_violations)
-            }
-        } else {
-            format!(
-                "{} hardcoded secret findings > allowed {}",
-                findings, max_violations
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
-        help: Some("Move secrets to environment variables or a secrets manager.".into()),
-        findings: extract_findings_from_details(&res.data, "secrets_limit", "high"),
-        rule_id: Some("secrets_limit".into()),
-    }
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("secrets", "secrets", &args_ref(&args), Instant::now());
+    let value = extract_f64(&res.data, &["summary", "findings_count"]);
+    let threshold = max_violations as f64;
+    let passed = value <= threshold;
+    let msg = if passed && value == 0.0 { "No hardcoded secrets detected".into() } else if passed { format!("{} secret findings <= allowed {}", value, max_violations) } else { format!("{} hardcoded secret findings > allowed {}", value, max_violations) };
+    make_check_result("secrets", passed, value, threshold, res.data, if passed { "info" } else { "high" }, "secrets_limit", msg, Some("Move secrets to environment variables or a secrets manager."))
 }
 
 pub(crate) fn check_deadcode(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("dead-code", "deadcode", &args, Instant::now());
-    let findings = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total_findings"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = findings <= max_violations;
-    CheckResult {
-        name: "deadcode".into(),
-        passed,
-        score: Some(findings as f64),
-        threshold: Some(max_violations as f64),
-        message: if passed {
-            if findings == 0 {
-                "No dead code patterns detected".into()
-            } else {
-                format!(
-                    "{} dead code findings <= allowed {}",
-                    findings, max_violations
-                )
-            }
-        } else {
-            format!(
-                "{} dead code findings > allowed {}",
-                findings, max_violations
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("warning".into())
-        },
-        help: Some(
-            "Remove unused imports, #[allow(dead_code)] suppressions, and dead assignments.".into(),
-        ),
-        findings: extract_findings_from_details(&res.data, "deadcode_limit", "warning"),
-        rule_id: Some("deadcode_limit".into()),
-    }
-}
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("dead-code", "deadcode", &args_ref(&args), Instant::now());
+    let value = extract_f64(&res.data, &["summary", "total_findings"]);
+    let threshold = max_violations as f64;
+    let passed = value <= threshold;
+    let msg = if passed && value == 0.0 { "No dead code patterns detected".into() } else if passed { format!("{} dead code findings <= allowed {}", value, max_violations) } else { format!("{} dead code findings > allowed {}", value, max_violations) };
+    make_check_result("deadcode", passed, value, threshold, res.data, if passed { "info" } else { "warning" }, "deadcode_limit", msg, Some("Remove unused imports, #[allow(dead_code)] suppressions, and dead assignments."))}
 
 pub(crate) fn check_sast(path: &str, recursive: bool, max_findings: usize) -> CheckResult {
     let max_str = format!("{}", max_findings);
-    let mut args = vec![path, "--format", "json", "--max-findings", &max_str];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("sast", "sast", &args, Instant::now());
+    let args = build_check_args(path, recursive, &["--max-findings", &max_str]);
+    let res = run_tool("sast", "sast", &args_ref(&args), Instant::now());
     if res.data.is_null() {
         return skipped_tool_check("sast", "sast_limit", max_findings, res.error.clone());
     }
-    let total = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total_findings"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let critical = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("critical"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let high = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("high"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = total <= max_findings;
-    CheckResult {
-        name: "sast".into(),
-        passed,
-        score: Some(total as f64),
-        threshold: Some(max_findings as f64),
-        message: if passed {
-            if total == 0 { "No SAST findings (SQL injection, XSS, path traversal, cmd injection)".into() }
-            else { format!("{} SAST findings <= allowed {}", total, max_findings) }
-        } else {
-            format!("{} SAST findings ({} critical, {} high) — exceeds threshold of {}", total, critical, high, max_findings)
-        },
-        details: res.data.clone(),
-        severity: if passed { Some("info".into()) } else { Some("high".into()) },
-        help: Some("Review SAST findings. Parameterize SQL, sanitize input, use allowlists for file paths and commands.".into()),
-        findings: extract_findings_from_details(&res.data, "sast_limit", "high"),
-        rule_id: Some("sast_limit".into()),
-    }
+    let total = res.data.get("summary").and_then(|s| s.get("total_findings")).and_then(|v| v.as_u64()).unwrap_or(0) as f64;
+    let critical = res.data.get("summary").and_then(|s| s.get("critical")).and_then(|v| v.as_u64()).unwrap_or(0);
+    let high = res.data.get("summary").and_then(|s| s.get("high")).and_then(|v| v.as_u64()).unwrap_or(0);
+    let threshold = max_findings as f64;
+    let passed = total <= threshold;
+    let msg = if passed && total == 0.0 { "No SAST findings (SQL injection, XSS, path traversal, cmd injection)".into() } else if passed { format!("{} SAST findings <= allowed {}", total as u64, max_findings) } else { format!("{} SAST findings ({} critical, {} high) — exceeds threshold of {}", total as u64, critical, high, max_findings) };
+    make_check_result("sast", passed, total, threshold, res.data, if passed { "info" } else { "high" }, "sast_limit", msg, Some("Review SAST findings. Parameterize SQL, sanitize input, use allowlists for file paths and commands."))
 }
 
 pub(crate) fn check_crypto(path: &str, recursive: bool, max_findings: usize) -> CheckResult {
     let max_str = format!("{}", max_findings);
-    let mut args = vec![path, "--format", "json", "--max-findings", &max_str];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("crypto-check", "cryptocheck", &args, Instant::now());
+    let args = build_check_args(path, recursive, &["--max-findings", &max_str]);
+    let res = run_tool("crypto-check", "cryptocheck", &args_ref(&args), Instant::now());
     if res.data.is_null() {
         return skipped_tool_check("crypto", "crypto_limit", max_findings, res.error.clone());
     }
-    let total = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total_findings"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let critical = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("critical"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = total <= max_findings;
-    CheckResult {
-        name: "crypto".into(),
-        passed,
-        score: Some(total as f64),
-        threshold: Some(max_findings as f64),
-        message: if passed {
-            if total == 0 { "No cryptographic issues (weak hash, insecure random, ECB, disabled TLS)".into() }
-            else { format!("{} crypto findings <= allowed {}", total, max_findings) }
-        } else {
-            format!("{} crypto findings ({} critical) — exceeds threshold of {}", total, critical, max_findings)
-        },
-        details: res.data.clone(),
-        severity: if passed { Some("info".into()) } else { Some("high".into()) },
-        help: Some("Replace MD5/SHA1 with SHA-256. Use OsRng for security randomness. Use AES-GCM, not ECB.".into()),
-        findings: extract_findings_from_details(&res.data, "crypto_limit", "high"),
-        rule_id: Some("crypto_limit".into()),
-    }
+    let total = res.data.get("summary").and_then(|s| s.get("total_findings")).and_then(|v| v.as_u64()).unwrap_or(0) as f64;
+    let critical = res.data.get("summary").and_then(|s| s.get("critical")).and_then(|v| v.as_u64()).unwrap_or(0);
+    let threshold = max_findings as f64;
+    let passed = total <= threshold;
+    let msg = if passed && total == 0.0 { "No cryptographic issues (weak hash, insecure random, ECB, disabled TLS)".into() } else if passed { format!("{} crypto findings <= allowed {}", total as u64, max_findings) } else { format!("{} crypto findings ({} critical) — exceeds threshold of {}", total as u64, critical, max_findings) };
+    make_check_result("crypto", passed, total, threshold, res.data, if passed { "info" } else { "high" }, "crypto_limit", msg, Some("Replace MD5/SHA1 with SHA-256. Use OsRng for security randomness. Use AES-GCM, not ECB."))
 }
 
 pub(crate) fn check_licenses(path: &str, max_violations: usize) -> CheckResult {
     let max_str = format!("{}", max_violations);
-    let args = vec![path, "--format", "json", "--max-violations", &max_str];
-    let res = run_tool("licenses", "licenses", &args, Instant::now());
+    let args = build_check_args(path, false, &["--max-violations", &max_str]);
+    let res = run_tool("licenses", "licenses", &args_ref(&args), Instant::now());
     if res.data.is_null() {
-        return skipped_tool_check(
-            "licenses",
-            "license_compliance",
-            max_violations,
-            res.error.clone(),
-        );
+        return skipped_tool_check("licenses", "license_compliance", max_violations, res.error.clone());
     }
-    let violations = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("violations"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let total = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("packages_scanned"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = violations <= max_violations;
-    CheckResult {
-        name: "licenses".into(),
-        passed,
-        score: Some(violations as f64),
-        threshold: Some(max_violations as f64),
-        message: if passed {
-            if violations == 0 { format!("No license violations in {} packages scanned", total) }
-            else { format!("{} license violations <= allowed {} ({} packages)", violations, max_violations, total) }
-        } else {
-            format!("{} license violations — GPL/AGPL packages in deny list", violations)
-        },
-        details: res.data.clone(),
-        severity: if passed { Some("info".into()) } else { Some("high".into()) },
-        help: Some("Review copyleft (GPL/AGPL) licenses. They may require open-sourcing your code. Consult legal counsel.".into()),
-        findings: extract_findings_from_details(&res.data, "license_compliance", "high"),
-        rule_id: Some("license_compliance".into()),
-    }
+    let violations = res.data.get("summary").and_then(|s| s.get("violations")).and_then(|v| v.as_u64()).unwrap_or(0) as f64;
+    let pkgs = res.data.get("summary").and_then(|s| s.get("packages_scanned")).and_then(|v| v.as_u64()).unwrap_or(0);
+    let threshold = max_violations as f64;
+    let passed = violations <= threshold;
+    let msg = if passed && violations == 0.0 { format!("No license violations in {} packages scanned", pkgs) } else if passed { format!("{} license violations <= allowed {} ({} packages)", violations as u64, max_violations, pkgs) } else { format!("{} license violations — GPL/AGPL packages in deny list", violations as u64) };
+    make_check_result("licenses", passed, violations, threshold, res.data, if passed { "info" } else { "high" }, "license_compliance", msg, Some("Review copyleft (GPL/AGPL) licenses. They may require open-sourcing your code. Consult legal counsel."))
 }
 
 pub(crate) fn check_outdated(path: &str, max_major_behind: usize) -> CheckResult {
@@ -1172,255 +828,64 @@ pub(crate) fn check_outdated(path: &str, max_major_behind: usize) -> CheckResult
 }
 
 pub(crate) fn check_typecov(path: &str, recursive: bool, min_pct: f64) -> CheckResult {
-    let min_pct_str = format!("{}", min_pct);
-    let mut args = vec![path, "--format", "json", "--min-pct", &min_pct_str];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("type-coverage", "typecov", &args, Instant::now());
-    let overall = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("overall_coverage_pct"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(100.0);
-    let below = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("files_below_threshold"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = below == 0;
-    CheckResult {
-        name: "typecov".into(),
-        passed,
-        score: Some(overall),
-        threshold: Some(min_pct),
-        message: if passed {
-            format!("Type coverage {:.1}% >= {:.0}%", overall, min_pct)
-        } else {
-            format!(
-                "{} files below type coverage threshold of {:.0}%",
-                below, min_pct
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("medium".into())
-        },
-        help: Some(
-            "Add type annotations to Python/JS/TS functions for better maintainability.".into(),
-        ),
-        findings: extract_findings_from_details(&res.data, "typecov_limit", "medium"),
-        rule_id: Some("typecov_limit".into()),
-    }
+    let pct_str = format!("{}", min_pct);
+    let args = build_check_args(path, recursive, &["--min-pct", &pct_str]);
+    let res = run_tool("type-coverage", "typecov", &args_ref(&args), Instant::now());
+    let overall = res.data.get("summary").and_then(|s| s.get("overall_coverage_pct")).and_then(|v| v.as_f64()).unwrap_or(100.0);
+    let below = extract_f64(&res.data, &["summary", "files_below_threshold"]);
+    let passed = below == 0.0;
+    let msg = if passed { format!("Type coverage {:.1}% >= {:.0}%", overall, min_pct) } else { format!("{} files below type coverage threshold of {:.0}%", below, min_pct) };    make_check_result("typecov", passed, overall, min_pct, res.data, if passed { "info" } else { "medium" }, "typecov_limit", msg, Some("Add type annotations to Python/JS/TS functions for better maintainability."))
 }
 
 pub(crate) fn check_vulnscan(path: &str, max_critical: usize, max_high: usize) -> CheckResult {
-    let max_critical_str = format!("{}", max_critical);
-    let max_high_str = format!("{}", max_high);
-    let args = vec![
-        path,
-        "--format",
-        "json",
-        "--max-critical",
-        &max_critical_str,
-        "--max-high",
-        &max_high_str,
-    ];
-    let res = run_tool("vuln-scan", "vulnscan", &args, Instant::now());
+    let crit_str = format!("{}", max_critical);
+    let high_str = format!("{}", max_high);
+    let args = build_check_args(path, false, &["--max-critical", &crit_str, "--max-high", &high_str]);
+    let res = run_tool("vuln-scan", "vulnscan", &args_ref(&args), Instant::now());
     if res.data.is_null() {
         return skipped_tool_check("vulnscan", "vuln_limit", max_critical, res.error.clone());
     }
-    let critical = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("critical"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let high = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("high"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let total = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = critical <= max_critical && high <= max_high;
-    CheckResult {
-        name: "vulnscan".into(),
-        passed,
-        score: Some(total as f64),
-        threshold: Some(max_critical as f64),
-        message: if passed {
-            if total == 0 {
-                "No known vulnerabilities".into()
-            } else {
-                format!(
-                    "{} vulnerabilities ({} critical, {} high) within allowed thresholds",
-                    total, critical, high
-                )
-            }
-        } else {
-            format!(
-                "{} critical + {} high CVEs exceed allowed thresholds ({}/{})",
-                critical, high, max_critical, max_high
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
-        help: Some(
-            "Update vulnerable dependencies. Run cargo audit / npm audit for details.".into(),
-        ),
-        findings: extract_findings_from_details(&res.data, "vuln_limit", "high"),
-        rule_id: Some("vuln_limit".into()),
-    }
+    let critical = res.data.get("summary").and_then(|s| s.get("critical")).and_then(|v| v.as_u64()).unwrap_or(0) as f64;
+    let high = res.data.get("summary").and_then(|s| s.get("high")).and_then(|v| v.as_u64()).unwrap_or(0) as f64;
+    let total = res.data.get("summary").and_then(|s| s.get("total")).and_then(|v| v.as_u64()).unwrap_or(0) as f64;
+    let passed = critical <= max_critical as f64 && high <= max_high as f64;
+    let msg = if passed && total == 0.0 { "No known vulnerabilities".into() } else if passed { format!("{} vulnerabilities ({} critical, {} high) within allowed thresholds", total as u64, critical as u64, high as u64) } else { format!("{} critical + {} high CVEs exceed allowed thresholds ({}/{})", critical as u64, high as u64, max_critical, max_high) };
+    make_check_result("vulnscan", passed, total, max_critical as f64, res.data, if passed { "info" } else { "high" }, "vuln_limit", msg, Some("Update vulnerable dependencies. Run cargo audit / npm audit for details."))
 }
 
 pub(crate) fn check_cohesion(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("cohesion", "cohesion", &args, Instant::now());
-    let violations = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("violations"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let avg_lcom = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("avg_lcom"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(1.0);
-    let passed = violations <= max_violations;
-    CheckResult {
-        name: "cohesion".into(),
-        passed,
-        score: Some(avg_lcom),
-        threshold: Some(max_violations as f64),
-        message: if passed {
-            if violations == 0 {
-                format!("All structs cohesive (avg LCOM4 {:.2})", avg_lcom)
-            } else {
-                format!(
-                    "{} cohesion violations <= allowed {} (avg LCOM4 {:.2})",
-                    violations, max_violations, avg_lcom
-                )
-            }
-        } else {
-            format!(
-                "{} structs exceed LCOM4 threshold of {}",
-                violations, max_violations
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("warning".into())
-        },
-        help: Some("High LCOM4 means a struct does too many unrelated things. Split it.".into()),
-        findings: extract_findings_from_details(&res.data, "cohesion_lcom4", "warning"),
-        rule_id: Some("cohesion_lcom4".into()),
-    }
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("cohesion", "cohesion", &args_ref(&args), Instant::now());
+    let violations = extract_f64(&res.data, &["summary", "violations"]);
+    let avg_lcom = extract_f64(&res.data, &["summary", "avg_lcom"]);
+    let threshold = max_violations as f64;
+    let passed = violations <= threshold;
+    let msg = if passed && violations == 0.0 { format!("All structs cohesive (avg LCOM4 {:.2})", avg_lcom) } else if passed { format!("{} cohesion violations <= allowed {} (avg LCOM4 {:.2})", violations, max_violations, avg_lcom) } else { format!("{} structs exceed LCOM4 threshold of {}", violations, max_violations) };
+    make_check_result("cohesion", passed, avg_lcom, threshold, res.data, if passed { "info" } else { "warning" }, "cohesion_lcom4", msg, Some("High LCOM4 means a struct does too many unrelated things. Split it."))
 }
 
 pub(crate) fn check_comments(path: &str, recursive: bool, min_ratio: f64) -> CheckResult {
-    let min_ratio_str = format!("{}", min_ratio);
-    let mut args = vec![path, "--format", "json", "--min-ratio", &min_ratio_str];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("comment-ratio", "comments", &args, Instant::now());
-    let below = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("files_below_threshold"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let overall = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("overall_comment_ratio"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
-    let passed = below == 0;
-    CheckResult {
-        name: "comments".into(),
-        passed,
-        score: Some(overall * 100.0),
-        threshold: Some(min_ratio * 100.0),
-        message: if passed {
-            format!("Overall comment ratio {:.1}% >= {:.0}%", overall * 100.0, min_ratio * 100.0)
-        } else {
-            format!("{} files below comment ratio threshold of {:.0}%", below, min_ratio * 100.0)
-        },
-        details: res.data.clone(),
-        severity: if passed { Some("info".into()) } else { Some("low".into()) },
-        help: Some("Add inline comments explaining non-obvious logic. Doc comments are tracked separately by doccov.".into()),
-        findings: extract_findings_from_details(&res.data, "comment_ratio", "low"),
-        rule_id: Some("comment_ratio".into()),
-    }
+    let ratio_str = format!("{}", min_ratio);
+    let args = build_check_args(path, recursive, &["--min-ratio", &ratio_str]);
+    let res = run_tool("comment-ratio", "comments", &args_ref(&args), Instant::now());
+    let below = extract_f64(&res.data, &["summary", "files_below_threshold"]);
+    let overall = extract_f64(&res.data, &["summary", "overall_comment_ratio"]);
+    let passed = below == 0.0;
+    let score = overall * 100.0;
+    let threshold = min_ratio * 100.0;
+    let msg = if passed { format!("Overall comment ratio {:.1}% >= {:.0}%", score, threshold) } else { format!("{} files below comment ratio threshold of {:.0}%", below, threshold) };
+    // Use make_check_result but override score/threshold since they're scaled
+    make_check_result("comments", passed, score, threshold, res.data, if passed { "info" } else { "low" }, "comment_ratio", msg, Some("Add inline comments explaining non-obvious logic. Doc comments are tracked separately by doccov."))
 }
 
 pub(crate) fn check_errhandle(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
-    if recursive {
-        args.push("--recursive");
-    }
-    let res = run_tool("error-handling", "errhandle", &args, Instant::now());
-    let total = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total_findings"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let passed = total <= max_violations;
-    CheckResult {
-        name: "errhandle".into(),
-        passed,
-        score: Some(total as f64),
-        threshold: Some(max_violations as f64),
-        message: if passed {
-            if total == 0 {
-                "No error handling issues detected".into()
-            } else {
-                format!(
-                    "{} error handling findings <= allowed {}",
-                    total, max_violations
-                )
-            }
-        } else {
-            format!(
-                "{} error handling violations > allowed {}",
-                total, max_violations
-            )
-        },
-        details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("medium".into())
-        },
-        help: Some(
-            "Replace .unwrap()/.expect() with proper error propagation using `?` or match.".into(),
-        ),
-        findings: extract_findings_from_details(&res.data, "errhandle_limit", "medium"),
-        rule_id: Some("errhandle_limit".into()),
-    }
+    let args = build_check_args(path, recursive, &[]);
+    let res = run_tool("error-handling", "errhandle", &args_ref(&args), Instant::now());
+    let value = extract_f64(&res.data, &["summary", "total_findings"]);
+    let threshold = max_violations as f64;
+    let passed = value <= threshold;
+    let msg = if passed && value == 0.0 { "No error handling issues detected".into() } else if passed { format!("{} error handling findings <= allowed {}", value, max_violations) } else { format!("{} error handling violations > allowed {}", value, max_violations) };
+    make_check_result("errhandle", passed, value, threshold, res.data, if passed { "info" } else { "medium" }, "errhandle_limit", msg, Some("Replace .unwrap()/.expect() with proper error propagation using `?` or match."))
 }
 
 pub(crate) fn skipped_tool_check(
@@ -1445,8 +910,7 @@ pub(crate) fn skipped_tool_check(
         ),
         findings: Vec::new(),
         rule_id: Some(rule_id.into()),
-    }
-}
+    }}
 
 pub(crate) fn check_access_control(
     path: &str,
@@ -2642,5 +2106,179 @@ pub(crate) fn check_debuggability(
         help: Some(help),
         rule_id: Some(rule_id),
         findings,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // ── build_check_args ──
+
+    #[test]
+    fn test_build_check_args_basic() {
+        let args = build_check_args(".", true, &[]);
+        assert_eq!(args[0], ".");
+        assert_eq!(args[1], "--format");
+        assert_eq!(args[2], "json");
+        assert_eq!(args[3], "--recursive");
+    }
+
+    #[test]
+    fn test_build_check_args_non_recursive() {
+        let args = build_check_args("src", false, &[]);
+        assert_eq!(args[0], "src");
+        assert_eq!(args.len(), 3);
+    }
+
+    #[test]
+    fn test_build_check_args_with_extra() {
+        let args = build_check_args(".", true, &["--max-findings", "10"]);
+        assert!(args.contains(&"--max-findings".to_string()));
+        assert!(args.contains(&"10".to_string()));
+        assert!(args.contains(&"--recursive".to_string()));
+    }
+
+    #[test]
+    fn test_build_check_args_extra_without_recursive() {
+        let args = build_check_args(".", false, &["--threshold", "5"]);
+        assert_eq!(args.len(), 5);
+        assert_eq!(args[3], "--threshold");
+        assert_eq!(args[4], "5");
+    }
+
+    // ── args_ref ──
+
+    #[test]
+    fn test_args_ref_converts_strings_to_strs() {
+        let v = vec!["a".to_string(), "b".to_string()];
+        let r = args_ref(&v);
+        assert_eq!(r.len(), 2);
+        assert_eq!(r[0], "a");
+        assert_eq!(r[1], "b");
+    }
+
+    #[test]
+    fn test_args_ref_empty() {
+        let v: Vec<String> = vec![];
+        let r = args_ref(&v);
+        assert!(r.is_empty());
+    }
+
+    // ── extract_f64 ──
+
+    #[test]
+    fn test_extract_f64_top_level() {
+        let data = json!({"score": 42.5});
+        assert_eq!(extract_f64(&data, &["score"]), 42.5);
+    }
+
+    #[test]
+    fn test_extract_f64_nested() {
+        let data = json!({"summary": {"total": 10.0}});
+        assert_eq!(extract_f64(&data, &["summary", "total"]), 10.0);
+    }
+
+    #[test]
+    fn test_extract_f64_deeply_nested() {
+        let data = json!({"a": {"b": {"c": 99.9}}});
+        assert_eq!(extract_f64(&data, &["a", "b", "c"]), 99.9);
+    }
+
+    #[test]
+    fn test_extract_f64_missing_key_returns_zero() {
+        let data = json!({"score": 42.0});
+        assert_eq!(extract_f64(&data, &["nonexistent"]), 0.0);
+    }
+
+    #[test]
+    fn test_extract_f64_partial_path_returns_zero() {
+        let data = json!({"a": {"b": 5.0}});
+        assert_eq!(extract_f64(&data, &["a", "b", "c"]), 0.0);
+    }
+
+    #[test]
+    fn test_extract_f64_null_value_returns_zero() {
+        let data = json!({"score": null});
+        assert_eq!(extract_f64(&data, &["score"]), 0.0);
+    }
+
+    #[test]
+    fn test_extract_f64_integer_value() {
+        let data = json!({"count": 7});
+        assert_eq!(extract_f64(&data, &["count"]), 7.0);
+    }
+
+    #[test]
+    fn test_extract_f64_string_value_returns_zero() {
+        let data = json!({"name": "hello"});
+        assert_eq!(extract_f64(&data, &["name"]), 0.0);
+    }
+
+    #[test]
+    fn test_extract_f64_empty_object() {
+        let data = json!({});
+        assert_eq!(extract_f64(&data, &["key"]), 0.0);
+    }
+
+    // ── make_check_result ──
+
+    #[test]
+    fn test_make_check_result_basic() {
+        let data = json!({"findings": []});
+        let result = make_check_result(
+            "test-check", true, 0.0, 10.0, data,
+            "info", "test-rule", "All good".into(), None,
+        );
+        assert_eq!(result.name, "test-check");
+        assert!(result.passed);
+        assert_eq!(result.score, Some(0.0));
+        assert_eq!(result.threshold, Some(10.0));
+        assert_eq!(result.message, "All good");
+        assert_eq!(result.severity.as_deref(), Some("info"));
+        assert_eq!(result.rule_id.as_deref(), Some("test-rule"));
+        assert!(result.help.is_none());
+    }
+
+    #[test]
+    fn test_make_check_result_failed() {
+        let data = json!({"findings": []});
+        let result = make_check_result(
+            "security-check", false, 15.0, 10.0, data,
+            "high", "security-001", "Threshold exceeded".into(), Some("Reduce violations"),
+        );
+        assert!(!result.passed);
+        assert_eq!(result.score, Some(15.0));
+        assert_eq!(result.threshold, Some(10.0));
+        assert_eq!(result.severity.as_deref(), Some("high"));
+        assert_eq!(result.help.as_deref(), Some("Reduce violations"));
+    }
+
+    #[test]
+    fn test_make_check_result_extracts_findings() {
+        let data = json!({
+            "findings": [
+                {"file": "a.rs", "message": "issue 1", "severity": "high"},
+                {"file": "b.rs", "message": "issue 2", "severity": "medium"},
+            ]
+        });
+        let result = make_check_result(
+            "multi-find", false, 2.0, 1.0, data,
+            "error", "multi-rule", "Multiple issues".into(), None,
+        );
+        assert_eq!(result.findings.len(), 2);
+        assert_eq!(result.findings[0].file, "a.rs");
+        assert_eq!(result.findings[1].file, "b.rs");
+    }
+
+    #[test]
+    fn test_make_check_result_empty_findings() {
+        let data = json!({});
+        let result = make_check_result(
+            "no-find", true, 0.0, 5.0, data,
+            "info", "no-rule", "No issues".into(), None,
+        );
+        assert!(result.findings.is_empty());
     }
 }

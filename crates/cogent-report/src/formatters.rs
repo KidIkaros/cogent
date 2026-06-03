@@ -52,13 +52,19 @@ pub fn box_row(content: &str, inner_width: usize) {
     eprintln!("  ║  {}{}║", content, " ".repeat(padding));
 }
 
-pub fn output_json(report: &CheckReport) {
-    info!(checks = report.checks.len(), path = %report.path, "formatting report as JSON");
-    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+/// Format a CheckReport as pretty-printed JSON.
+pub fn format_json(report: &CheckReport) -> String {
+    serde_json::to_string_pretty(&report).unwrap()
 }
 
-pub fn output_ndjson(report: &CheckReport) {
-    info!(checks = report.checks.len(), "formatting report as NDJSON");
+pub fn output_json(report: &CheckReport) {
+    info!(checks = report.checks.len(), path = %report.path, "formatting report as JSON");
+    println!("{}", format_json(report));
+}
+
+/// Format non-passing checks as NDJSON lines. Returns one line per finding/item.
+pub fn format_ndjson(report: &CheckReport) -> String {
+    let mut lines = Vec::new();
     for check in &report.checks {
         let severity = check.severity.as_deref().unwrap_or("warning");
         let rule_id = check.rule_id.as_deref().unwrap_or(&check.name);
@@ -71,42 +77,45 @@ pub fn output_ndjson(report: &CheckReport) {
                 .cloned()
                 .unwrap_or_default();
             if items.is_empty() {
-                println!(
-                    "{}",
-                    serde_json::json!({
+                lines.push(serde_json::json!({
+                    "tool": check.name,
+                    "severity": severity,
+                    "rule_id": rule_id,
+                    "message": check.message,
+                    "help": help,
+                    "file": report.path,
+                    "line": null,
+                    "col": null,
+                }).to_string());
+            } else {
+                for item in &items {
+                    lines.push(serde_json::json!({
                         "tool": check.name,
                         "severity": severity,
                         "rule_id": rule_id,
-                        "message": check.message,
+                        "message": item.get("type").and_then(|v| v.as_str()).unwrap_or(&check.name),
                         "help": help,
-                        "file": report.path,
-                        "line": null,
+                        "file": item.get("file"),
+                        "line": item.get("line"),
                         "col": null,
-                    })
-                );
-            } else {
-                for item in &items {
-                    println!(
-                        "{}",
-                        serde_json::json!({
-                            "tool": check.name,
-                            "severity": severity,
-                            "rule_id": rule_id,
-                            "message": item.get("type").and_then(|v| v.as_str()).unwrap_or(&check.name),
-                            "help": help,
-                            "file": item.get("file"),
-                            "line": item.get("line"),
-                            "col": null,
-                        })
-                    );
+                    }).to_string());
                 }
             }
         }
     }
+    lines.join("\n")
 }
 
-pub fn output_sarif(report: &CheckReport) {
-    info!(checks = report.checks.len(), "formatting report as SARIF");
+pub fn output_ndjson(report: &CheckReport) {
+    info!(checks = report.checks.len(), "formatting report as NDJSON");
+    let output = format_ndjson(report);
+    if !output.is_empty() {
+        println!("{}", output);
+    }
+}
+
+/// Build a SarifLog from a CheckReport. Timestamps are set to the current time.
+pub fn build_sarif_log(report: &CheckReport) -> SarifLog {
     let mut all_results: Vec<SarifResult> = Vec::new();
     let mut all_rules: Vec<SarifRule> = Vec::new();
     let mut rule_indices: std::collections::HashMap<String, usize> =
@@ -181,16 +190,26 @@ pub fn output_sarif(report: &CheckReport) {
         results: all_results,
     };
 
-    let log = SarifLog {
+    SarifLog {
         schema: "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json".to_string(),
         version: "2.1.0".to_string(),
         runs: vec![run],
-    };
-    println!("{}", serde_json::to_string_pretty(&log).unwrap());
+    }
 }
 
-pub fn output_junit(report: &CheckReport) {
-    info!(checks = report.checks.len(), "formatting report as JUnit XML");
+/// Serialize a SarifLog to a pretty-printed JSON string.
+pub fn format_sarif_log(log: &SarifLog) -> String {
+    serde_json::to_string_pretty(&log).unwrap()
+}
+
+pub fn output_sarif(report: &CheckReport) {
+    info!(checks = report.checks.len(), "formatting report as SARIF");
+    let log = build_sarif_log(report);
+    println!("{}", format_sarif_log(&log));
+}
+
+/// Format a CheckReport as JUnit XML string.
+pub fn format_junit(report: &CheckReport) -> String {
     let mut xml = String::new();
     xml.push_str(r#"<?xml version="1.0" encoding="UTF-8"?>"#);
     xml.push('\n');
@@ -246,15 +265,30 @@ pub fn output_junit(report: &CheckReport) {
         xml.push('\n');
     }
     xml.push_str("</testsuites>");
-    println!("{}", xml);
+    xml
+}
+
+pub fn output_junit(report: &CheckReport) {
+    info!(checks = report.checks.len(), "formatting report as JUnit XML");
+    println!("{}", format_junit(report));
+}
+
+/// Format findings as NDJSON lines. Returns one JSON line per finding.
+pub fn format_findings_ndjson(report: &CheckReport) -> String {
+    let mut lines = Vec::new();
+    for check in &report.checks {
+        for finding in &check.findings {
+            lines.push(serde_json::to_string(&finding).unwrap());
+        }
+    }
+    lines.join("\n")
 }
 
 pub fn output_findings_ndjson(report: &CheckReport) {
     info!(checks = report.checks.len(), "formatting findings as NDJSON");
-    for check in &report.checks {
-        for finding in &check.findings {
-            println!("{}", serde_json::to_string(&finding).unwrap());
-        }
+    let output = format_findings_ndjson(report);
+    if !output.is_empty() {
+        println!("{}", output);
     }
 }
 
@@ -268,7 +302,7 @@ pub fn format_ts(ts: u64) -> String {
     format!("{}-{:02}-{:02} {:02}:{:02}", year, month, day, h, m)
 }
 
-fn sarif_level(severity: &str) -> &'static str {
+pub(crate) fn sarif_level(severity: &str) -> &'static str {
     match severity.to_lowercase().as_str() {
         "critical" | "high" | "error" => "error",
         "medium" | "warning" => "warning",
@@ -281,22 +315,20 @@ fn sarif_level(severity: &str) -> &'static str {
 // Helpers (present in the original formatter bloc)
 // ---------------------------------------------------------------------------
 
-fn visible_len(s: &str) -> usize {
+pub(crate) fn visible_len(s: &str) -> usize {
     let plain = strip_ansi(s);
     plain.chars().count()
 }
 
-fn strip_ansi(s: &str) -> String {
+pub(crate) fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
-        if c == '\x1b' {
-            if chars.peek() == Some(&'[') {
-                chars.next();
-                for ch in chars.by_ref() {
-                    if ch.is_ascii_alphabetic() {
-                        break;
-                    }
+        if c == '\x1b' && chars.peek() == Some(&'[') {
+            chars.next();
+            for ch in chars.by_ref() {
+                if ch.is_ascii_alphabetic() {
+                    break;
                 }
             }
         } else {
@@ -306,7 +338,8 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
-pub fn escape(s: &str) -> String {
+#[expect(dead_code)]
+pub(crate) fn escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for b in s.bytes() {
         match b {

@@ -1,8 +1,8 @@
 {
   "critical_findings": 0,
   "failed_checks": [
-    "fuzz",
     "comments",
+    "fuzz",
     "supply-chain"
   ],
   "grade": "B",

@@ -1050,11 +1050,11 @@ pub(crate) fn run_parallel_checks(
     std::thread::scope(|s| {
         for _ in 0..n_workers {
             s.spawn(|| loop {
-                let job = work.lock().unwrap().pop();
+                let job = work.lock().expect("work mutex poisoned").pop();
                 match job {
                     Some((_name, f)) => {
                         let result = f();
-                        results.lock().unwrap().push(result);
+                        results.lock().expect("results mutex poisoned").push(result);
                     }
                     None => break,
                 }
@@ -1062,7 +1062,7 @@ pub(crate) fn run_parallel_checks(
         }
     });
 
-    let mut all = results.into_inner().unwrap();
+    let mut all = results.into_inner().expect("results mutex into_inner");
     all.sort_by(|a, b| a.name.cmp(&b.name));
     all
 }
@@ -1085,12 +1085,12 @@ pub(crate) fn run_parallel_tools(
     std::thread::scope(|s| {
         for _ in 0..n_workers {
             s.spawn(|| loop {
-                let job = work.lock().unwrap().pop();
+                let job = work.lock().expect("work mutex poisoned").pop();
                 match job {
                     Some((crate_name, bin_name, args)) => {
                         let args_ref: Vec<&str> = args.iter().map(|a| a.as_str()).collect();
                         let result = run_tool(crate_name, bin_name, &args_ref, Instant::now());
-                        results.lock().unwrap().push(result);
+                        results.lock().expect("results mutex poisoned").push(result);
                     }
                     None => break,
                 }
@@ -1098,7 +1098,7 @@ pub(crate) fn run_parallel_tools(
         }
     });
 
-    let mut all = results.into_inner().unwrap();
+    let mut all = results.into_inner().expect("results mutex into_inner");
     all.sort_by(|a, b| a.tool.cmp(&b.tool));
     all
 }
@@ -1476,7 +1476,7 @@ pub(crate) fn run_batch(
                 if failed > 0 { 1 } else { 0 },
             );
             log.add_run(run);
-            println!("{}", serde_json::to_string_pretty(&log).unwrap());
+            println!("{}", serde_json::to_string_pretty(&log).expect("SARIF log serialization"));
         }
         "json" => {
             let report = new_unified_report(
@@ -1512,7 +1512,7 @@ pub(crate) fn run_batch(
                     languages_detected: langs_detected,
                 },
             };
-            println!("{}", serde_json::to_string_pretty(&report).unwrap());
+            println!("{}", serde_json::to_string_pretty(&report).expect("JSON report serialization"));
         }
         _ => {
             let all_ok = failed == 0;
@@ -1831,10 +1831,9 @@ pub(crate) fn check_test_quality(
         "violations": violations.iter().take(20).collect::<Vec<_>>(),
     });
     if let Some(ms) = mutation_score {
-        details
-            .as_object_mut()
-            .unwrap()
-            .insert("mutation_score".to_string(), serde_json::json!(ms));
+        if let Some(obj) = details.as_object_mut() {
+            obj.insert("mutation_score".to_string(), serde_json::json!(ms));
+        }
     }
 
     let findings: Vec<Finding> = violations

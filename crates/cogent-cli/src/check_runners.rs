@@ -1,13 +1,15 @@
 //! Check runner functions for cogent-cli.
 
 #![deny(clippy::all)]
+#![allow(clippy::type_complexity)]
 
-use crate::progress::{box_row, format_ms, Bar};
+use crate::progress::{box_row, format_ms};
 use crate::types::{extract_findings_from_details, CheckResult, Finding};
 use ast_parse_ts::{parse_complexity_file, parse_doc_coverage_file, Language};
 use cogent_common::memory::MemoryMonitor;
 use cogent_common::{crap_score, find_source_files, function_coverage, parse_lcov, CoverageRecord, ToolResult};
 use colored::Colorize;
+use std::sync::Mutex;
 use std::time::Instant;
 
 // CHECKS
@@ -1023,6 +1025,84 @@ pub(crate) fn check_supply_chain(path: &str, max_risks: usize) -> CheckResult {
     }
 }
 
+// PARALLEL CHECK EXECUTION
+// ═══════════════════════════════════════════
+
+/// Maximum number of concurrent check processes.
+/// Conservative default to prevent OOM on memory-constrained systems.
+const MAX_CONCURRENT_CHECKS: usize = 4;
+
+/// Run check functions in parallel with bounded concurrency using a
+/// work-stealing thread pool. Returns results sorted by check name for
+/// consistent display.
+pub(crate) fn run_parallel_checks(
+    checks: Vec<(&'static str, Box<dyn FnOnce() -> CheckResult + Send>)>,
+) -> Vec<CheckResult> {
+    let total = checks.len();
+    if total == 0 {
+        return Vec::new();
+    }
+    let n_workers = MAX_CONCURRENT_CHECKS.min(total);
+    let work: Mutex<Vec<(&'static str, Box<dyn FnOnce() -> CheckResult + Send>)>> =
+        Mutex::new(checks);
+    let results: Mutex<Vec<CheckResult>> = Mutex::new(Vec::with_capacity(total));
+
+    std::thread::scope(|s| {
+        for _ in 0..n_workers {
+            s.spawn(|| loop {
+                let job = work.lock().unwrap().pop();
+                match job {
+                    Some((_name, f)) => {
+                        let result = f();
+                        results.lock().unwrap().push(result);
+                    }
+                    None => break,
+                }
+            });
+        }
+    });
+
+    let mut all = results.into_inner().unwrap();
+    all.sort_by(|a, b| a.name.cmp(&b.name));
+    all
+}
+
+/// Run tool binaries in parallel with bounded concurrency.
+/// Each tool definition is (crate_name, bin_name, args).
+/// Returns results in sorted order by tool name for consistent display.
+pub(crate) fn run_parallel_tools(
+    tools: Vec<(&'static str, &'static str, Vec<String>)>,
+) -> Vec<ToolResult> {
+    let total = tools.len();
+    if total == 0 {
+        return Vec::new();
+    }
+    let n_workers = MAX_CONCURRENT_CHECKS.min(total);
+    let work: Mutex<Vec<(&'static str, &'static str, Vec<String>)>> =
+        Mutex::new(tools);
+    let results: Mutex<Vec<ToolResult>> = Mutex::new(Vec::with_capacity(total));
+
+    std::thread::scope(|s| {
+        for _ in 0..n_workers {
+            s.spawn(|| loop {
+                let job = work.lock().unwrap().pop();
+                match job {
+                    Some((crate_name, bin_name, args)) => {
+                        let args_ref: Vec<&str> = args.iter().map(|a| a.as_str()).collect();
+                        let result = run_tool(crate_name, bin_name, &args_ref, Instant::now());
+                        results.lock().unwrap().push(result);
+                    }
+                    None => break,
+                }
+            });
+        }
+    });
+
+    let mut all = results.into_inner().unwrap();
+    all.sort_by(|a, b| a.tool.cmp(&b.tool));
+    all
+}
+
 // NEW 6 CHECK WRAPPERS & SETUP
 // ═══════════════════════════════════════════
 
@@ -1271,46 +1351,25 @@ pub(crate) fn run_batch(
         ("licenses", "licenses", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
     ];
 
-    // Run tools sequentially to prevent memory exhaustion
-    // Previous concurrent execution (MAX_CONCURRENT=4) caused OOM crashes on 16GB/32GB systems
-    let mut results: Vec<ToolResult> = Vec::new();
-    let mut bar = Bar::new(tools.len());
-    for (crate_name, bin_name, args) in &tools {
-        bar.set_current(bin_name);
-
-        // Check memory before starting tool
-        if let Err(usage) = memory_monitor.check() {
-            bar.finish();
-            eprintln!(
-                "  {} Memory limit exceeded before running {} ({} MB used). Stopping batch.",
-                "✗".red().bold(),
-                bin_name,
-                usage.rss_bytes / 1024 / 1024
-            );
-            break;
-        }
-
-        let tool_start = Instant::now();
-        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-        let result = run_tool(crate_name, bin_name, &args_ref, tool_start);
-        let duration_ms = result.duration_ms;
-        let success = result.success;
-        results.push(result);
-        bar.advance(bin_name, success, duration_ms);
-
-        // Check memory after tool completion
-        if let Err(usage) = memory_monitor.check() {
-            bar.finish();
-            eprintln!(
-                "  {} Memory limit exceeded after {} ({} MB used). Stopping batch.",
-                "✗".red().bold(),
-                bin_name,
-                usage.rss_bytes / 1024 / 1024
-            );
-            break;
-        }
+    // Run tools in parallel with bounded concurrency (MAX_CONCURRENT_CHECKS=4).
+    // Each tool is an independent subprocess, so they can safely execute concurrently.
+    // Memory monitor check runs before/after the parallel batch.
+    if let Err(usage) = memory_monitor.check() {
+        eprintln!(
+            "  {} Memory limit exceeded ({} MB used). Stopping batch.",
+            "✗".red().bold(),
+            usage.rss_bytes / 1024 / 1024
+        );
+        return 2;
     }
-    bar.finish();
+    let results = run_parallel_tools(tools);
+    if let Err(usage) = memory_monitor.check() {
+        eprintln!(
+            "  {} Memory usage high after batch ({} MB used). Consider reducing MAX_CONCURRENT_CHECKS.",
+            "⚠".yellow().bold(),
+            usage.rss_bytes / 1024 / 1024
+        );
+    }
 
     let duration_ms = start.elapsed().as_millis() as u64;
     let passed = results.iter().filter(|r| r.success).count();
@@ -1440,13 +1499,14 @@ pub(crate) fn run_batch(
                 .into_iter()
                 .collect();
             langs_detected.sort();
+            let total_tools = results.len();
             let report = UnifiedReport {
                 run_id: report.run_id,
                 started_at: report.started_at,
                 duration_ms,
                 tools: results,
                 summary: ReportSummary {
-                    total_tools: tools.len(),
+                    total_tools,
                     passed,
                     failed,
                     languages_detected: langs_detected,

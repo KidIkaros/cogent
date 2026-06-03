@@ -12,6 +12,7 @@ keywords = [ "quality", "metrics", "security", "audit", "cli",]
 categories = [ "development-tools", "command-line-utilities", "development-tools::testing",]
 
 [profile.release]
-lto = true
+lto = "fat"
 codegen-units = 1
 strip = "debuginfo"
+opt-level = 3

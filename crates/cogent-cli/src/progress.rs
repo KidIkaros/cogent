@@ -45,6 +45,7 @@ pub(crate) fn format_ms(ms: u64) -> String {
     }
 }
 
+#[allow(dead_code)]
 fn format_duration(d: std::time::Duration) -> String {
     let secs = d.as_secs();
     format!("{:02}:{:02}", secs / 60, secs % 60)
@@ -72,77 +73,7 @@ pub(crate) fn visible_len(s: &str) -> usize {
     strip_ansi(s).chars().count()
 }
 
-pub(crate) struct Bar {
-    total: usize,
-    done: usize,
-    start: Instant,
-    tty: bool,
-    last_len: usize,
-    current_tool: String,
-}
 
-impl Bar {
-    pub(crate) fn new(total: usize) -> Self {
-        let tty = is_tty();
-        Self { total, done: 0, start: Instant::now(), tty, last_len: 0, current_tool: String::new() }
-    }
-
-    pub(crate) fn set_current(&mut self, tool: &str) {
-        self.current_tool = tool.to_string();
-        self.render();
-    }
-
-    pub(crate) fn advance(&mut self, tool: &str, passed: bool, duration_ms: u64) {
-        self.done += 1;
-        let icon = if passed { "  ✓".green().bold() } else { "  ✗".red().bold() };
-        let name_col = if passed { tool.normal() } else { tool.red() };
-        let dur_str = format_ms(duration_ms);
-        if self.tty {
-            eprintln!("\r{:<width$}", "", width = self.last_len);
-            eprintln!("\r{} {:<18}  {}", icon, name_col, dur_str.bright_black());
-        } else {
-            let ci_icon = if passed { "✓" } else { "✗" };
-            eprintln!("  {} {:<18}  {}", ci_icon, tool, dur_str);
-        }
-        self.render();
-    }
-
-    pub(crate) fn render(&mut self) {
-        if !self.tty { return; }
-        let pct = self.done.checked_mul(100).unwrap_or(0) / self.total.max(1);
-        let bar_width = 28usize;
-        let filled = bar_width * self.done / self.total.max(1);
-        let bar: String = "█".repeat(filled) + &"░".repeat(bar_width - filled);
-        let elapsed = self.start.elapsed();
-        let eta_str = if self.done > 0 {
-            let per_item = elapsed / self.done as u32;
-            let remaining = per_item * (self.total - self.done) as u32;
-            format!("ETA {}", format_duration(remaining))
-        } else {
-            "ETA --:--".to_string()
-        };
-        let frame = SPINNER_FRAMES[self.done % SPINNER_FRAMES.len()];
-        let running = if self.current_tool.is_empty() {
-            String::new()
-        } else {
-            format!("  {} Running: {}  ({})", frame.cyan(), self.current_tool.bold(), format_elapsed(elapsed))
-        };
-        let bar_line = format!("  [{}/{}] {}  {}%   {}", self.done, self.total, bar.cyan(), pct, eta_str.bright_black());
-        eprint!("\r{:<width$}", bar_line, width = self.last_len.max(bar_line.len()));
-        self.last_len = bar_line.len();
-        if !running.is_empty() {
-            eprint!("\n{}", running);
-            eprint!("\x1b[1A");
-        }
-        let _ = std::io::Write::flush(&mut std::io::stderr());
-    }
-
-    pub(crate) fn finish(&self) {
-        if self.tty {
-            eprintln!("\r{:<80}", "");
-        }
-    }
-}
 
 pub(crate) fn box_row(content: &str, inner_width: usize) {
     let vlen = visible_len(content);

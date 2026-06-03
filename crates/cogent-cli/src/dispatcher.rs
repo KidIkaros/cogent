@@ -2,6 +2,7 @@
 //! Extracted from `main.rs` to give each concern a single home.
 
 #![deny(clippy::all)]
+#![allow(clippy::type_complexity)]
 
 use std::time::Instant;
 
@@ -553,227 +554,160 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     let check_start = Instant::now();
     let show_progress = format == "text";
 
-    macro_rules! run_check {
-        ($label:expr, $expr:expr) => {{
-            if show_progress {
-                let label = $label;
-                let t = Instant::now();
-                let result = run_with_spinner(label, || $expr);
-                let elapsed = format_elapsed(t.elapsed());
-                let detail = &result.message;
-                let icon = if result.passed {
-                    "\u{2713}".green().bold()
-                } else {
-                    "\u{2717}".red().bold()
-                };
-                let name_col = if result.passed {
-                    label.normal()
-                } else {
-                    label.red()
-                };
-                let msg_col = if result.passed {
-                    detail.bright_black()
-                } else {
-                    detail.red()
-                };
-                eprintln!(
-                    "  {} {:<18} {}  {}",
-                    icon,
-                    name_col,
-                    elapsed.bright_black(),
-                    msg_col
-                );
-                if !result.passed || verbose {
-                    print_offenders(&result);
-                }
-                result
-            } else {
-                $expr
-            }
-        }};
-    }
+    // Build check definitions for parallel (or serial) execution.
+    // Each check is a (name, closure) pair. Parallel execution uses
+    // a work-stealing thread pool with bounded concurrency.
+    #[allow(clippy::type_complexity)]
+    let mut check_defs: Vec<(&str, Box<dyn FnOnce() -> CheckResult + Send>)> = Vec::new();
 
-    let mut checks = Vec::new();
+    macro_rules! add_check {
+        ($name:expr, $expr:expr) => {
+            check_defs.push(($name, Box::new($expr)));
+        };
+    }
 
     if check_should_run("crap", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "crap",
-            check_crap(&path, recursive, &coverage, max_crap)
-        ));
+        let p = path.clone();
+        let cov = coverage.clone();
+        add_check!("crap", move || check_crap(&p, recursive, &cov, max_crap));
     }
     if check_should_run("debt", &only_list, &skip_list) {
-        checks.push(run_check!("debt", check_debt(&path, recursive, max_debt)));
+        let p = path.clone();
+        add_check!("debt", move || check_debt(&p, recursive, max_debt));
     }
     if check_should_run("doc", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "doc_coverage",
-            check_doc_coverage(&path, recursive, min_doc)
-        ));
+        let p = path.clone();
+        add_check!("doc_coverage", move || check_doc_coverage(&p, recursive, min_doc));
     }
     if check_should_run("complexity", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "complexity",
-            check_complexity(&path, recursive, 10, max_complexity_violations)
-        ));
+        let p = path.clone();
+        add_check!("complexity", move || check_complexity(&p, recursive, 10, max_complexity_violations));
     }
     if check_should_run("taint", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "taint",
-            check_taint(&path, recursive, max_taint)
-        ));
+        let p = path.clone();
+        add_check!("taint", move || check_taint(&p, recursive, max_taint));
     }
     if check_should_run("dup", &only_list, &skip_list) || check_should_run("dupfind", &only_list, &skip_list) || check_should_run("duplication", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "duplication",
-            check_dupfind(&path, recursive, max_duplication)
-        ));
+        let p = path.clone();
+        add_check!("duplication", move || check_dupfind(&p, recursive, max_duplication));
     }
     if check_should_run("risk", &only_list, &skip_list) || check_should_run("riskmap", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "riskmap",
-            check_riskmap(&path, recursive, max_risk)
-        ));
+        let p = path.clone();
+        add_check!("riskmap", move || check_riskmap(&p, recursive, max_risk));
     }
     if check_should_run("coupling", &only_list, &skip_list) {
-        checks.push(run_check!("coupling", check_coupling(&path, max_coupling)));
+        let p = path.clone();
+        add_check!("coupling", move || check_coupling(&p, max_coupling));
     }
     if check_should_run("propcov", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "propcov",
-            check_propcov(&path, recursive, min_propcov)
-        ));
+        let p = path.clone();
+        add_check!("propcov", move || check_propcov(&p, recursive, min_propcov));
     }
     if check_should_run("fuzz", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "fuzz",
-            check_fuzz(&path, recursive, max_fuzz_risk)
-        ));
+        let p = path.clone();
+        add_check!("fuzz", move || check_fuzz(&p, recursive, max_fuzz_risk));
     }
     if check_should_run("linelen", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "linelen",
-            check_linelen(&path, recursive, max_linelen)
-        ));
+        let p = path.clone();
+        add_check!("linelen", move || check_linelen(&p, recursive, max_linelen));
     }
     if check_should_run("halstead", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "halstead",
-            check_halstead(&path, recursive, max_halstead_bugs)
-        ));
+        let p = path.clone();
+        add_check!("halstead", move || check_halstead(&p, recursive, max_halstead_bugs));
     }
     if check_should_run("secrets", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "secrets",
-            check_secrets(&path, recursive, max_secrets)
-        ));
+        let p = path.clone();
+        add_check!("secrets", move || check_secrets(&p, recursive, max_secrets));
     }
     if check_should_run("deadcode", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "deadcode",
-            check_deadcode(&path, recursive, max_deadcode)
-        ));
+        let p = path.clone();
+        add_check!("deadcode", move || check_deadcode(&p, recursive, max_deadcode));
     }
     if check_should_run("cohesion", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "cohesion",
-            check_cohesion(&path, recursive, max_cohesion)
-        ));
+        let p = path.clone();
+        add_check!("cohesion", move || check_cohesion(&p, recursive, max_cohesion));
     }
     if check_should_run("comments", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "comments",
-            check_comments(&path, recursive, min_comment_ratio)
-        ));
+        let p = path.clone();
+        add_check!("comments", move || check_comments(&p, recursive, min_comment_ratio));
     }
     if check_should_run("errhandle", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "errhandle",
-            check_errhandle(&path, recursive, max_errhandle)
-        ));
+        let p = path.clone();
+        add_check!("errhandle", move || check_errhandle(&p, recursive, max_errhandle));
     }
     if check_should_run("typecov", &only_list, &skip_list) && min_typecov > 0.0 {
-        checks.push(run_check!(
-            "typecov",
-            check_typecov(&path, recursive, min_typecov)
-        ));
+        let p = path.clone();
+        add_check!("typecov", move || check_typecov(&p, recursive, min_typecov));
     }
     if check_should_run("vulnscan", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "vulnscan",
-            check_vulnscan(&path, max_vuln_critical, max_vuln_high)
-        ));
+        let p = path.clone();
+        add_check!("vulnscan", move || check_vulnscan(&p, max_vuln_critical, max_vuln_high));
     }
     if check_should_run("sast", &only_list, &skip_list) {
-        checks.push(run_check!("sast", check_sast(&path, recursive, max_sast)));
+        let p = path.clone();
+        add_check!("sast", move || check_sast(&p, recursive, max_sast));
     }
     if check_should_run("crypto", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "crypto",
-            check_crypto(&path, recursive, max_crypto)
-        ));
+        let p = path.clone();
+        add_check!("crypto", move || check_crypto(&p, recursive, max_crypto));
     }
     if check_should_run("licenses", &only_list, &skip_list) {
-        checks.push(run_check!(
-            "licenses",
-            check_licenses(&path, max_license_violations)
-        ));
+        let p = path.clone();
+        add_check!("licenses", move || check_licenses(&p, max_license_violations));
     }
     if check_should_run("mutate", &only_list, &skip_list) {
-        checks.push(run_check!("mutate", {
-            let args = vec![&path, "--format", "json"];
+        let p = path.clone();
+        add_check!("mutate", move || {
+            let args = vec![&p as &str, "--format", "json"];
             let res = run_tool("mutation-test", "mutate", &args, Instant::now());
-            let score = res
-                .data
-                .get("summary")
-                .and_then(|s| s.get("kill_rate"))
-                .and_then(|v| v.as_f64())
-                .unwrap_or(0.0);
+            let score = res.data.get("summary").and_then(|s| s.get("kill_rate")).and_then(|v| v.as_f64()).unwrap_or(0.0);
             let min_kill_rate = std::fs::read_to_string(".quality.toml")
-                .ok()
-                .and_then(|content| {
+                .ok().and_then(|content| {
                     content.lines().find_map(|line| {
                         let line = line.trim();
                         if line.starts_with("min_kill_rate") {
                             line.split('=').nth(1)?.trim().parse::<f64>().ok()
-                        } else {
-                            None
-                        }
+                        } else { None }
                     })
-                })
-                .unwrap_or(0.0);
+                }).unwrap_or(0.0);
             let passed = score >= min_kill_rate;
-            let msg = if passed {
-                format!("Mutation testing passed (kill rate {:.1}%)", score)
-            } else {
-                format!(
-                    "Mutation testing failed (kill rate {:.1}% < {:.0}%)",
-                    score, min_kill_rate
-                )
-            };
             CheckResult {
-                name: "mutate".into(),
-                passed,
-                score: Some(score),
-                threshold: Some(min_kill_rate),
-                message: msg,
+                name: "mutate".into(), passed,
+                score: Some(score), threshold: Some(min_kill_rate),
+                message: if passed { format!("Mutation testing passed (kill rate {:.1}%)", score) } else { format!("Mutation testing failed (kill rate {:.1}% < {:.0}%)", score, min_kill_rate) },
                 details: serde_json::json!({}),
-                severity: None,
-                help: None,
-                rule_id: None,
-                findings: Vec::new(),
+                severity: None, help: None, rule_id: None, findings: Vec::new(),
             }
-        }));
+        });
     }
     if check_should_run("access-control", &only_list, &skip_list) {
-        checks.push(run_check!("access-control", {
-            check_access_control(&path, true, 0)
-        }));
+        let p = path.clone();
+        add_check!("access-control", move || check_access_control(&p, true, 0));
     }
     if check_should_run("supply-chain", &only_list, &skip_list) {
-        checks.push(run_check!("supply-chain", check_supply_chain(&path, 0)));
+        let p = path.clone();
+        add_check!("supply-chain", move || check_supply_chain(&p, 0));
     }
     if check_should_run("outdated", &only_list, &skip_list) {
-        checks.push(run_check!("outdated", check_outdated(&path, max_outdated)));
+        let p = path.clone();
+        add_check!("outdated", move || check_outdated(&p, max_outdated));
+    }
+
+    // Execute all checks in parallel with bounded concurrency.
+    // Each check is an independent subprocess (spawned via run_tool),
+    // so they can safely execute concurrently.
+    if show_progress {
+        eprintln!("  {} Running {} checks in parallel...", "▶".cyan().bold(), check_defs.len());
+    }
+    let checks = run_parallel_checks(check_defs);
+    if show_progress {
+        for c in &checks {
+            let icon = if c.passed { "✓".green().bold() } else { "✗".red().bold() };
+            let name_col = if c.passed { c.name.normal() } else { c.name.red() };
+            let msg_col = if c.passed { c.message.bright_black() } else { c.message.red() };
+            eprintln!("  {} {:<18} {}", icon, name_col, msg_col);
+            if !c.passed || verbose { print_offenders(c); }
+        }
     }
 
     let passed = checks.iter().all(|c| c.passed);

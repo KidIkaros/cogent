@@ -10,22 +10,14 @@ pub const SPINNER_FRAMES: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", 
 
 /// Detect whether stderr is a real TTY.
 pub fn is_tty() -> bool {
+    use std::io::IsTerminal;
     if std::env::var("CI").is_ok()
         || std::env::var("NO_COLOR").is_ok()
         || std::env::var("COGENT_NO_PROGRESS").is_ok()
     {
         return false;
     }
-    #[cfg(unix)]
-    { unsafe { libc_isatty(2) } }
-    #[cfg(not(unix))]
-    { false }
-}
-
-#[cfg(unix)]
-unsafe fn libc_isatty(fd: i32) -> bool {
-    extern "C" { fn isatty(fd: i32) -> i32; }
-    isatty(fd) != 0
+    std::io::stderr().is_terminal()
 }
 
 pub fn format_elapsed(d: std::time::Duration) -> String {

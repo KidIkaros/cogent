@@ -240,15 +240,7 @@ fn run(cli: Cli) {
     for file in &files {
         // Skip cogent tool infrastructure sources to avoid false positives from
         // rule-literal strings and pattern-matching code.
-        let is_cogent_infra = [
-            "/crypto-check/src/",
-            "/sast/src/",
-            "/cogent-cli/src/check_runners.rs",
-            "/cogent-fix/src/",
-        ]
-        .iter()
-        .any(|p| file.contains(p));
-        if is_cogent_infra {
+        if cogent_common::is_cogent_infra_path(file) {
             continue;
         }
         all_findings.extend(scan_file(file));

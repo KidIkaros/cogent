@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "access-control"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -156,7 +156,7 @@ dependencies = [
 
 [[package]]
 name = "ast-parse-ts"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "tree-sitter 0.26.9",
  "tree-sitter-c",
@@ -440,10 +440,10 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cogent-cli"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
- "ast-parse-ts 1.1.1",
+ "ast-parse-ts 1.2.0",
  "chrono",
  "clap",
  "clap_complete",
@@ -475,7 +475,7 @@ dependencies = [
 
 [[package]]
 name = "cogent-common"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "chrono",
  "clap",
@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "cogent-config"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -498,9 +498,9 @@ dependencies = [
 
 [[package]]
 name = "cogent-engine"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
- "ast-parse-ts 1.1.1",
+ "ast-parse-ts 1.2.0",
  "chrono",
  "cogent-common",
  "colored",
@@ -512,7 +512,7 @@ dependencies = [
 
 [[package]]
 name = "cogent-fix"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "cogent-common",
  "proc-macro2",
@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "cogent-report"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "chrono",
  "cogent-common",
@@ -541,7 +541,7 @@ dependencies = [
 
 [[package]]
 name = "cogent-server"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "clap",
  "cogent-common",
@@ -553,7 +553,7 @@ dependencies = [
 
 [[package]]
 name = "cohesion"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -581,7 +581,7 @@ dependencies = [
 
 [[package]]
 name = "comment-ratio"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -600,7 +600,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "coupling"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -623,7 +623,7 @@ dependencies = [
 
 [[package]]
 name = "crap-metric"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -712,7 +712,7 @@ checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
 name = "crypto-check"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -735,7 +735,7 @@ dependencies = [
 
 [[package]]
 name = "dead-code"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -748,7 +748,7 @@ dependencies = [
 
 [[package]]
 name = "debt-scan"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "chrono",
@@ -789,7 +789,7 @@ dependencies = [
 
 [[package]]
 name = "doc-coverage"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -802,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "duplication"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -847,7 +847,7 @@ dependencies = [
 
 [[package]]
 name = "error-handling"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -1007,7 +1007,7 @@ dependencies = [
 
 [[package]]
 name = "fuzz-surface"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -1101,7 +1101,7 @@ dependencies = [
 
 [[package]]
 name = "halstead"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -1524,7 +1524,7 @@ dependencies = [
 
 [[package]]
 name = "licenses"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -1537,7 +1537,7 @@ dependencies = [
 
 [[package]]
 name = "line-length"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -1627,7 +1627,7 @@ dependencies = [
 
 [[package]]
 name = "mutation-test"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -2021,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "prop-cov"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -2209,7 +2209,7 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "risk-map"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -2257,7 +2257,7 @@ dependencies = [
 
 [[package]]
 name = "sast"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -2270,7 +2270,7 @@ dependencies = [
 
 [[package]]
 name = "sbom"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -2289,7 +2289,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "secrets"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -2456,7 +2456,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "supply-chain"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -2508,7 +2508,7 @@ dependencies = [
 
 [[package]]
 name = "taint-scan"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "ast-parse-ts 1.0.0",
@@ -3008,7 +3008,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "type-coverage"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -3115,7 +3115,7 @@ checksum = "5c3082ca00d5a5ef149bb8b555a72ae84c9c59f7250f013ac822ac2e49b19c64"
 
 [[package]]
 name = "vuln-scan"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "assert_cmd",
  "clap",

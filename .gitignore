@@ -1,2 +1,4 @@
 /target
 target/lcov.info
+.cogent-cache/
+*.sarif

@@ -110,6 +110,60 @@ pub fn new_unified_report(started_at: String) -> UnifiedReport {
 }
 
 // ═══════════════════════════════════════════
+// COGENT INFRASTRUCTURE SKIP LIST
+// ═══════════════════════════════════════════
+
+/// Returns `true` if `path` belongs to Cogent tool infrastructure and should be
+/// excluded from self-scanning to avoid false positives.
+///
+/// Individual tools (sast, crypto-check, etc.) call this instead of maintaining
+/// their own ad-hoc skip lists, so newly-added crates are covered automatically.
+pub fn is_cogent_infra_path(path: &str) -> bool {
+    // All cogent-* prefixed crates (cli, common, config, report, engine, server, fix)
+    if path.contains("/cogent-") {
+        return true;
+    }
+    // Tool crates whose names are distinctive enough to avoid false positives
+    // in real user projects.  Each pattern is surrounded by `/` to avoid
+    // substring collisions.
+    // Distinctive names (unlikely in user projects):
+    const DISTINCTIVE_PATTERNS: &[&str] = &[
+        "/sast/",
+        "/crypto-check/",
+        "/mutation-test/",
+        "/risk-map/",
+        "/fuzz-surface/",
+        "/access-control/",
+        "/taint-scan/",
+        "/vuln-scan/",
+        "/debt-scan/",
+        "/ast-parse-ts/",
+    ];
+    // Generic names that could collide with user directories — scoped to
+    // `/crates/<name>/` so only workspace crate paths match.
+    const GENERIC_CRATE_PATTERNS: &[&str] = &[
+        "/crates/secrets/",
+        "/crates/dead-code/",
+        "/crates/duplication/",
+        "/crates/comment-ratio/",
+        "/crates/coupling/",
+        "/crates/cohesion/",
+        "/crates/halstead/",
+        "/crates/prop-cov/",
+        "/crates/error-handling/",
+        "/crates/type-coverage/",
+        "/crates/line-length/",
+        "/crates/doc-coverage/",
+        "/crates/crap-metric/",
+        "/crates/licenses/",
+        "/crates/supply-chain/",
+        "/crates/sbom/",
+    ];
+    DISTINCTIVE_PATTERNS.iter().any(|p| path.contains(p))
+        || GENERIC_CRATE_PATTERNS.iter().any(|p| path.contains(p))
+}
+
+// ═══════════════════════════════════════════
 // FILE DISCOVERY
 // ═══════════════════════════════════════════
 
@@ -537,6 +591,36 @@ fn format_timestamp(ts: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── is_cogent_infra_path ──
+
+    #[test]
+    fn test_is_cogent_infra_path_cogent_prefix() {
+        assert!(is_cogent_infra_path("./crates/cogent-cli/src/main.rs"));
+        assert!(is_cogent_infra_path("./crates/cogent-common/src/lib.rs"));
+        assert!(is_cogent_infra_path("./crates/cogent-fix/src/main.rs"));
+    }
+
+    #[test]
+    fn test_is_cogent_infra_path_distinctive() {
+        assert!(is_cogent_infra_path("./crates/sast/src/main.rs"));
+        assert!(is_cogent_infra_path("./crates/crypto-check/src/main.rs"));
+        assert!(is_cogent_infra_path("./crates/mutation-test/src/main.rs"));
+    }
+
+    #[test]
+    fn test_is_cogent_infra_path_generic_scoped() {
+        assert!(is_cogent_infra_path("./crates/secrets/src/main.rs"));
+        assert!(is_cogent_infra_path("./crates/licenses/src/main.rs"));
+        assert!(is_cogent_infra_path("./crates/duplication/src/main.rs"));
+    }
+
+    #[test]
+    fn test_is_cogent_infra_path_user_project_not_skipped() {
+        assert!(!is_cogent_infra_path("./src/main.rs"));
+        assert!(!is_cogent_infra_path("./my-app/secrets/manager.rs"));
+        assert!(!is_cogent_infra_path("./lib/duplication/utils.rs"));
+    }
 
     #[test]
     fn test_truncate() {

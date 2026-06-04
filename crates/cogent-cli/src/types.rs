@@ -606,7 +606,7 @@ mod tests {
         ])];
         let result = aggregate_file_summary(&checks);
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].severity_score, 4 + 3 + 3 + 2 + 2 + 1 + 0);
+        assert_eq!(result[0].severity_score, 4 + 3 + 3 + 2 + 2 + 1);
     }
 
     #[test]

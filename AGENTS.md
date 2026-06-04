@@ -21,6 +21,10 @@ cogent init --ci
 | `cogent init --ci` | Full CI wiring (GHA + hook + baseline) | Repo bootstrap |
 | `cogent check .` | Run all checks, auto-loads `.quality.toml` | Before PR / after changes |
 | `cogent check . --format json` | Machine-readable check results | Agent consumption |
+| `cogent check . --no-cache` | Run checks without using cache | Fresh results needed |
+| `cogent check . --clear-cache` | Clear cache then run checks | After config changes |
+| `cogent cache clear` | Delete all cached check results | Reset cache |
+| `cogent cache status` | Show cache size, entry count, age | Debug cache behavior |
 | `cogent watch .` | Watch changes, run tests + coverage + checks | Local dev loop |
 | `cogent watch . --no-tests` | Watch without running tests | Fast metrics-only loop |
 | `cogent install-hooks` | Install full pre-commit hook (tests + coverage + check) | Once per repo |
@@ -82,6 +86,10 @@ cogent taint ./src --recursive --format json
 - `watch` **auto-detects** test runner (Cargo, pytest, jest/vitest, go test)
 - `mutate` requires `cargo test` to pass on the original code first
 - Use `-p crate-name` with `mutate` in workspace repos
+- **Incremental cache** speeds up repeated `cogent check` runs — cached results return instantly when files haven't changed
+- Use `--no-cache` to bypass cache, `--clear-cache` to clear and re-run
+- Cache TTL and size are configurable via `COGENT_CACHE_TTL_SECS` (default 7d) and `COGENT_CACHE_MAX_BYTES` (default 100MB)
+- **Tracing** — set `RUST_LOG=cogent=debug` for per-tool execution timing; export spans to OTLP collectors with `--features opentelemetry` + `OTEL_EXPORTER_OTLP_ENDPOINT`
 
 ## MCP Server
 

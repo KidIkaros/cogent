@@ -1257,6 +1257,116 @@ pub(crate) fn render_markdown_report(
     md
 }
 
+pub(crate) fn setup_command() {
+    let ascii_art = r#"
+   ____          _      __  __      _        _          
+  / ___|___   __| | ___|  \/  | ___| |_ _ __(_) ___ ___ 
+ | |   / _ \ / _` |/ _ \ |\/| |/ _ \ __| '__| |/ __/ __|
+ | |__| (_) | (_| |  __/ |  | |  __/ |_| |  | | (__\__ \
+  \____\___/ \__,_|\___|_|  |_|\___|\__|_|  |_|\___|___/
+"#;
+    println!("{}", ascii_art.cyan().bold());
+    println!(
+        "{}",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
+    );
+    println!("{}", "  Cogent Doctor & Setup".cyan().bold());
+    println!(
+        "{}\n",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
+    );
+
+    let mut all_passed = true;
+
+    // Check cargo
+    if std::process::Command::new("cargo")
+        .arg("--version")
+        .output()
+        .is_ok()
+    {
+        println!("  {} cargo installed", "[✓]".green().bold());
+    } else {
+        println!("  {} cargo NOT installed", "[✗]".red().bold());
+        println!("      => {}", "Install Rust: https://rustup.rs/".yellow());
+        all_passed = false;
+    }
+
+    // Check cargo-llvm-cov
+    if std::process::Command::new("cargo")
+        .args(["llvm-cov", "--version"])
+        .output()
+        .is_ok()
+    {
+        println!("  {} cargo-llvm-cov installed", "[✓]".green().bold());
+    } else {
+        println!("  {} cargo-llvm-cov NOT installed", "[✗]".red().bold());
+        println!("      => {}", "Run: cargo install cargo-llvm-cov".yellow());
+        all_passed = false;
+    }
+
+    // Check llvm-tools-preview
+    let rustup_out = std::process::Command::new("rustup")
+        .args(["component", "list"])
+        .output()
+        .ok();
+    if let Some(out) = rustup_out {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        if stdout.contains("llvm-tools-preview (installed)")
+            || stdout.contains("llvm-tools (installed)")
+        {
+            println!("  {} llvm-tools installed", "[✓]".green().bold());
+        } else {
+            println!("  {} llvm-tools NOT installed", "[✗]".red().bold());
+            println!(
+                "      => {}",
+                "Run: rustup component add llvm-tools-preview".yellow()
+            );
+            all_passed = false;
+        }
+    } else {
+        println!(
+            "  {} rustup not found, could not verify llvm-tools",
+            "[?]".yellow().bold()
+        );
+    }
+
+    // Check .quality.toml
+    if std::path::Path::new(".quality.toml").exists() {
+        println!(
+            "  {} .quality.toml configuration found",
+            "[✓]".green().bold()
+        );
+    } else {
+        println!("  {} .quality.toml NOT found", "[✗]".red().bold());
+        println!("      => {}", "Run: cogent init".yellow());
+        all_passed = false;
+    }
+
+    println!(
+        "\n{}",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
+    );
+    if all_passed {
+        println!(
+            "  {}",
+            "Everything looks good! Your codebase is ready."
+                .green()
+                .bold()
+        );
+    } else {
+        println!(
+            "  {}",
+            "Please resolve the missing requirements above."
+                .red()
+                .bold()
+        );
+    }
+    println!(
+        "{}",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1534,114 +1644,4 @@ mod tests {
         assert!(svg.contains("300"));
         assert!(svg.contains("100"));
     }
-}
-
-pub(crate) fn setup_command() {
-    let ascii_art = r#"
-   ____          _      __  __      _        _          
-  / ___|___   __| | ___|  \/  | ___| |_ _ __(_) ___ ___ 
- | |   / _ \ / _` |/ _ \ |\/| |/ _ \ __| '__| |/ __/ __|
- | |__| (_) | (_| |  __/ |  | |  __/ |_| |  | | (__\__ \
-  \____\___/ \__,_|\___|_|  |_|\___|\__|_|  |_|\___|___/
-"#;
-    println!("{}", ascii_art.cyan().bold());
-    println!(
-        "{}",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
-    );
-    println!("{}", "  Cogent Doctor & Setup".cyan().bold());
-    println!(
-        "{}\n",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
-    );
-
-    let mut all_passed = true;
-
-    // Check cargo
-    if std::process::Command::new("cargo")
-        .arg("--version")
-        .output()
-        .is_ok()
-    {
-        println!("  {} cargo installed", "[✓]".green().bold());
-    } else {
-        println!("  {} cargo NOT installed", "[✗]".red().bold());
-        println!("      => {}", "Install Rust: https://rustup.rs/".yellow());
-        all_passed = false;
-    }
-
-    // Check cargo-llvm-cov
-    if std::process::Command::new("cargo")
-        .args(["llvm-cov", "--version"])
-        .output()
-        .is_ok()
-    {
-        println!("  {} cargo-llvm-cov installed", "[✓]".green().bold());
-    } else {
-        println!("  {} cargo-llvm-cov NOT installed", "[✗]".red().bold());
-        println!("      => {}", "Run: cargo install cargo-llvm-cov".yellow());
-        all_passed = false;
-    }
-
-    // Check llvm-tools-preview
-    let rustup_out = std::process::Command::new("rustup")
-        .args(["component", "list"])
-        .output()
-        .ok();
-    if let Some(out) = rustup_out {
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        if stdout.contains("llvm-tools-preview (installed)")
-            || stdout.contains("llvm-tools (installed)")
-        {
-            println!("  {} llvm-tools installed", "[✓]".green().bold());
-        } else {
-            println!("  {} llvm-tools NOT installed", "[✗]".red().bold());
-            println!(
-                "      => {}",
-                "Run: rustup component add llvm-tools-preview".yellow()
-            );
-            all_passed = false;
-        }
-    } else {
-        println!(
-            "  {} rustup not found, could not verify llvm-tools",
-            "[?]".yellow().bold()
-        );
-    }
-
-    // Check .quality.toml
-    if std::path::Path::new(".quality.toml").exists() {
-        println!(
-            "  {} .quality.toml configuration found",
-            "[✓]".green().bold()
-        );
-    } else {
-        println!("  {} .quality.toml NOT found", "[✗]".red().bold());
-        println!("      => {}", "Run: cogent init".yellow());
-        all_passed = false;
-    }
-
-    println!(
-        "\n{}",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
-    );
-    if all_passed {
-        println!(
-            "  {}",
-            "Everything looks good! Your codebase is ready."
-                .green()
-                .bold()
-        );
-    } else {
-        println!(
-            "  {}",
-            "Please resolve the missing requirements above."
-                .red()
-                .bold()
-        );
-    }
-    println!(
-        "{}",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━".bright_black()
-    );
 }

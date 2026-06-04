@@ -116,6 +116,62 @@ cogent watch . --full     # runs all 21 checks every cycle
 cogent watch . --no-tests # skip tests, metrics-only
 ```
 
+## Incremental Cache
+
+Cogent caches check results to speed up repeated runs. When source files and `.quality.toml` haven't changed, cached results are returned instantly.
+
+```bash
+# First run — all checks execute, results cached (8-12s)
+cogent check .
+
+# Second run — most checks served from cache (0.2-0.5s)
+cogent check .
+
+# Run without cache
+cogent check . --no-cache
+
+# Clear cache then run fresh
+cogent check . --clear-cache
+
+# Check cache status
+cogent cache status
+
+# Delete all cached results
+cogent cache clear
+```
+
+Cache is configured via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COGENT_CACHE_TTL_SECS` | `604800` (7 days) | Max age of cache entries |
+| `COGENT_CACHE_MAX_BYTES` | `104857600` (100 MB) | Max total cache size |
+
+See [docs/tools/cache.md](./tools/cache.md) for full documentation.
+
+## Tracing & Observability
+
+Cogent emits structured tracing spans for performance profiling and debugging.
+
+```bash
+# Default — info-level spans written to stderr
+cogent check .
+
+# Debug-level — see per-tool execution timing
+RUST_LOG=cogent=debug cogent check .
+
+# Export to any OTLP collector (Jaeger, Tempo, Honeycomb)
+# Requires: cargo build --release -p cogent-cli --features opentelemetry
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 cogent check .
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RUST_LOG` | `cogent=info,warn` | Tracing verbosity (standard `env_filter` syntax) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | *(unset)* | OTLP collector endpoint (requires `--features opentelemetry`) |
+
+See [docs/tools/tracing.md](./tools/tracing.md) for full documentation.
+
 ## Understanding Reports
 
 ### CRAP Score Explanation

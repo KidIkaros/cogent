@@ -45,6 +45,14 @@ pub enum PolicyAction {
 }
 
 #[derive(Subcommand)]
+pub enum CacheAction {
+    /// Delete all cached check results (.cogent-cache/)
+    Clear,
+    /// Show cache size, entry count, and age of cached results
+    Status,
+}
+
+#[derive(Subcommand)]
 pub enum ExceptionAction {
     /// Propose a new exception (status: pending)
     Add {
@@ -230,6 +238,14 @@ pub enum Commands {
         /// Run checks even when .quality.toml is missing (uses hardcoded defaults)
         #[arg(long)]
         force: bool,
+
+        /// Disable incremental caching; re-run all checks from scratch
+        #[arg(long)]
+        no_cache: bool,
+
+        /// Clear the cache before running checks
+        #[arg(long)]
+        clear_cache: bool,
     },
 
     /// Verify environment dependencies (doctor)
@@ -722,6 +738,15 @@ pub enum Commands {
     Policy {
         #[command(subcommand)]
         action: PolicyAction,
+    },
+
+    /// Manage the incremental check cache
+    #[command(
+        after_help = "Example: cogent cache clear → removes all cached check results.\nCached results speed up repeated `cogent check` runs when source files haven't changed."
+    )]
+    Cache {
+        #[command(subcommand)]
+        action: CacheAction,
     },
 
     /// Manage approved exceptions (false positive overrides)

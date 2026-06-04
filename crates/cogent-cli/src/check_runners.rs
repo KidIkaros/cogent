@@ -1028,13 +1028,25 @@ pub(crate) fn check_supply_chain(path: &str, max_risks: usize) -> CheckResult {
 // PARALLEL CHECK EXECUTION
 // ═══════════════════════════════════════════
 
-/// Maximum number of concurrent check processes.
+/// Default maximum number of concurrent check processes.
 /// Conservative default to prevent OOM on memory-constrained systems.
-const MAX_CONCURRENT_CHECKS: usize = 4;
+/// Override at runtime via the `COGENT_MAX_CONCURRENT` env var.
+const DEFAULT_MAX_CONCURRENT_CHECKS: usize = 4;
+
+/// Resolve the concurrency limit from env var or fall back to the default.
+/// Clamps to a minimum of 1 so there is always at least one worker.
+fn max_concurrent_checks() -> usize {
+    let raw = std::env::var("COGENT_MAX_CONCURRENT")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_MAX_CONCURRENT_CHECKS);
+    raw.max(1)
+}
 
 /// Run check functions in parallel with bounded concurrency using a
 /// work-stealing thread pool. Returns results sorted by check name for
 /// consistent display.
+#[tracing::instrument(level = "info", skip_all, fields(num_checks = checks.len()))]
 pub(crate) fn run_parallel_checks(
     checks: Vec<(&'static str, Box<dyn FnOnce() -> CheckResult + Send>)>,
 ) -> Vec<CheckResult> {
@@ -1042,7 +1054,7 @@ pub(crate) fn run_parallel_checks(
     if total == 0 {
         return Vec::new();
     }
-    let n_workers = MAX_CONCURRENT_CHECKS.min(total);
+    let n_workers = max_concurrent_checks().min(total);
     let work: Mutex<Vec<(&'static str, Box<dyn FnOnce() -> CheckResult + Send>)>> =
         Mutex::new(checks);
     let results: Mutex<Vec<CheckResult>> = Mutex::new(Vec::with_capacity(total));
@@ -1077,7 +1089,7 @@ pub(crate) fn run_parallel_tools(
     if total == 0 {
         return Vec::new();
     }
-    let n_workers = MAX_CONCURRENT_CHECKS.min(total);
+    let n_workers = max_concurrent_checks().min(total);
     let work: Mutex<Vec<(&'static str, &'static str, Vec<String>)>> =
         Mutex::new(tools);
     let results: Mutex<Vec<ToolResult>> = Mutex::new(Vec::with_capacity(total));
@@ -1112,6 +1124,7 @@ pub(crate) fn run_tool(
     args: &[&str],
     tool_start: Instant,
 ) -> ToolResult {
+    tracing::debug!(crate_name, bin_name, "running tool");
     use cogent_common::*;
     use std::process::{Command, Stdio};
 
@@ -2279,6 +2292,42 @@ mod tests {
     fn test_extract_f64_empty_object() {
         let data = json!({});
         assert_eq!(extract_f64(&data, &["key"]), 0.0);
+    }
+
+    // ── max_concurrent_checks ──
+    // NOTE: All env var tests are in a single function to avoid race conditions
+    // since cargo test runs tests in parallel and std::env::set_var is not thread-safe.
+
+    #[test]
+    fn test_max_concurrent_checks_env_var_behavior() {
+        // Save and clear any existing value
+        let saved = std::env::var("COGENT_MAX_CONCURRENT").ok();
+        std::env::remove_var("COGENT_MAX_CONCURRENT");
+
+        // Default without env var
+        assert_eq!(max_concurrent_checks(), DEFAULT_MAX_CONCURRENT_CHECKS);
+
+        // Explicit value from env var
+        std::env::set_var("COGENT_MAX_CONCURRENT", "8");
+        assert_eq!(max_concurrent_checks(), 8);
+
+        // Zero clamps to 1
+        std::env::set_var("COGENT_MAX_CONCURRENT", "0");
+        assert_eq!(max_concurrent_checks(), 1);
+
+        // One is valid
+        std::env::set_var("COGENT_MAX_CONCURRENT", "1");
+        assert_eq!(max_concurrent_checks(), 1);
+
+        // Invalid value falls back to default
+        std::env::set_var("COGENT_MAX_CONCURRENT", "not_a_number");
+        assert_eq!(max_concurrent_checks(), DEFAULT_MAX_CONCURRENT_CHECKS);
+
+        // Restore original value if any
+        match saved {
+            Some(v) => std::env::set_var("COGENT_MAX_CONCURRENT", v),
+            None => std::env::remove_var("COGENT_MAX_CONCURRENT"),
+        }
     }
 
     // ── make_check_result ──

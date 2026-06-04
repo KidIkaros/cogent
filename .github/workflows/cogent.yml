@@ -21,8 +21,8 @@ jobs:
       - name: Build workspace
         run: cargo build --release --workspace
 
-      - name: Run Cogent check
-        run: cogent check . --format json
+      - name: Run Cogent check (fresh, no cache)
+        run: cogent check . --no-cache --format json
 
       - name: Run Cogent run
         run: cogent run .

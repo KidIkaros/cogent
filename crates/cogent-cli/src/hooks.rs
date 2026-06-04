@@ -74,6 +74,12 @@ pub(crate) fn install_hooks_impl(repo: &str, fast: bool, profile: &ProjectProfil
 
 #[cfg(windows)]
 fn build_hook_script_windows(fast: bool, profile: &ProjectProfile) -> String {
+    build_hook_template_windows(fast, &profile.test_cmd.join(" "), profile.is_coverage_available(), &profile.ecosystem.to_string())
+}
+
+/// Build the Windows pre-commit hook script content.
+/// Extracted from `build_hook_script_windows` so it can be tested on all platforms.
+fn build_hook_template_windows(fast: bool, test_cmd: &str, has_coverage: bool, ecosystem: &str) -> String {
     let check_cmd = r#"@echo off
 REM Cogent pre-commit hook (Windows) — installed by `cogent install-hooks`
 REM Remove with: cogent uninstall-hooks
@@ -89,11 +95,11 @@ if %ERRORLEVEL% EQU 0 (
     exit /b 0
 )"#;
 
-    if fast || !profile.is_coverage_available() {
+    if fast || !has_coverage {
         format!(
             r#"{check_cmd}
 
-%CM_BIN% check . --format text
+%CM_BIN% check . --no-cache --format text
 if %ERRORLEVEL% NEQ 0 exit /b 1
 "#,
             check_cmd = check_cmd
@@ -107,13 +113,105 @@ echo [cogent] Running tests ({ecosystem})...
 if %ERRORLEVEL% NEQ 0 exit /b 1
 
 echo [cogent] Running quality checks...
-%CM_BIN% check . --format text
+%CM_BIN% check . --no-cache --format text
 if %ERRORLEVEL% NEQ 0 exit /b 1
 "#,
             check_cmd = check_cmd,
-            ecosystem = profile.ecosystem,
-            test_cmd = profile.test_cmd.join(" "),
+            test_cmd = test_cmd,
         )
+    }
+}
+
+fn build_hook_script(fast: bool, profile: &ProjectProfile) -> String {
+    let cm_bin = r#"CM_BIN=""
+if command -v cogent &>/dev/null; then
+    CM_BIN="cogent"
+elif [ -f target/release/cogent ]; then
+    CM_BIN="./target/release/cogent"
+else
+    echo "cogent: binary not found, skipping pre-commit check" >&2
+    exit 0
+fi"#;
+
+    if fast || !profile.is_coverage_available() {
+        format!(
+            r#"#!/usr/bin/env bash
+# Cogent pre-commit hook (fast/metrics-only) — installed by `cogent install-hooks`
+# Remove with: cogent uninstall-hooks
+# To skip: git commit --no-verify
+set -euo pipefail
+
+{cm_bin}
+
+$CM_BIN check . --no-cache --format text
+"#,
+            cm_bin = cm_bin
+        )
+    } else {
+        let test_cmd = profile.test_cmd.join(" ");
+        let cov_cmd = profile.coverage_cmd.join(" ");
+        let lcov_flag = if !profile.lcov_path.is_empty() {
+            format!("--coverage {}", profile.lcov_path)
+        } else {
+            String::new()
+        };
+        format!(
+            r#"#!/usr/bin/env bash
+# Cogent pre-commit hook (full: tests + coverage + metrics) — installed by `cogent install-hooks`
+# Remove with: cogent uninstall-hooks
+# To skip: git commit --no-verify
+set -euo pipefail
+
+{cm_bin}
+
+echo "[cogent] Running tests ({ecosystem})..."
+{test_cmd}
+
+echo "[cogent] Collecting coverage..."
+{cov_cmd}
+
+echo "[cogent] Running quality checks..."
+$CM_BIN check . {lcov_flag} --no-cache --format text
+"#,
+            cm_bin = cm_bin,
+            ecosystem = profile.ecosystem,
+            test_cmd = test_cmd,
+            cov_cmd = cov_cmd,
+            lcov_flag = lcov_flag,
+        )
+    }
+}
+
+/// Remove the Cogent pre-commit git hook.
+pub fn uninstall_hooks(repo: &str) -> i32 {
+    #[cfg(windows)]
+    let hook_path = format!("{}/.git/hooks/pre-commit.cmd", repo);
+    #[cfg(not(windows))]
+    let hook_path = format!("{}/.git/hooks/pre-commit", repo);
+
+    if !std::path::Path::new(&hook_path).exists() {
+        eprintln!("uninstall-hooks: no pre-commit hook found at {}", hook_path);
+        return 1;
+    }
+
+    let content = std::fs::read_to_string(&hook_path).unwrap_or_default();
+    if !content.contains("Cogent pre-commit hook") {
+        eprintln!(
+            "uninstall-hooks: {} exists but was not installed by cogent — refusing to remove",
+            hook_path
+        );
+        return 1;
+    }
+
+    match std::fs::remove_file(&hook_path) {
+        Ok(_) => {
+            println!("Removed pre-commit hook from {}", hook_path);
+            0
+        }
+        Err(e) => {
+            eprintln!("uninstall-hooks: remove failed: {}", e);
+            1
+        }
     }
 }
 
@@ -170,6 +268,7 @@ mod tests {
         assert!(script.contains("cargo llvm-cov --lcov --output-path lcov.info"));
         assert!(script.contains("Running quality checks"));
         assert!(script.contains("$CM_BIN check . --coverage lcov.info"));
+        assert!(script.contains("--no-cache"));
     }
 
     #[test]
@@ -178,7 +277,7 @@ mod tests {
         let script = build_hook_script(true, &profile);
         assert!(!script.contains("Running tests"));
         assert!(!script.contains("Collecting coverage"));
-        assert!(script.contains("$CM_BIN check . --format text"));
+        assert!(script.contains("$CM_BIN check . --no-cache --format text"));
     }
 
     #[test]
@@ -204,7 +303,7 @@ mod tests {
         let script = build_hook_script(false, &profile);
         assert!(!script.contains("Running tests"));
         assert!(!script.contains("Collecting coverage"));
-        assert!(script.contains("$CM_BIN check . --format text"));
+        assert!(script.contains("$CM_BIN check . --no-cache --format text"));
     }
 
     #[test]
@@ -216,97 +315,56 @@ mod tests {
         assert!(script.contains("cogent uninstall-hooks"));
         assert!(script.contains("git commit --no-verify"));
     }
-}
 
-fn build_hook_script(fast: bool, profile: &ProjectProfile) -> String {
-    let cm_bin = r#"CM_BIN=""
-if command -v cogent &>/dev/null; then
-    CM_BIN="cogent"
-elif [ -f target/release/cogent ]; then
-    CM_BIN="./target/release/cogent"
-else
-    echo "cogent: binary not found, skipping pre-commit check" >&2
-    exit 0
-fi"#;
+    // ── Windows hook variant ─────────────────────────────────────────────
 
-    if fast || !profile.is_coverage_available() {
-        format!(
-            r#"#!/usr/bin/env bash
-# Cogent pre-commit hook (fast/metrics-only) — installed by `cogent install-hooks`
-# Remove with: cogent uninstall-hooks
-# To skip: git commit --no-verify
-set -euo pipefail
-
-{cm_bin}
-
-$CM_BIN check . --format text
-"#,
-            cm_bin = cm_bin
-        )
-    } else {
-        let test_cmd = profile.test_cmd.join(" ");
-        let cov_cmd = profile.coverage_cmd.join(" ");
-        let lcov_flag = if !profile.lcov_path.is_empty() {
-            format!("--coverage {}", profile.lcov_path)
-        } else {
-            String::new()
-        };
-        format!(
-            r#"#!/usr/bin/env bash
-# Cogent pre-commit hook (full: tests + coverage + metrics) — installed by `cogent install-hooks`
-# Remove with: cogent uninstall-hooks
-# To skip: git commit --no-verify
-set -euo pipefail
-
-{cm_bin}
-
-echo "[cogent] Running tests ({ecosystem})..."
-{test_cmd}
-
-echo "[cogent] Collecting coverage..."
-{cov_cmd}
-
-echo "[cogent] Running quality checks..."
-$CM_BIN check . {lcov_flag} --format text
-"#,
-            cm_bin = cm_bin,
-            ecosystem = profile.ecosystem,
-            test_cmd = test_cmd,
-            cov_cmd = cov_cmd,
-            lcov_flag = lcov_flag,
-        )
-    }
-}
-
-/// Remove the Cogent pre-commit git hook.
-pub fn uninstall_hooks(repo: &str) -> i32 {
-    #[cfg(windows)]
-    let hook_path = format!("{}/.git/hooks/pre-commit.cmd", repo);
-    #[cfg(not(windows))]
-    let hook_path = format!("{}/.git/hooks/pre-commit", repo);
-
-    if !std::path::Path::new(&hook_path).exists() {
-        eprintln!("uninstall-hooks: no pre-commit hook found at {}", hook_path);
-        return 1;
+    #[test]
+    fn test_windows_hook_fast_mode_contains_no_cache() {
+        let script = build_hook_template_windows(true, "cargo test", true, "Rust");
+        assert!(script.contains("--no-cache"));
+        assert!(script.contains("--format text"));
+        assert!(!script.contains("Running tests"));
     }
 
-    let content = std::fs::read_to_string(&hook_path).unwrap_or_default();
-    if !content.contains("Cogent pre-commit hook") {
-        eprintln!(
-            "uninstall-hooks: {} exists but was not installed by cogent — refusing to remove",
-            hook_path
-        );
-        return 1;
+    #[test]
+    fn test_windows_hook_full_mode_contains_no_cache() {
+        let script = build_hook_template_windows(false, "cargo test", true, "Rust");
+        assert!(script.contains("--no-cache"));
+        assert!(script.contains("Running tests (Rust)"));
+        assert!(script.contains("Running quality checks"));
+        assert!(script.contains("cargo test"));
     }
 
-    match std::fs::remove_file(&hook_path) {
-        Ok(_) => {
-            println!("Removed pre-commit hook from {}", hook_path);
-            0
-        }
-        Err(e) => {
-            eprintln!("uninstall-hooks: remove failed: {}", e);
-            1
-        }
+    #[test]
+    fn test_windows_hook_no_coverage_falls_back_to_fast() {
+        // When coverage is unavailable, full mode should behave like fast mode
+        let script = build_hook_template_windows(false, "cargo test", false, "Rust");
+        assert!(script.contains("--no-cache"));
+        assert!(!script.contains("Running tests"));
+    }
+
+    #[test]
+    fn test_windows_hook_comment_header() {
+        let script = build_hook_template_windows(false, "cargo test", true, "Rust");
+        assert!(script.contains("Cogent pre-commit hook"));
+        assert!(script.contains("cogent install-hooks"));
+        assert!(script.contains("cogent uninstall-hooks"));
+        assert!(script.contains("git commit --no-verify"));
+        assert!(script.contains("@echo off"));
+    }
+
+    #[test]
+    fn test_windows_hook_cmd_bin_detection() {
+        let script = build_hook_template_windows(true, "cargo test", true, "Rust");
+        assert!(script.contains("where cogent"));
+        assert!(script.contains("target\\release\\cogent.exe"));
+    }
+
+    #[test]
+    fn test_windows_hook_empty_test_cmd() {
+        // Edge case: no test command configured
+        let script = build_hook_template_windows(false, "", false, "Unknown");
+        assert!(script.contains("--no-cache"));
+        assert!(!script.contains("Running tests"));
     }
 }

@@ -10,7 +10,7 @@ use colored::Colorize;
 
 use crate::audit;
 use crate::check_runners::*;
-use crate::cli::{Commands, ExceptionAction, PolicyAction, hqse_phase_for};
+use crate::cli::{CacheAction, Commands, ExceptionAction, PolicyAction, hqse_phase_for};
 use crate::config::{detect_project, generate_config, load_config_thresholds};
 use crate::diff::diff_command;
 use crate::history::history_command;
@@ -455,11 +455,20 @@ struct CheckCommandConfig {
     verbose: bool,
     pr_comment: bool,
     force: bool,
+    no_cache: bool,
+    clear_cache: bool,
 }
 
 /// Run the `cogent check` command: orchestrates 20+ quality/security checks,
 /// builds a `CheckReport`, and outputs in text, JSON, SARIF, JUnit, or markdown.
+#[tracing::instrument(level = "info", skip(cfg), fields(path = %path, recursive, format = %format))]
 fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: CheckCommandConfig) -> i32 {
+    if cfg.clear_cache {
+        if let Err(e) = crate::cache::clear_cache() {
+            eprintln!("Warning: failed to clear cache: {}", e);
+        }
+    }
+
     let format = ci_format(format, cfg.ci);
     if cfg.ci {
         std::env::set_var("COGENT_NO_PROGRESS", "1");
@@ -693,6 +702,36 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
         add_check!("outdated", move || check_outdated(&p, max_outdated));
     }
 
+    // Wrap check closures with incremental cache logic.
+    // If the workspace fingerprint hasn't changed, return cached results.
+    if !cfg.no_cache {
+        let fp = crate::cache::workspace_fingerprint(&path);
+        // Prune stale cache dirs for checks no longer in this run.
+        let active_names: Vec<&str> = check_defs.iter().map(|(n, _)| *n).collect();
+        crate::cache::prune_stale_entries(&active_names);
+        check_defs = check_defs
+            .into_iter()
+            .map(|(name, original)| {
+                let fp = fp.clone();
+                let name_owned = name.to_string();
+                let wrapped: Box<dyn FnOnce() -> CheckResult + Send> = Box::new(move || {
+                    if let Some(mut cached) = crate::cache::load_cached(&name_owned, &fp) {
+                        tracing::info!(check = %name_owned, "cache hit");
+                        // Mark as cached so text output can display "(cached)"
+                        if let Some(obj) = cached.details.as_object_mut() {
+                            obj.insert("__cached".to_string(), serde_json::json!(true));
+                        }
+                        return cached;
+                    }
+                    let result = original();
+                    crate::cache::store_cached(&name_owned, &fp, &result);
+                    result
+                });
+                (name, wrapped)
+            })
+            .collect();
+    }
+
     // Execute all checks in parallel with bounded concurrency.
     // Each check is an independent subprocess (spawned via run_tool),
     // so they can safely execute concurrently.
@@ -705,8 +744,26 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
             let icon = if c.passed { "✓".green().bold() } else { "✗".red().bold() };
             let name_col = if c.passed { c.name.normal() } else { c.name.red() };
             let msg_col = if c.passed { c.message.bright_black() } else { c.message.red() };
-            eprintln!("  {} {:<18} {}", icon, name_col, msg_col);
+            let cached_tag = if c.details.get("__cached").and_then(|v| v.as_bool()).unwrap_or(false) {
+                " (cached)".bright_black().to_string()
+            } else {
+                String::new()
+            };
+            eprintln!("  {} {:<18} {}{}", icon, name_col, msg_col, cached_tag);
             if !c.passed || verbose { print_offenders(c); }
+        }
+    }
+
+    // Enforce max cache size after all checks have written their cache entries.
+    if !cfg.no_cache {
+        crate::cache::enforce_max_size();
+    }
+
+    // Strip internal cache metadata before output to avoid leaking into JSON/SARIF/etc.
+    let mut checks = checks;
+    for c in &mut checks {
+        if let Some(obj) = c.details.as_object_mut() {
+            obj.remove("__cached");
         }
     }
 
@@ -825,7 +882,62 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     if passed { 0 } else { 1 }
 }
 
+/// Return a short name for the command variant, used for tracing spans.
+fn command_name(cmd: &Commands) -> &'static str {
+    match cmd {
+        Commands::Check { .. } => "check",
+        Commands::Audit { .. } => "audit",
+        Commands::Crap { .. } => "crap",
+        Commands::Debt { .. } => "debt",
+        Commands::Doccov { .. } => "doccov",
+        Commands::Dupfind { .. } => "dupfind",
+        Commands::Complexity { .. } => "complexity",
+        Commands::Taint { .. } => "taint",
+        Commands::Coupling { .. } => "coupling",
+        Commands::Riskmap { .. } => "riskmap",
+        Commands::Mutate { .. } => "mutate",
+        Commands::Fuzz { .. } => "fuzz",
+        Commands::Propcov { .. } => "propcov",
+        Commands::Linelen { .. } => "linelen",
+        Commands::Halstead { .. } => "halstead",
+        Commands::Secrets { .. } => "secrets",
+        Commands::Deadcode { .. } => "deadcode",
+        Commands::Cohesion { .. } => "cohesion",
+        Commands::Comments { .. } => "comments",
+        Commands::Errhandle { .. } => "errhandle",
+        Commands::Typecov { .. } => "typecov",
+        Commands::Vulnscan { .. } => "vulnscan",
+        Commands::Sast { .. } => "sast",
+        Commands::Crypto { .. } => "crypto",
+        Commands::Licenses { .. } => "licenses",
+        Commands::Outdated { .. } => "outdated",
+        Commands::AccessControl { .. } => "access-control",
+        Commands::SupplyChain { .. } => "supply-chain",
+        Commands::Sbom { .. } => "sbom",
+        Commands::Doctor { .. } => "doctor",
+        Commands::Setup => "setup",
+        Commands::Init { .. } => "init",
+        Commands::Explain { .. } => "explain",
+        Commands::Discover { .. } => "discover",
+        Commands::Run { .. } => "run",
+        Commands::History { .. } => "history",
+        Commands::InstallHooks { .. } => "install-hooks",
+        Commands::UninstallHooks { .. } => "uninstall-hooks",
+        Commands::Watch { .. } => "watch",
+        Commands::Report { .. } => "report",
+        Commands::Diff { .. } => "diff",
+        Commands::Serve { .. } => "serve",
+        Commands::Completions { .. } => "completions",
+        Commands::Policy { .. } => "policy",
+        Commands::Exception { .. } => "exception",
+        Commands::Remediate { .. } => "remediate",
+        Commands::AuditTrail { .. } => "audit-trail",
+        Commands::Cache { .. } => "cache",
+    }
+}
+
 /// Dispatch a parsed `Commands` value to its handler and return an exit code.
+#[tracing::instrument(level = "info", skip_all, fields(command = %command_name(&command)))]
 pub fn dispatch(command: Commands) -> i32 {
     match command {
         Commands::Check {
@@ -863,6 +975,8 @@ pub fn dispatch(command: Commands) -> i32 {
             verbose,
             pr_comment,
             force,
+            no_cache,
+            clear_cache,
         } => run_check_subcommand(
             path,
             recursive,
@@ -899,6 +1013,8 @@ pub fn dispatch(command: Commands) -> i32 {
                 verbose,
                 pr_comment,
                 force,
+                no_cache,
+                clear_cache,
             },
         ),
 
@@ -1214,6 +1330,53 @@ pub fn dispatch(command: Commands) -> i32 {
                     "Policy-based check on {} (format: {}, force: {})",
                     path, format, force
                 );
+                0
+            }
+        },
+
+        Commands::Cache { action } => match action {
+            CacheAction::Clear => match crate::cache::clear_cache() {
+                Ok(()) => {
+                    println!("{} Cache cleared.", "✓".green());
+                    0
+                }
+                Err(e) => {
+                    eprintln!("Failed to clear cache: {}", e);
+                    2
+                }
+            },
+            CacheAction::Status => {
+                let fmt_age = |elapsed: std::time::Duration| -> String {
+                    let s = elapsed.as_secs();
+                    if s < 60 { format!("{}s ago", s) }
+                    else if s < 3600 { format!("{}m ago", s / 60) }
+                    else if s < 86400 { format!("{}h ago", s / 3600) }
+                    else { format!("{}d ago", s / 86400) }
+                };
+                let status = crate::cache::cache_status();
+                if status.entry_count == 0 {
+                    println!("Cache is empty.");
+                } else {
+                    let size_str = if status.total_bytes < 1024 {
+                        format!("{} B", status.total_bytes)
+                    } else if status.total_bytes < 1024 * 1024 {
+                        format!("{:.1} KB", status.total_bytes as f64 / 1024.0)
+                    } else {
+                        format!("{:.1} MB", status.total_bytes as f64 / (1024.0 * 1024.0))
+                    };
+                    println!("Cached checks: {}", status.entry_count);
+                    println!("Total size:    {}", size_str);
+                    if let Some(oldest) = status.oldest_entry {
+                        if let Ok(elapsed) = oldest.elapsed() {
+                            println!("Oldest entry:  {}", fmt_age(elapsed));
+                        }
+                    }
+                    if let Some(newest) = status.newest_entry {
+                        if let Ok(elapsed) = newest.elapsed() {
+                            println!("Newest entry:  {}", fmt_age(elapsed));
+                        }
+                    }
+                }
                 0
             }
         },
@@ -1541,8 +1704,12 @@ mod tests {
             verbose: false,
             pr_comment: false,
             force: false,
+            no_cache: false,
+            clear_cache: false,
         };
         assert!(!cfg.ci);
+        assert!(!cfg.no_cache);
+        assert!(!cfg.clear_cache);
         assert_eq!(cfg.max_crap, 30.0);
         assert_eq!(cfg.max_fuzz_risk, 30);
         assert!(cfg.coverage.is_none());
@@ -1582,6 +1749,8 @@ mod tests {
             verbose: true,
             pr_comment: false,
             force: true,
+            no_cache: false,
+            clear_cache: false,
         };
         assert!(cfg.ci);
         assert!(cfg.force);
@@ -1624,8 +1793,12 @@ mod tests {
             verbose: false,
             pr_comment: true,
             force: false,
+            no_cache: true,
+            clear_cache: true,
         };
         assert!(cfg.pr_comment);
+        assert!(cfg.no_cache);
+        assert!(cfg.clear_cache);
         assert_eq!(cfg.only.as_deref(), Some("secrets,sast"));
     }
 

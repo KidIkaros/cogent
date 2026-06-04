@@ -727,12 +727,7 @@ mod tests {
 
     #[test]
     fn test_health_score_all_pass() {
-        let checks = vec![
-            make_check(serde_json::json!({})),
-            make_check(serde_json::json!({})),
-        ];
-        // Both are set to passed=false by make_check, so let's create proper ones
-        let checks = vec![
+        let checks = [
             CheckResult { passed: true, ..make_check(serde_json::json!({})) },
             CheckResult { passed: true, ..make_check(serde_json::json!({})) },
         ];

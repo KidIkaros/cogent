@@ -84,7 +84,6 @@ fn test_debt_schema_validates_cli_output() {
         .expect("failed to run debt");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
     if stdout.trim().is_empty() {
         return;
     }
@@ -156,7 +155,6 @@ fn test_all_tool_schemas_validate() {
         };
 
         let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
         if stdout.trim().is_empty() {
             continue;
         }

@@ -21,7 +21,7 @@ cogent init
     · max_debt    = 0
     · max_complexity_violations = 0
 
-  ▶ cogent check . runs 20+ checks and produces a 0-100 score + letter grade.
+  ▶ cogent check . runs 31 checks and produces a weighted 0-100 score + letter grade.
 
   ▶ Next steps:
     1. $ cogent check .          — run all checks now
@@ -41,7 +41,7 @@ cogent check . --format text
 ```
 
 **What happens:**
-- 20+ checks run in sequence with a live progress bar
+- 31 checks run in parallel with a live progress bar
 - Each check prints ✓ or ✗ with elapsed time
 - A summary box shows **Score: X/100** and a letter grade (A–F)
 - If anything fails, you see:
@@ -53,7 +53,7 @@ cogent check . --format text
   ╔══════════════════════════════════════════════════════╗
   ║  COGENT CHECK  ·  PASSED ✓                          ║
   ╠══════════════════════════════════════════════════════╣
-  ║  22/22 checks passed  ·  4.2s total                  ║
+  ║  31/31 checks passed  ·  5.1s total                  ║
   ║  Score: 100/100  A                                   ║
   ║  Path: .                                             ║
   ╚══════════════════════════════════════════════════════╝
@@ -149,7 +149,7 @@ Cogent computes a **weighted health score (0–100)** and a letter grade:
 | 60–69  | **D** | Poor — major issues need attention |
 | < 60   | **F** | Critical — security or compliance failures |
 
-**Security checks are weighted 3×** (secrets, vulnscan, sast, crypto, taint)  
+**Security checks are weighted 3×** (secrets, vulnscan, sast, crypto, taint, errhandle)  
 **Compliance checks are weighted 2×** (licenses, sbom)  
 **Quality checks are weighted 1×** (everything else)
 

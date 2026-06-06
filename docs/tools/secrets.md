@@ -17,6 +17,38 @@ Detects hardcoded credentials, API keys, tokens, and other sensitive data in sou
 ```toml
 [secrets]
 max_secrets = 0  # Zero tolerance by default
+
+# Exclude paths from scanning (comma-separated substrings)
+# Supports TOML array syntax and bare comma-separated values:
+secrets_exclude = ["vendor", "tests", "docs"]
+# or:
+secrets_exclude = vendor, tests, docs
+# or multi-line:
+secrets_exclude = [
+  "vendor",
+  "tests",
+  "docs"
+]
+```
+
+Path exclusion works by substring matching — any file whose path contains one
+of the listed patterns will be skipped. Empty strings in the exclude list are
+automatically filtered out.
+
+### Runtime override
+
+The `--secrets-exclude` CLI flag overrides `.quality.toml` at runtime:
+
+```bash
+cogent check . --secrets-exclude vendor,tests
+# or standalone:
+cogent secrets ./src --secrets-exclude vendor,tests
+```
+
+Set the `COGENT_SECRETS_EXCLUDE` environment variable for CI pipelines:
+
+```bash
+COGENT_SECRETS_EXCLUDE=vendor,tests cogent check .
 ```
 
 ## Output format

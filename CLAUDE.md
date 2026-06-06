@@ -25,8 +25,8 @@ cogent init --ci
 | `cogent watch . --no-tests` | Watch without running tests | Fast metrics-only loop |
 | `cogent install-hooks` | Install full pre-commit hook (tests + coverage + check) | Once per repo |
 | `cogent install-hooks --fast` | Install lightweight hook (metrics only) | Fast commit workflow |
-| `cogent run . --format sarif` | Full 10-tool batch audit | CI / deep audit |
-| `cogent run . --format json` | Full audit, JSON output | Agent / pipeline |
+| `cogent run . --format sarif` | Full 31-tool batch audit | CI / deep audit |
+| `cogent run . --format json` | Full 31-tool audit, JSON output | Agent / pipeline |
 
 ## Exit Codes
 

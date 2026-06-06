@@ -1239,6 +1239,9 @@ mod html_tests {
                 total_checks: 1, passed_checks: 1, failed_checks: 0,
                 functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
             },
+            health_score: 100,
+            grade: "A".into(),
+            audit: None,
             file_summary: vec![],
         };
         let html = render_html_report(&report, "testproj", "2024-01-01", &["secrets"], &["crap"], &["licenses"]);
@@ -1264,6 +1267,9 @@ mod html_tests {
                 total_checks: 1, passed_checks: 1, failed_checks: 0,
                 functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
             },
+            health_score: 100,
+            grade: "A".into(),
+            audit: None,
             file_summary: vec![],
         };
         let md = render_markdown_report(&report, "testproj", "2024-01-01", &["secrets"], &["crap"], &["licenses"]);
@@ -1281,6 +1287,9 @@ mod html_tests {
                 total_checks: 0, passed_checks: 0, failed_checks: 0,
                 functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
             },
+            health_score: 0,
+            grade: "F".into(),
+            audit: None,
             file_summary: vec![
                 cogent_common::FileSummary {
                     file: "src/main.rs".into(),
@@ -1316,6 +1325,9 @@ mod html_tests {
                 total_checks: 1, passed_checks: 0, failed_checks: 1,
                 functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
             },
+            health_score: 0,
+            grade: "F".into(),
+            audit: None,
             file_summary: vec![],
         };
         let md = render_markdown_report(&report, "testproj", "2024-01-01", &["secrets"], &[], &[]);

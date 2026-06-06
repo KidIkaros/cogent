@@ -180,41 +180,54 @@ pub fn print_summary_box(
     checks: &[CheckResult],
 ) {
     let (score, grade) = health_score(checks);
-    let status_plain = if passed { "PASSED ✓" } else { "FAILED ✗" };
     let status = if passed {
-        status_plain.green().bold().to_string()
+        "PASSED".green().bold().to_string()
     } else {
-        status_plain.red().bold().to_string()
+        "FAILED".red().bold().to_string()
     };
-    let grade_col = match grade {
-        'A' => grade.to_string().green().bold().to_string(),
-        'B' => grade.to_string().cyan().bold().to_string(),
-        'C' => grade.to_string().yellow().bold().to_string(),
-        _ => grade.to_string().red().bold().to_string(),
+    let grade_bg = match grade {
+        'A' => format!(" {} ", grade).green().bold(),
+        'B' => format!(" {} ", grade).cyan().bold(),
+        'C' => format!(" {} ", grade).yellow().bold(),
+        _ => format!(" {} ", grade).red().bold(),
     };
-    let score_str = format!("Score: {}/100  {}", score, grade_col);
-    let checks_str = format!(
-        "{}/{} checks passed  ·  {} total",
-        passed_count,
-        total,
-        format_elapsed(elapsed)
-    );
-    let checks_col = if passed {
-        checks_str.green().to_string()
-    } else {
-        checks_str.red().to_string()
-    };
-    let inner = 50usize;
-    let border = "═".repeat(inner + 2);
-    let title = format!("{}  ·  {}", kind, status);
+
+    // Category breakdown
+    let security = ["secrets","vulnscan","sast","crypto","taint","access-control","supply-chain"];
+    let compliance = ["licenses","sbom","outdated"];
+    let mut s_pass = 0usize; let mut s_total = 0usize;
+    let mut q_pass = 0usize; let mut q_total = 0usize;
+    let mut c_pass = 0usize; let mut c_total = 0usize;
+    for ch in checks {
+        let n = ch.name.as_str();
+        if security.contains(&n) { s_total += 1; if ch.passed { s_pass += 1; } }
+        else if compliance.contains(&n) { c_total += 1; if ch.passed { c_pass += 1; } }
+        else { q_total += 1; if ch.passed { q_pass += 1; } }
+    }
+    fn cat_str(pass: usize, total: usize, icon: &str, label: &str) -> String {
+        if total == 0 { return String::new(); }
+        let col = if pass == total { format!("{}/{}", pass, total).green() } else { format!("{}/{}", pass, total).red() };
+        format!("{} {} {}", icon, label, col)
+    }
+    let sec_s = cat_str(s_pass, s_total, "🔒", "Sec");
+    let qual_s = cat_str(q_pass, q_total, "📊", "Qual");
+    let comp_s = cat_str(c_pass, c_total, "📋", "Comp");
+    let cat_line = [sec_s, qual_s, comp_s].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("   ");
+
+    let inner = 52usize;
+    let bar = "─".repeat(inner);
+
     eprintln!();
-    eprintln!("  ╔{}╗", border);
-    box_row(&title, inner);
-    eprintln!("  ╠{}╣", border);
-    box_row(&checks_col, inner);
-    box_row(&score_str, inner);
-    box_row(&format!("Path: {}", path), inner);
-    eprintln!("  ╚{}╝", border);
+    eprintln!("  {}", bar);
+    eprintln!("  {} {}  {}", kind.bold(), status, grade_bg);
+    eprintln!("  {}", bar);
+    let pct_col = if passed { format!("{}/{}", passed_count, total).green().bold() } else { format!("{}/{}", passed_count, total).red().bold() };
+    eprintln!("  Checks {}  Score {}/100  {}", pct_col, score, format_elapsed(elapsed).bright_black());
+    if !cat_line.is_empty() {
+        eprintln!("  {}", cat_line);
+    }
+    eprintln!("  {}", path.bright_black());
+    eprintln!("  {}", bar);
     eprintln!();
 }
 
@@ -257,16 +270,15 @@ pub fn print_fix_summary(checks: &[CheckResult]) {
         };
         rows.push((check.name.clone(), fix));
     }
-    let inner = 50usize;
-    let border = "═".repeat(inner + 2);
-    eprintln!("  ╔{}╗", border);
-    box_row("Quick Fixes", inner);
-    eprintln!("  ╠{}╣", border);
+    let bar = "─".repeat(52);
+    eprintln!();
+    eprintln!("  {}", bar);
+    eprintln!("  {}", "Quick Fixes".bold());
+    eprintln!("  {}", bar);
     for (name, fix) in rows {
-        let line = format!("  {}  {}", name.cyan(), fix.bright_black());
-        box_row(&line, inner);
+        eprintln!("  {} {}", name.cyan(), fix.bright_black());
     }
-    eprintln!("  ╚{}╝", border);
+    eprintln!("  {}", bar);
     eprintln!();
 }
 

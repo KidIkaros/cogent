@@ -142,6 +142,13 @@ pub struct CheckReport {
     pub path: String,
     pub checks: Vec<CheckResult>,
     pub summary: CheckSummary,
+    /// Weighted health score 0–100 (security ×3, compliance ×2, quality ×1).
+    pub health_score: u32,
+    /// Letter grade: A (90+), B (80–89), C (65–79), D (50–64), F (<50).
+    pub grade: String,
+    /// Full audit opinion with gate killers, category scores, and margin risks.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub audit: Option<crate::AuditResult>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub file_summary: Vec<FileSummary>,
 }

@@ -74,22 +74,10 @@ pub(crate) fn box_row(content: &str, inner_width: usize) {
 }
 
 
-pub(crate) fn health_score(checks: &[CheckResult]) -> (u32, char) {
-    if checks.is_empty() {
-        return (100, 'A');
-    }
-    let passed = checks.iter().filter(|c| c.passed).count();
-    let total = checks.len();
-    let raw = (passed * 100 / total) as u32;
-    let grade = match raw {
-        90..=100 => 'A',
-        80..=89 => 'B',
-        65..=79 => 'C',
-        50..=64 => 'D',
-        _ => 'F',
-    };
-    (raw, grade)
-}
+// health_score is now the single source of truth in cogent_common::health_score.
+// It applies category-weighted scoring: security ×3, compliance ×2, quality ×1.
+// Re-exported here for callers that import from progress.
+pub(crate) use cogent_common::health_score;
 
 fn extract_offenders(check: &CheckResult, limit: usize) -> Vec<(String, Option<u64>, String)> {
     let mut out = Vec::new();
@@ -139,6 +127,103 @@ pub(crate) fn print_offenders(check: &CheckResult) {
             break;
         }
     }
+}
+
+/// Render the full audit opinion box with gate killers, category scores, and margin risks.
+pub fn print_audit_opinion(
+    kind: &str,
+    audit: &cogent_common::AuditResult,
+    passed_count: usize,
+    total: usize,
+    elapsed: std::time::Duration,
+    path: &str,
+) {
+    let status_str = audit.opinion.to_string();
+    let status = match audit.opinion {
+        cogent_common::AuditOpinion::UnqualifiedPass => {
+            format!("{} ✓", status_str).green().bold().to_string()
+        }
+        cogent_common::AuditOpinion::QualifiedPass => {
+            format!("{} △", status_str).yellow().bold().to_string()
+        }
+        cogent_common::AuditOpinion::Adverse => {
+            format!("{} ✗", status_str).red().bold().to_string()
+        }
+        cogent_common::AuditOpinion::Disclaimer => {
+            format!("{} ⚠", status_str).yellow().bold().to_string()
+        }
+    };
+    let grade_col = match audit.grade {
+        'A' => audit.grade.to_string().green().bold().to_string(),
+        'B' => audit.grade.to_string().cyan().bold().to_string(),
+        'C' => audit.grade.to_string().yellow().bold().to_string(),
+        _ => audit.grade.to_string().red().bold().to_string(),
+    };
+    let checks_str = format!("{}/{} checks passed  ·  {} total", passed_count, total, format_elapsed(elapsed));
+    let inner = 56usize;
+    let border = "═".repeat(inner + 2);
+    eprintln!();
+    eprintln!("  ╔{}╗", border);
+    box_row(&format!("{}  ·  {}", kind, status), inner);
+    eprintln!("  ╠{}╣", border);
+    let score_line = format!("Risk Score: {}/100  Grade: {}", audit.overall_score, grade_col);
+    box_row(&score_line, inner);
+    box_row(&checks_str, inner);
+    box_row(&format!("Path: {}", path), inner);
+
+    // Gate Killers
+    let gk_total = audit.gate_killer_names.len();
+    let gk_passed = audit.gate_killer_passed_names.len();
+    let gk_icon = if audit.gate_killers_passed { "✓".green() } else { "✗".red() };
+    let gk_line = format!("{} Gate Killers ({}/{})", gk_icon, gk_passed, gk_total);
+    eprintln!("  ╠{}╣", border);
+    box_row(&gk_line, inner);
+    for gk in &audit.gate_killer_names {
+        let icon = if audit.gate_killer_passed_names.contains(gk) {
+            "✓".green().to_string()
+        } else {
+            "✗".red().bold().to_string()
+        };
+        box_row(&format!("  {} {}", icon, gk), inner);
+    }
+
+    // Category Scores
+    if !audit.categories.is_empty() {
+        eprintln!("  ╠{}╣", border);
+        for cat in &audit.categories {
+            let pct = cat.score as u32;
+            let bar_len = 10;
+            let filled = (cat.score / 100.0 * bar_len as f64) as usize;
+            let bar: String = "█".repeat(filled) + &"░".repeat(bar_len - filled);
+            let score_col = if pct >= 80 {
+                format!("{}/100", pct).green().to_string()
+            } else if pct >= 60 {
+                format!("{}/100", pct).yellow().to_string()
+            } else {
+                format!("{}/100", pct).red().to_string()
+            };
+            let line = format!(
+                "{} ({}) {}  {}", cat.name, cat.weight, bar, score_col
+            );
+            box_row(&line, inner);
+        }
+    }
+
+    // Margin Risks
+    if !audit.margin_risks.is_empty() {
+        eprintln!("  ╠{}╣", border);
+        for (name, margin) in &audit.margin_risks {
+            let margin_str = if *margin < 10.0 {
+                format!("⚠ {} at threshold ({:.0}%)", name, margin).red().to_string()
+            } else {
+                format!("⚠ {} {:.0}% headroom", name, margin).yellow().to_string()
+            };
+            box_row(&margin_str, inner);
+        }
+    }
+
+    eprintln!("  ╚{}╝", border);
+    eprintln!();
 }
 
 pub fn print_summary_box(
@@ -244,6 +329,7 @@ pub fn print_severity_grouped(checks: &[CheckResult]) {
         "taint",
         "access-control",
         "supply-chain",
+        "errhandle",
     ];
     let compliance = ["licenses", "sbom"];
     // everything else is quality
@@ -292,6 +378,84 @@ pub fn print_severity_grouped(checks: &[CheckResult]) {
             comp.join(", ").cyan()
         );
     }
+    eprintln!();
+}
+
+/// Compute margin-to-threshold for a single check.
+/// Returns `(margin_pct, label)` where margin_pct is 0.0 = at threshold, 100.0 = infinitely safe.
+/// Returns `None` if the check has no score/threshold or threshold is zero (pass/fail only).
+pub fn compute_margin(c: &CheckResult) -> Option<(f64, String)> {
+    let score = c.score?;
+    let threshold = c.threshold?;
+    if threshold == 0.0 {
+        // Pass/fail only — no numeric margin
+        return None;
+    }
+    // Determine direction: most checks fail when score > threshold
+    // Exception: doc_coverage fails when score < threshold
+    let inverted = matches!(c.name.as_str(), "doc_coverage" | "doccov" | "propcov" | "typecov");
+    let margin = if inverted {
+        // Higher is better: margin = (score - threshold) / threshold * 100
+        ((score - threshold) / threshold * 100.0).max(0.0)
+    } else {
+        // Lower is better: margin = (threshold - score) / threshold * 100
+        ((threshold - score) / threshold * 100.0).max(0.0)
+    };
+    Some((margin, c.name.clone()))
+}
+
+/// Print the "Closest to Failing" section showing checks with the smallest margins.
+pub fn print_margin_summary(checks: &[CheckResult]) {
+    let mut margins: Vec<(f64, String, f64, f64)> = checks
+        .iter()
+        .filter(|c| c.passed) // Only show passed checks (failed ones are already highlighted)
+        .filter_map(|c| {
+            let (margin, name) = compute_margin(c)?;
+            Some((margin, name, c.score.unwrap_or(0.0), c.threshold.unwrap_or(0.0)))
+        })
+        .collect();
+
+    if margins.is_empty() {
+        return;
+    }
+
+    margins.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Show top 3 closest to failing (smallest margin)
+    let worst: Vec<_> = margins.into_iter().take(3).collect();
+    if worst.is_empty() || worst[0].0 >= 50.0 {
+        return; // All checks have comfortable margins
+    }
+
+    let inner = 50usize;
+    let border = "═".repeat(inner + 2);
+    eprintln!("  ╔{}╗", border);
+    box_row("Closest to Failing", inner);
+    eprintln!("  ╠{}╣", border);
+    for (margin, name, score, threshold) in &worst {
+        let bar_width = 12;
+        let filled = ((100.0 - margin) / 100.0 * bar_width as f64) as usize;
+        let filled = filled.min(bar_width);
+        let bar = "█".repeat(filled) + &"░".repeat(bar_width - filled);
+        let margin_str = if *margin < 10.0 {
+            format!("{:.0}%", margin).red().bold().to_string()
+        } else if *margin < 25.0 {
+            format!("{:.0}%", margin).yellow().to_string()
+        } else {
+            format!("{:.0}%", margin).green().to_string()
+        };
+        let line = format!(
+            "{} {} {:.1}/{:.1}  {}  {}",
+            name.cyan(),
+            "│",
+            score,
+            threshold,
+            bar,
+            margin_str
+        );
+        box_row(&line, inner);
+    }
+    eprintln!("  ╚{}╝", border);
     eprintln!();
 }
 
@@ -708,7 +872,84 @@ mod tests {
         assert_eq!(result[0].2, "item_type");
     }
 
-    // ── health_score ──────────────────────────────────────────────────────
+    // ── compute_margin ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_compute_margin_at_threshold() {
+        let c = CheckResult {
+            name: "riskmap".into(), passed: true,
+            score: Some(75.0), threshold: Some(75.0),
+            message: "".into(), details: serde_json::Value::Null,
+            severity: None, help: None, findings: vec![], rule_id: None,
+        };
+        let (margin, name) = super::compute_margin(&c).unwrap();
+        assert_eq!(margin, 0.0);
+        assert_eq!(name, "riskmap");
+    }
+
+    #[test]
+    fn test_compute_margin_comfortable() {
+        let c = CheckResult {
+            name: "coupling".into(), passed: true,
+            score: Some(0.81), threshold: Some(5.0),
+            message: "".into(), details: serde_json::Value::Null,
+            severity: None, help: None, findings: vec![], rule_id: None,
+        };
+        let (margin, _) = super::compute_margin(&c).unwrap();
+        assert!((margin - 83.8).abs() < 0.1, "margin should be ~83.8%, got {}", margin);
+    }
+
+    #[test]
+    fn test_compute_margin_inverted() {
+        let c = CheckResult {
+            name: "doc_coverage".into(), passed: true,
+            score: Some(100.0), threshold: Some(95.0),
+            message: "".into(), details: serde_json::Value::Null,
+            severity: None, help: None, findings: vec![], rule_id: None,
+        };
+        let (margin, _) = super::compute_margin(&c).unwrap();
+        assert!((margin - 5.26).abs() < 0.1, "inverted margin should be ~5.3%, got {}", margin);
+    }
+
+    #[test]
+    fn test_compute_margin_no_threshold() {
+        let c = CheckResult {
+            name: "debt".into(), passed: true,
+            score: Some(0.0), threshold: None,
+            message: "".into(), details: serde_json::Value::Null,
+            severity: None, help: None, findings: vec![], rule_id: None,
+        };
+        assert!(super::compute_margin(&c).is_none());
+    }
+
+    #[test]
+    fn test_compute_margin_zero_threshold() {
+        let c = CheckResult {
+            name: "secrets".into(), passed: true,
+            score: Some(0.0), threshold: Some(0.0),
+            message: "".into(), details: serde_json::Value::Null,
+            severity: None, help: None, findings: vec![], rule_id: None,
+        };
+        assert!(super::compute_margin(&c).is_none(), "threshold=0 should return None");
+    }
+
+    #[test]
+    fn test_compute_margin_no_score() {
+        let c = CheckResult {
+            name: "crap".into(), passed: true,
+            score: None, threshold: Some(15.0),
+            message: "".into(), details: serde_json::Value::Null,
+            severity: None, help: None, findings: vec![], rule_id: None,
+        };
+        assert!(super::compute_margin(&c).is_none());
+    }
+
+    // ── health_score (re-exported from cogent_common, weighted) ──────────
+
+    /// Helper: make a CheckResult with a specific name (for weighted scoring).
+    fn named_check(name: &str, passed: bool) -> CheckResult {
+        CheckResult { name: name.into(), passed, ..make_check(serde_json::json!({})) }
+    }
 
     #[test]
     fn test_health_score_empty() {
@@ -719,9 +960,10 @@ mod tests {
 
     #[test]
     fn test_health_score_all_pass() {
+        // All quality checks (weight 1) passing → 100/100 A
         let checks = [
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
+            named_check("crap", true),
+            named_check("debt", true),
         ];
         let (score, grade) = super::health_score(&checks);
         assert_eq!(score, 100);
@@ -730,13 +972,13 @@ mod tests {
 
     #[test]
     fn test_health_score_mixed() {
+        // 2 pass / 2 fail, all quality (weight 1) → 50/100 D
         let checks = vec![
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
+            named_check("crap", true),
+            named_check("debt", true),
+            named_check("dupfind", false),
+            named_check("coupling", false),
         ];
-        // 2/4 = 50 → D
         let (score, grade) = super::health_score(&checks);
         assert_eq!(score, 50);
         assert_eq!(grade, 'D');
@@ -745,8 +987,8 @@ mod tests {
     #[test]
     fn test_health_score_all_fail() {
         let checks = vec![
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
+            named_check("crap", false),
+            named_check("debt", false),
         ];
         let (score, grade) = super::health_score(&checks);
         assert_eq!(score, 0);
@@ -754,58 +996,71 @@ mod tests {
     }
 
     #[test]
+    fn test_health_score_security_fail_penalizes_3x() {
+        // 1 quality pass + 1 security fail = pass 1, total 4 → 25% F
+        let checks = vec![
+            named_check("crap", true),
+            named_check("secrets", false),
+        ];
+        let (score, grade) = super::health_score(&checks);
+        assert_eq!(score, 25, "security failure should be penalized 3×");
+        assert_eq!(grade, 'F');
+    }
+
+    #[test]
+    fn test_health_score_compliance_fail_penalizes_2x() {
+        // 1 quality pass + 1 compliance fail = pass 1, total 3 → 33% F
+        let checks = vec![
+            named_check("crap", true),
+            named_check("licenses", false),
+        ];
+        let (score, grade) = super::health_score(&checks);
+        assert_eq!(score, 33, "compliance failure should be penalized 2×");
+        assert_eq!(grade, 'F');
+    }
+
+    #[test]
+    fn test_health_score_weighted_vs_simple() {
+        // 4 quality pass + 1 security fail.
+        // Simple: 4/5 = 80% B. Weighted: 4/(4+3) = 57% D.
+        let checks = vec![
+            named_check("crap", true),
+            named_check("debt", true),
+            named_check("doccov", true),
+            named_check("complexity", true),
+            named_check("secrets", false),
+        ];
+        let (score, grade) = super::health_score(&checks);
+        assert_eq!(score, 57, "weighted score should reflect security 3× penalty");
+        assert_eq!(grade, 'D');
+    }
+
+    #[test]
     fn test_health_score_grades() {
-        // 2/3 = 66% → C (65..=79 range)
+        // 2/3 quality → 66% → C
         let c_checks = vec![
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
+            named_check("crap", true),
+            named_check("debt", true),
+            named_check("dupfind", false),
         ];
-        assert_eq!(super::health_score(&c_checks).1, 'C'); // 2/3 = 66% → C
-        
-        // 9/10 = 90 → A
-        let a_checks = vec![
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-        ];
-        assert_eq!(super::health_score(&a_checks).1, 'A'); // 9/10 = 90 → A
-        
-        // 8/10 = 80 → B
-        let b_checks = vec![
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-        ];
-        assert_eq!(super::health_score(&b_checks).1, 'B'); // 8/10 = 80 → B
-        
-        // 6/10 = 60 → D (50..=64)
-        let d_checks = vec![
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: true, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-            CheckResult { passed: false, ..make_check(serde_json::json!({})) },
-        ];
-        assert_eq!(super::health_score(&d_checks).1, 'D'); // 6/10 = 60 → D
+        assert_eq!(super::health_score(&c_checks).1, 'C');
+
+        // 9/10 quality → 90 → A
+        let a_checks: Vec<CheckResult> = (0..10).map(|i| {
+            named_check("crap", i < 9)
+        }).collect();
+        assert_eq!(super::health_score(&a_checks).1, 'A');
+
+        // 8/10 quality → 80 → B
+        let b_checks: Vec<CheckResult> = (0..10).map(|i| {
+            named_check("crap", i < 8)
+        }).collect();
+        assert_eq!(super::health_score(&b_checks).1, 'B');
+
+        // 6/10 quality → 60 → D
+        let d_checks: Vec<CheckResult> = (0..10).map(|i| {
+            named_check("crap", i < 6)
+        }).collect();
+        assert_eq!(super::health_score(&d_checks).1, 'D');
     }
 }

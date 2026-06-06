@@ -366,6 +366,7 @@ mod tests {
     fn make_report(checks: Vec<CheckResult>) -> CheckReport {
         let total = checks.len();
         let passed = checks.iter().filter(|c| c.passed).count();
+        let (health, grade) = health_score(&checks);
         CheckReport {
             passed: passed == total,
             path: "/test".to_string(),
@@ -378,6 +379,9 @@ mod tests {
                 avg_complexity: 5.0,
                 avg_crap: 10.0,
             },
+            health_score: health,
+            grade: grade.to_string(),
+            audit: None,
             file_summary: vec![],
         }
     }

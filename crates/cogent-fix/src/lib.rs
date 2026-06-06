@@ -45,7 +45,7 @@ impl FixPatch {
 }
 
 /// Result of applying a set of patches to a single file.
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ApplyResult {
     pub file: String,
     pub patches_applied: usize,

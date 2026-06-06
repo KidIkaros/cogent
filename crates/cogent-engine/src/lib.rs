@@ -4,6 +4,7 @@
 #![deny(clippy::all)]
 
 pub mod checks;
+pub mod bridge;
 pub mod registry;
 pub mod runner;
 
@@ -11,8 +12,10 @@ pub mod runner;
 mod tests;
 
 pub use runner::{DefaultToolRunner, MockToolRunner, ToolRunner};
+pub use registry::{AuditTool, ToolRegistry};
 
 use cogent_common::{CheckResult, Finding, FileSummary, ToolResult};
+pub use registry::registry;
 use std::time::Instant;
 use tracing::{info, warn};
 
@@ -178,6 +181,186 @@ pub fn extract_findings_from_details(
         }
     }
     findings
+}
+
+// ═══════════════════════════════════════════
+// CHECK THRESHOLDS — data-driven dispatch
+// ═══════════════════════════════════════════
+
+/// Thresholds for all delegated tool checks.
+/// Loaded from `.quality.toml` and passed to [`ToolRegistry::run_check`]
+/// for data-driven dispatch.
+#[derive(Debug, Clone)]
+pub struct CheckThresholds {
+    pub max_crap: f64,
+    pub min_doc: f64,
+    pub max_debt: usize,
+    pub max_complexity_violations: usize,
+    pub min_complexity: u32,
+    pub max_taint: usize,
+    pub max_duplication: f64,
+    pub max_risk: f64,
+    pub max_coupling: usize,
+    pub min_propcov: f64,
+    pub max_fuzz_risk: usize,
+    pub max_linelen: usize,
+    pub max_halstead_bugs: f64,
+    pub max_secrets: usize,
+    pub max_deadcode: usize,
+    pub max_cohesion: usize,
+    pub min_comment_ratio: f64,
+    pub max_errhandle: usize,
+    pub min_typecov: f64,
+    pub max_vuln_critical: usize,
+    pub max_vuln_high: usize,
+    pub max_sast: usize,
+    pub max_crypto: usize,
+    pub max_license_violations: usize,
+    pub max_outdated: usize,
+    pub max_access_control: usize,
+    pub max_supply_chain: usize,
+    /// Optional coverage path for CRAP metric calculation.
+    pub coverage_path: Option<String>,
+    pub max_observability: usize,
+    pub max_test_quality: usize,
+    pub max_debuggability: usize,
+    /// Path substrings to exclude from the secrets scanner.
+    pub secrets_exclude_paths: Vec<String>,
+    /// Path substrings to exclude from the access-control scanner.
+    pub access_control_exclude_paths: Vec<String>,
+}
+
+impl CheckThresholds {
+    /// Load thresholds from a `.quality.toml` config file.
+    ///
+    /// Uses line-by-line TOML parsing (intentionally avoids a TOML dependency).
+    /// Falls back to `Self::default()` values for any key not present in the file.
+    pub fn load_from_config(config_path: &str) -> Self {
+        let mut t = Self::default();
+        let Ok(content) = std::fs::read_to_string(config_path) else {
+            return t;
+        };
+        for line in content.lines() {
+            let line = line.trim();
+            if line.starts_with('#') || line.is_empty() {
+                continue;
+            }
+            macro_rules! parse_f64 {
+                ($key:expr, $field:ident) => {
+                    if let Some(val) = parse_config_f64(line, $key) {
+                        t.$field = val;
+                    }
+                };
+            }
+            macro_rules! parse_usize {
+                ($key:expr, $field:ident) => {
+                    if let Some(val) = parse_config_usize(line, $key) {
+                        t.$field = val;
+                    }
+                };
+            }
+            parse_f64!("max_avg", max_crap);
+            parse_f64!("min_pct", min_doc);
+            parse_usize!("max_markers", max_debt);
+            parse_usize!("max_violations", max_complexity_violations);
+            parse_f64!("max_duplicates", max_duplication);
+            parse_usize!("max_taint", max_taint);
+            parse_f64!("max_risk", max_risk);
+            parse_usize!("max_coupling", max_coupling);
+            parse_f64!("min_propcov", min_propcov);
+            parse_usize!("max_fuzz_risk", max_fuzz_risk);
+            parse_usize!("max_linelen", max_linelen);
+            parse_f64!("max_halstead_bugs", max_halstead_bugs);
+            parse_usize!("max_secrets", max_secrets);
+            parse_usize!("max_deadcode", max_deadcode);
+            parse_usize!("max_cohesion", max_cohesion);
+            parse_f64!("min_comment_ratio", min_comment_ratio);
+            parse_usize!("max_errhandle", max_errhandle);
+            parse_f64!("min_typecov", min_typecov);
+            parse_usize!("max_vuln_critical", max_vuln_critical);
+            parse_usize!("max_vuln_high", max_vuln_high);
+            parse_usize!("max_sast", max_sast);
+            parse_usize!("max_crypto", max_crypto);
+            parse_usize!("max_license_violations", max_license_violations);
+            parse_usize!("max_outdated", max_outdated);
+            parse_usize!("max_access_control", max_access_control);
+            parse_usize!("max_supply_chain", max_supply_chain);
+            parse_usize!("max_observability", max_observability);
+            parse_usize!("max_test_quality", max_test_quality);
+            parse_usize!("max_debuggability", max_debuggability);
+            // secrets_exclude_paths is a comma-separated list
+            if let Some(val) = cogent_common::parse_string_list(line, "secrets_exclude") {
+                t.secrets_exclude_paths = val;
+            }
+            // access_control_exclude_paths is a comma-separated list
+            if let Some(val) = cogent_common::parse_string_list(line, "access_control_exclude") {
+                t.access_control_exclude_paths = val;
+            }
+        }
+        t
+    }
+}
+
+/// Parse a `key = value` line for f64 values.
+fn parse_config_f64(line: &str, key: &str) -> Option<f64> {
+    let prefix = format!("{} =", key);
+    let prefix2 = format!("{}=", key);
+    let rest = line
+        .strip_prefix(&prefix)
+        .or_else(|| line.strip_prefix(&prefix2))?;
+    rest.split_whitespace().next()?.parse().ok()
+}
+
+/// Parse a `key = value` line for usize values.
+fn parse_config_usize(line: &str, key: &str) -> Option<usize> {
+    parse_config_f64(line, key).map(|v| v as usize)
+}
+
+/// Parse a `key = value` line for u32 values.
+fn parse_config_u32(line: &str, key: &str) -> Option<u32> {
+    parse_config_f64(line, key).map(|v| v as u32)
+}
+
+
+
+impl Default for CheckThresholds {
+    fn default() -> Self {
+        Self {
+            max_crap: 30.0,
+            min_doc: 50.0,
+            max_debt: 1000,
+            max_complexity_violations: 0,
+            min_complexity: 10,
+            max_taint: 0,
+            max_duplication: 100.0,
+            max_risk: 100.0,
+            max_coupling: usize::MAX,
+            min_propcov: 0.0,
+            max_fuzz_risk: usize::MAX,
+            max_linelen: usize::MAX,
+            max_halstead_bugs: 100.0,
+            max_secrets: 0,
+            max_deadcode: usize::MAX,
+            max_cohesion: usize::MAX,
+            min_comment_ratio: 0.0,
+            max_errhandle: usize::MAX,
+            min_typecov: 0.0,
+            max_vuln_critical: 0,
+            max_vuln_high: 0,
+            max_sast: 0,
+            max_crypto: 0,
+            max_license_violations: 0,
+            max_outdated: usize::MAX,
+            max_access_control: 0,
+            max_supply_chain: 0,
+            coverage_path: None,
+            max_observability: 1000,
+            max_test_quality: 60,
+            max_debuggability: 1000,
+            secrets_exclude_paths: Vec::new(),
+            access_control_exclude_paths: Vec::new(),
+        }
+    }
 }
 
 /// Compute per-file aggregation from all check results.

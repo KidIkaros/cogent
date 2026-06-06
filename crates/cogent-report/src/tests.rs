@@ -34,6 +34,9 @@ fn test_output_json_does_not_panic() {
             avg_complexity: 0.0,
             avg_crap: 0.0,
         },
+        health_score: 100,
+        grade: "A".into(),
+        audit: None,
         file_summary: vec![],
     };
     crate::formatters::output_json(&report);
@@ -64,6 +67,9 @@ fn test_render_markdown_report_contains_headers() {
             total_checks: 1, passed_checks: 0, failed_checks: 1,
             functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
         },
+        health_score: 0,
+        grade: "F".into(),
+        audit: None,
         file_summary: vec![],
     };
     let md = crate::html::render_markdown_report(
@@ -89,6 +95,9 @@ fn test_render_html_report_contains_sections() {
             total_checks: 1, passed_checks: 1, failed_checks: 0,
             functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
         },
+        health_score: 100,
+        grade: "A".into(),
+        audit: None,
         file_summary: vec![],
     };
     let html = crate::html::render_html_report(
@@ -353,6 +362,9 @@ fn make_report() -> CheckReport {
     CheckReport {
         passed: false,
         path: "test/path".into(),
+        health_score: 50,
+        grade: "D".into(),
+        audit: None,
         checks: vec![
             CheckResult {
                 name: "secrets".into(),
@@ -446,6 +458,9 @@ fn test_format_json_empty_report() {
             total_checks: 0, passed_checks: 0, failed_checks: 0,
             functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
         },
+        health_score: 100,
+        grade: "A".into(),
+        audit: None,
         file_summary: vec![],
     };
     let json = crate::formatters::format_json(&report);
@@ -487,6 +502,9 @@ fn test_format_ndjson_passed_check_empty() {
             total_checks: 1, passed_checks: 1, failed_checks: 0,
             functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
         },
+        health_score: 100,
+        grade: "A".into(),
+        audit: None,
         file_summary: vec![],
     };
     let output = crate::formatters::format_ndjson(&report);
@@ -547,6 +565,9 @@ fn test_build_sarif_log_empty_findings() {
             total_checks: 1, passed_checks: 1, failed_checks: 0,
             functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
         },
+        health_score: 100,
+        grade: "A".into(),
+        audit: None,
         file_summary: vec![],
     };
     let log = crate::formatters::build_sarif_log(&report);
@@ -590,6 +611,9 @@ fn test_format_junit_all_passed() {
             total_checks: 1, passed_checks: 1, failed_checks: 0,
             functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
         },
+        health_score: 100,
+        grade: "A".into(),
+        audit: None,
         file_summary: vec![],
     };
     let xml = crate::formatters::format_junit(&report);
@@ -628,6 +652,9 @@ fn test_format_findings_ndjson_empty() {
             total_checks: 1, passed_checks: 1, failed_checks: 0,
             functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
         },
+        health_score: 100,
+        grade: "A".into(),
+        audit: None,
         file_summary: vec![],
     };
     let output = crate::formatters::format_findings_ndjson(&report);

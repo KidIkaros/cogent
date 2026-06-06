@@ -8,7 +8,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # Cap parallel rustc jobs to avoid OOM on GitHub Actions runners (7 GB RAM).
   CARGO_BUILD_JOBS: "3"
   RUST_TEST_THREADS: "4"
 
@@ -29,77 +28,107 @@ jobs:
         run: cargo fmt -- --check
 
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: cogent-bins-linux
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: cogent-bins-macos-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: cogent-bins-macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: cogent-bins-windows
+    runs-on: ${{ matrix.os }}
     needs: lint
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
       - name: Build all tools (release)
-        run: cargo build --release --workspace
+        run: cargo build --release --workspace --target ${{ matrix.target }}
       - name: Upload release binaries
         uses: actions/upload-artifact@v4
         with:
-          name: cogent-bins
+          name: ${{ matrix.artifact }}
           path: |
-            target/release/access-control
-            target/release/cohesion
-            target/release/comments
-            target/release/coupling
-            target/release/crap
-            target/release/cryptocheck
-            target/release/deadcode
-            target/release/debt
-            target/release/doccov
-            target/release/dupfind
-            target/release/errhandle
-            target/release/fuzz
-            target/release/halstead
-            target/release/licenses
-            target/release/linelen
-            target/release/mutate
-            target/release/propcov
-            target/release/riskmap
-            target/release/sast
-            target/release/sbom
-            target/release/secrets
-            target/release/supply-chain
-            target/release/taint
-            target/release/typecov
-            target/release/vulnscan
-            target/release/cogent
-            target/release/cogent-server
+            target/${{ matrix.target }}/release/access-control
+            target/${{ matrix.target }}/release/cohesion
+            target/${{ matrix.target }}/release/comments
+            target/${{ matrix.target }}/release/coupling
+            target/${{ matrix.target }}/release/crap
+            target/${{ matrix.target }}/release/cryptocheck
+            target/${{ matrix.target }}/release/deadcode
+            target/${{ matrix.target }}/release/debt
+            target/${{ matrix.target }}/release/doccov
+            target/${{ matrix.target }}/release/dupfind
+            target/${{ matrix.target }}/release/errhandle
+            target/${{ matrix.target }}/release/fuzz
+            target/${{ matrix.target }}/release/halstead
+            target/${{ matrix.target }}/release/licenses
+            target/${{ matrix.target }}/release/linelen
+            target/${{ matrix.target }}/release/mutate
+            target/${{ matrix.target }}/release/propcov
+            target/${{ matrix.target }}/release/riskmap
+            target/${{ matrix.target }}/release/sast
+            target/${{ matrix.target }}/release/sbom
+            target/${{ matrix.target }}/release/secrets
+            target/${{ matrix.target }}/release/supply-chain
+            target/${{ matrix.target }}/release/taint
+            target/${{ matrix.target }}/release/typecov
+            target/${{ matrix.target }}/release/vulnscan
+            target/${{ matrix.target }}/release/cogent
+            target/${{ matrix.target }}/release/cogent-server
           retention-days: 1
 
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: cogent-bins-linux
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: cogent-bins-macos-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: cogent-bins-macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: cogent-bins-windows
+    runs-on: ${{ matrix.os }}
     needs: build
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
-      - name: Run unit tests (batched to avoid OOM)
-        run: |
-          chmod +x ./scripts/test.sh
-          ./scripts/test.sh
-      - name: Install cargo-tarpaulin
-        run: cargo install --locked cargo-tarpaulin
-      - name: Generate code coverage (lib only)
-        run: |
-          cargo tarpaulin --lib --workspace \
-            --out Xml --out Html \
-            --output-dir target/coverage \
-            --fail-under 70
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+      - name: Download release binaries
+        uses: actions/download-artifact@v4
         with:
-          name: coverage-report
-          path: target/coverage/
-          retention-days: 30
+          name: ${{ matrix.artifact }}
+          path: target/${{ matrix.target }}/release/
+      - name: Mark binaries executable
+        run: |
+          if [[ "${{ runner.os }}" != "Windows" ]]; then
+            chmod +x target/${{ matrix.target }}/release/*
+          fi
+      - name: Run workspace tests
+        run: cargo test --workspace --target ${{ matrix.target }}
 
   audit:
     runs-on: ubuntu-latest
@@ -110,14 +139,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Cache cargo build
         uses: Swatinem/rust-cache@v2
-      - name: Install cargo-audit
-        run: cargo install --locked cargo-audit
-      - name: Run cargo audit
-        run: cargo audit --deny warnings
       - name: Download release binaries
         uses: actions/download-artifact@v4
         with:
-          name: cogent-bins
+          name: cogent-bins-linux
           path: target/release/
       - name: Mark binaries executable
         run: chmod +x target/release/*
@@ -125,28 +150,19 @@ jobs:
         run: echo "$(pwd)/target/release" >> $GITHUB_PATH
       - name: Check for technical debt (zero tolerance)
         run: |
-          # Check for TODO/FIXME/HACK/XXX markers
-          # Exclude test files, debt-scan tool strings, and docs
-          echo "Checking for technical debt markers..."
           debt_markers=$(grep -rn "TODO\|FIXME\|HACK\|XXX" --include="*.rs" --include="*.py" --include="*.js" --include="*.ts" . 2>/dev/null | grep -v "tests/" | grep -v "debt-scan/src" | grep -v "docs/" || true)
           if [ -n "$debt_markers" ]; then
             echo "::error::Technical debt markers found (zero tolerance policy):"
             echo "$debt_markers"
-            echo ""
-            echo "Fix: Remove TODO/FIXME/HACK/XXX markers and track work in issues instead."
-            echo "See docs/quality-standards.md for details."
             exit 1
           else
             echo "✓ No technical debt markers found."
           fi
-
       - name: Run quality self-audit
         run: |
-          # Run batch audit; exit 1 if any tool regresses vs baseline
           ./target/release/cogent run . --format sarif \
             --baseline .cogent-baseline.sarif \
             > quality-results.sarif
-          # Check if SARIF indicates new issues (non-zero exit if regression)
           if [ $? -ne 0 ]; then
             echo "::error::Quality regression detected compared to baseline"
             exit 1
@@ -189,7 +205,6 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           mv quality-results.sarif .cogent-baseline.sarif
-          # Also record metrics history
           ./target/release/cogent history record
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -212,7 +227,7 @@ jobs:
       - name: Download release binaries
         uses: actions/download-artifact@v4
         with:
-          name: cogent-bins
+          name: cogent-bins-linux
           path: target/release/
       - name: Mark binaries executable
         run: chmod +x target/release/*

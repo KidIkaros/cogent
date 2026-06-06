@@ -3,7 +3,7 @@
 #![deny(clippy::all)]
 
 use colored::Colorize;
-use crate::check_runners::*;
+use cogent_engine::{CheckThresholds, registry};
 use crate::config::{detect_project, ProjectProfile};
 use crate::progress::{format_elapsed, run_with_spinner};
 
@@ -226,58 +226,55 @@ pub(crate) fn run_watch_checks(
     // In --full mode run all checks (same set as `cogent check`)
     let mut results: Vec<(String, bool, String)> = Vec::new();
 
-    macro_rules! wpush {
-        ($name:expr, $r:expr) => {{
-            let r = $r;
+    let reg = registry();
+
+    macro_rules! wreg {
+        ($name:expr, $tool:expr, $thresholds:expr) => {{
+            let t = $thresholds;
+            let r = reg.run_check($tool, path, true, &t).unwrap();
             results.push(($name.to_string(), r.passed, r.message));
         }};
     }
 
     if full {
-        let cov_owned = coverage_opt.map(|s| s.to_string());
-        wpush!("debt", check_debt(path, true, profile.max_debt));
-        wpush!("doc", check_doc_coverage(path, true, profile.min_doc));
-        wpush!("crap", check_crap(path, true, &cov_owned, profile.max_crap));
-        wpush!(
-            "complexity",
-            check_complexity(path, true, 10, profile.max_complexity_violations)
-        );
-        wpush!("taint", check_taint(path, true, 0));
-        wpush!("errhandle", check_errhandle(path, true, 50));
-        wpush!("secrets", check_secrets(path, true, 0));
-        wpush!("deadcode", check_deadcode(path, true, 10));
-        wpush!("linelen", check_linelen(path, true, 0));
+        let cov = coverage_opt.map(|s| s.to_string());
+        wreg!("debt", "debt", CheckThresholds { max_debt: profile.max_debt, ..Default::default() });
+        wreg!("doc", "doccov", CheckThresholds { min_doc: profile.min_doc, ..Default::default() });
+        wreg!("crap", "crap", CheckThresholds { max_crap: profile.max_crap, coverage_path: cov.clone(), ..Default::default() });
+        wreg!("complexity", "complexity", CheckThresholds { min_complexity: 10, max_complexity_violations: profile.max_complexity_violations, ..Default::default() });
+        wreg!("taint", "taint", CheckThresholds { max_taint: 0, ..Default::default() });
+        wreg!("errhandle", "errhandle", CheckThresholds { max_errhandle: 50, ..Default::default() });
+        wreg!("secrets", "secrets", CheckThresholds { max_secrets: 0, ..Default::default() });
+        wreg!("deadcode", "deadcode", CheckThresholds { max_deadcode: 10, ..Default::default() });
+        wreg!("linelen", "linelen", CheckThresholds { max_linelen: 0, ..Default::default() });
     } else {
         if should("debt") {
-            wpush!("debt", check_debt(path, true, profile.max_debt));
+            wreg!("debt", "debt", CheckThresholds { max_debt: profile.max_debt, ..Default::default() });
         }
         if should("doc") {
-            wpush!("doc", check_doc_coverage(path, true, profile.min_doc));
+            wreg!("doc", "doccov", CheckThresholds { min_doc: profile.min_doc, ..Default::default() });
         }
         if should("crap") {
-            let cov_owned = coverage_opt.map(|s| s.to_string());
-            wpush!("crap", check_crap(path, true, &cov_owned, profile.max_crap));
+            let cov = coverage_opt.map(|s| s.to_string());
+            wreg!("crap", "crap", CheckThresholds { max_crap: profile.max_crap, coverage_path: cov, ..Default::default() });
         }
         if should("complexity") {
-            wpush!(
-                "complexity",
-                check_complexity(path, true, 10, profile.max_complexity_violations)
-            );
+            wreg!("complexity", "complexity", CheckThresholds { min_complexity: 10, max_complexity_violations: profile.max_complexity_violations, ..Default::default() });
         }
         if should("taint") {
-            wpush!("taint", check_taint(path, true, 0));
+            wreg!("taint", "taint", CheckThresholds { max_taint: 0, ..Default::default() });
         }
         if should("errhandle") {
-            wpush!("errhandle", check_errhandle(path, true, 50));
+            wreg!("errhandle", "errhandle", CheckThresholds { max_errhandle: 50, ..Default::default() });
         }
         if should("secrets") {
-            wpush!("secrets", check_secrets(path, true, 0));
+            wreg!("secrets", "secrets", CheckThresholds { max_secrets: 0, ..Default::default() });
         }
         if should("deadcode") {
-            wpush!("deadcode", check_deadcode(path, true, 10));
+            wreg!("deadcode", "deadcode", CheckThresholds { max_deadcode: 10, ..Default::default() });
         }
         if should("linelen") {
-            wpush!("linelen", check_linelen(path, true, 0));
+            wreg!("linelen", "linelen", CheckThresholds { max_linelen: 0, ..Default::default() });
         }
     }
 

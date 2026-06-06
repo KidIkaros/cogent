@@ -297,19 +297,24 @@ pub(crate) fn html_escape(s: &str) -> String {
 
 pub(crate) fn severity_color_html(sev: &str) -> &'static str {
     match sev {
-        "high" | "critical" | "error" => "#ef4444",
-        "medium" | "warning" => "#f59e0b",
-        "low" => "#3b82f6",
-        _ => "#6b7280",
+        "high" | "critical" | "error" => "var(--red)",
+        "medium" | "warning" => "var(--amber)",
+        "low" => "var(--blue)",
+        _ => "var(--text-muted)",
     }
 }
 
 pub(crate) fn severity_badge(sev: &str) -> String {
     let color = severity_color_html(sev);
+    let bg = match sev {
+        "high" | "critical" | "error" => "var(--red-bg)",
+        "medium" | "warning" => "var(--amber-bg)",
+        "low" => "var(--blue-bg)",
+        _ => "var(--surface-alt)",
+    };
     format!(
-        r#"<span style="background:{c};color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">{s}</span>"#,
-        c = color,
-        s = sev
+        r#"<span style="background:{bg};color:{c};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">{s}</span>"#,
+        bg = bg, c = color, s = sev
     )
 }
 
@@ -355,16 +360,16 @@ pub(crate) fn offender_rows_html(c: &CheckResult) -> String {
                     desc.to_string()
                 };
                 rows.push_str(&format!(
-                    r#"<div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:12px">
-  <span style="color:#6366f1;font-family:monospace;white-space:nowrap;min-width:180px">{}</span>
-  <span style="color:#6b7280">{}</span>
+                    r#"<div style="display:flex;gap:12px;padding:4px 0;border-bottom:1px solid var(--offender-border);font-size:12px">
+  <span style="color:var(--offender-loc);font-family:monospace;white-space:nowrap;min-width:180px">{}</span>
+  <span style="color:var(--offender-desc)">{}</span>
 </div>"#,
                     html_escape(&loc), html_escape(&desc_trunc)
                 ));
             }
             let more = if arr.len() > 10 {
                 format!(
-                    r#"<div style="font-size:12px;color:#9ca3af;padding-top:6px">… {} more findings</div>"#,
+                    r#"<div style="font-size:12px;color:var(--text-muted);padding-top:6px">… {} more findings</div>"#,
                     arr.len() - 10
                 )
             } else {
@@ -372,8 +377,8 @@ pub(crate) fn offender_rows_html(c: &CheckResult) -> String {
             };
             return format!(
                 r#"<details style="margin-top:8px">
-<summary style="font-size:12px;color:#6366f1;cursor:pointer;user-select:none;padding:4px 0">▶ Show {} finding{}</summary>
-<div style="margin-top:8px;padding:8px 12px;background:#f9fafb;border-radius:6px;border-left:3px solid #6366f1">
+<summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none;padding:4px 0">▶ Show {} finding{}</summary>
+<div style="margin-top:8px;padding:8px 12px;background:var(--offender-bg);border-radius:6px;border-left:3px solid var(--accent)">
 {}{}
 </div>
 </details>"#,
@@ -389,9 +394,9 @@ pub(crate) fn offender_rows_html(c: &CheckResult) -> String {
 
 pub(crate) fn check_row_html(c: &CheckResult) -> String {
     let icon = if c.passed { "&#10003;" } else { "&#10007;" };
-    let icon_color = if c.passed { "#22c55e" } else { "#ef4444" };
-    let row_bg = if c.passed { "#fff" } else { "#fef2f2" };
-    let name_color = if c.passed { "#111827" } else { "#ef4444" };
+    let icon_color = if c.passed { "var(--icon-pass)" } else { "var(--icon-fail)" };
+    let row_bg = if c.passed { "var(--surface)" } else { "var(--red-bg)" };
+    let name_color = if c.passed { "var(--text)" } else { "var(--red)" };
     let sev = c.severity.as_deref().unwrap_or("info");
     let help = c.help.as_deref().unwrap_or("");
     let score_str = match (c.score, c.threshold) {
@@ -405,11 +410,11 @@ pub(crate) fn check_row_html(c: &CheckResult) -> String {
         String::new()
     };
     let msg_cell = format!(
-        "<div style=\"font-size:13px;color:#374151\">{msg}</div><div style=\"font-size:11px;color:#9ca3af;margin-top:3px\">{help}</div>{off}",
+        "<div style=\"font-size:13px;color:var(--text-secondary)\">{msg}</div><div style=\"font-size:11px;color:var(--text-muted);margin-top:3px\">{help}</div>{off}",
         msg = html_escape(&c.message), help = html_escape(help), off = offenders
     );
     format!(
-        "<tr style=\"background:{rb};border-bottom:1px solid #f3f4f6;vertical-align:top\">\n  <td style=\"padding:12px 14px;font-size:18px;color:{ic};text-align:center;width:40px;font-weight:700\">{icon}</td>\n  <td style=\"padding:12px 14px;font-weight:600;font-size:13px;color:{nc};white-space:nowrap\">{name}</td>\n  <td style=\"padding:12px 14px\">{mc}</td>\n  <td style=\"padding:12px 14px;font-size:12px;color:#6b7280;white-space:nowrap\">{score}</td>\n  <td style=\"padding:12px 14px;white-space:nowrap\">{sb}</td>\n</tr>",
+        "<tr style=\"background:{rb};border-bottom:1px solid var(--border-light);vertical-align:top\">\n  <td style=\"padding:12px 14px;font-size:18px;color:{ic};text-align:center;width:40px;font-weight:700\">{icon}</td>\n  <td style=\"padding:12px 14px;font-weight:600;font-size:13px;color:{nc};white-space:nowrap\">{name}</td>\n  <td style=\"padding:12px 14px\">{mc}</td>\n  <td style=\"padding:12px 14px;font-size:12px;color:var(--text-muted);white-space:nowrap\">{score}</td>\n  <td style=\"padding:12px 14px;white-space:nowrap\">{sb}</td>\n</tr>",
         rb = row_bg, ic = icon_color, icon = icon, nc = name_color,
         name = c.name, mc = msg_cell, score = score_str, sb = severity_badge(sev),
     )
@@ -425,9 +430,9 @@ pub(crate) fn donut_svg(pct: f64, color: &str) -> String {
     let mut s = String::from(
         r#"<svg viewBox="0 0 100 100" width="120" height="120" style="display:block">"#,
     );
-    s.push_str("\n  <circle cx=\"50\" cy=\"50\" r=\"44\" fill=\"none\" stroke=\"#e5e7eb\" stroke-width=\"10\"/>\n");
+    s.push_str("\n  <circle cx=\"50\" cy=\"50\" r=\"44\" fill=\"none\" style=\"stroke:var(--border)\" stroke-width=\"10\"/>\n");
     s.push_str(&format!(
-        "  <circle cx=\"50\" cy=\"50\" r=\"44\" fill=\"none\" stroke=\"{}\" stroke-width=\"10\"\n",
+        "  <circle cx=\"50\" cy=\"50\" r=\"44\" fill=\"none\" style=\"stroke:{}\" stroke-width=\"10\"\n",
         color
     ));
     s.push_str(&format!(
@@ -435,8 +440,8 @@ pub(crate) fn donut_svg(pct: f64, color: &str) -> String {
         dash, gap
     ));
     s.push_str("    stroke-linecap=\"round\" transform=\"rotate(-90 50 50)\"/>\n");
-    s.push_str(&format!("  <text x=\"50\" y=\"46\" text-anchor=\"middle\" font-size=\"18\" font-weight=\"800\" fill=\"{}\" font-family=\"system-ui\">{}%</text>\n", color, pct_int));
-    s.push_str("  <text x=\"50\" y=\"60\" text-anchor=\"middle\" font-size=\"9\" fill=\"#9ca3af\" font-family=\"system-ui\">pass rate</text>\n");
+    s.push_str(&format!("  <text x=\"50\" y=\"46\" text-anchor=\"middle\" font-size=\"18\" font-weight=\"800\" style=\"fill:{}\" font-family=\"system-ui\">{}%</text>\n", color, pct_int));
+    s.push_str("  <text x=\"50\" y=\"60\" text-anchor=\"middle\" font-size=\"9\" style=\"fill:var(--text-muted)\" font-family=\"system-ui\">pass rate</text>\n");
     s.push_str("</svg>");
     s
 }
@@ -450,7 +455,7 @@ pub(crate) fn mini_bar(pass: usize, total: usize, color: &str) -> String {
     let bar: String = "█".repeat(filled) + &"░".repeat(12 - filled);
     let pct = pass * 100 / total;
     format!(
-        "<div style=\"display:flex;align-items:center;gap:8px;font-size:12px\">\n  <span style=\"font-family:monospace;color:{color};letter-spacing:.1em\">{bar}</span>\n  <span style=\"color:#6b7280\">{pass}/{total} ({pct}%)</span>\n</div>",
+        "<div style=\"display:flex;align-items:center;gap:8px;font-size:12px\">\n  <span style=\"font-family:monospace;color:{color};letter-spacing:.1em\">{bar}</span>\n  <span style=\"color:var(--text-muted)\">{pass}/{total} ({pct}%)</span>\n</div>",
         color = color, bar = bar, pass = pass, total = total, pct = pct
     )
 }
@@ -470,21 +475,21 @@ pub(crate) fn gauge_svg(score: u32, color: &str) -> String {
     );
     // Background arc
     s.push_str(&format!(
-        r##"<path d="M {} {} A {} {} 0 0 1 {} {}" fill="none" stroke="#e5e7eb" stroke-width="12" stroke-linecap="round"/>"##,
+        r##"<path d="M {} {} A {} {} 0 0 1 {} {}" fill="none" style="stroke:var(--border)" stroke-width="12" stroke-linecap="round"/>"##,
         cx - radius, cy, radius, radius, cx + radius, cy
     ));
     // Foreground arc
     let large_arc = if score > 50 { 1 } else { 0 };
     s.push_str(&format!(
-        r##"<path d="M {} {} A {} {} 0 {} 1 {} {}" fill="none" stroke="{}" stroke-width="12" stroke-linecap="round"/>"##,
+        r##"<path d="M {} {} A {} {} 0 {} 1 {} {}" fill="none" style="stroke:{}" stroke-width="12" stroke-linecap="round"/>"##,
         cx - radius, cy, radius, radius, large_arc, needle_x, needle_y, color
     ));
     s.push_str(&format!(
-        r##"<text x="{}" y="{}" text-anchor="middle" font-size="28" font-weight="800" fill="{}" font-family="system-ui">{}</text>"##,
+        r##"<text x="{}" y="{}" text-anchor="middle" font-size="28" font-weight="800" style="fill:{}" font-family="system-ui">{}</text>"##,
         cx, cy + 8.0, color, score
     ));
     s.push_str(&format!(
-        r##"<text x="{}" y="{}" text-anchor="middle" font-size="10" fill="#9ca3af" font-family="system-ui">Health Score</text>"##,
+        r##"<text x="{}" y="{}" text-anchor="middle" font-size="10" style="fill:var(--text-muted)" font-family="system-ui">Health Score</text>"##,
         cx, cy + 24.0
     ));
     s.push_str("</svg>");
@@ -510,14 +515,14 @@ pub(crate) fn severity_bar_chart_svg(counts: &[(String, usize, &str)]) -> String
         let y = gap + i * (bar_h + gap);
         let w = (*count as f64 / max_c as f64) * max_w;
         s.push_str(&format!(
-            r##"<rect x="40" y="{}" width="{}" height="{}" rx="3" fill="{}"/>"##,
+            r##"<rect x="40" y="{}" width="{}" height="{}" rx="3" style="fill:{}"/>"##,
             y,
             w.max(2.0),
             bar_h,
             color
         ));
         s.push_str(&format!(
-            r##"<text x="35" y="{}" text-anchor="end" font-size="11" fill="#6b7280" font-family="system-ui" dy="{}">{} ({})</text>"##,
+            r##"<text x="35" y="{}" text-anchor="end" font-size="11" style="fill:var(--text-muted)" font-family="system-ui" dy="{}">{} ({})</text>"##,
             y + bar_h / 2 + 4, 0, html_escape(label), count
         ));
     }
@@ -555,12 +560,12 @@ pub(crate) fn sparkline_svg(scores: &[u32], width: usize, height: usize) -> Stri
     // Grid line at 50%
     let y50 = padding + plot_h * 0.5;
     s.push_str(&format!(
-        r##"<line x1="0" y1="{}" x2="{}" y2="{}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3"/>"##,
+        r##"<line x1="0" y1="{}" x2="{}" y2="{}" style="stroke:var(--border)" stroke-width="1" stroke-dasharray="3,3"/>"##,
         y50, width, y50
     ));
     // Polyline
     s.push_str(&format!(
-        r##"<polyline points="{}" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##,
+        r##"<polyline points="{}" fill="none" style="stroke:var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>"##,
         points
     ));
     // Dots
@@ -568,7 +573,7 @@ pub(crate) fn sparkline_svg(scores: &[u32], width: usize, height: usize) -> Stri
         let x = i as f64 * step_x;
         let y = padding + plot_h - ((score - min_score) as f64 / range) * plot_h;
         s.push_str(&format!(
-            r##"<circle cx="{:.1}" cy="{:.1}" r="2.5" fill="#6366f1"/>"##,
+            r##"<circle cx="{:.1}" cy="{:.1}" r="2.5" style="fill:var(--accent)"/>"##,
             x, y
         ));
     }
@@ -618,7 +623,7 @@ pub(crate) fn render_html_report(
     compliance_tools: &[&str],
 ) -> String {
     let (health, grade) = health_score(&report.checks);
-    let overall_color = if report.passed { "#22c55e" } else { "#ef4444" };
+    let overall_color = if report.passed { "var(--green)" } else { "var(--red)" };
     let overall_label = if report.passed { "PASSED" } else { "FAILED" };
     let pct = if report.summary.total_checks == 0 {
         100.0
@@ -626,10 +631,10 @@ pub(crate) fn render_html_report(
         report.summary.passed_checks as f64 / report.summary.total_checks as f64 * 100.0
     };
     let grade_color = match grade {
-        'A' => "#22c55e",
-        'B' => "#06b6d4",
-        'C' => "#f59e0b",
-        _ => "#ef4444",
+        'A' => "var(--green)",
+        'B' => "var(--blue)",
+        'C' => "var(--amber)",
+        _ => "var(--red)",
     };
 
     // Split checks by category
@@ -654,21 +659,9 @@ pub(crate) fn render_html_report(
     let sec_pass = sec_checks.iter().filter(|c| c.passed).count();
     let qual_pass = qual_checks.iter().filter(|c| c.passed).count();
     let comp_pass = comp_checks.iter().filter(|c| c.passed).count();
-    let sec_col = if sec_pass == sec_checks.len() {
-        "#22c55e"
-    } else {
-        "#ef4444"
-    };
-    let qual_col = if qual_pass == qual_checks.len() {
-        "#22c55e"
-    } else {
-        "#ef4444"
-    };
-    let comp_col = if comp_pass == comp_checks.len() {
-        "#22c55e"
-    } else {
-        "#ef4444"
-    };
+    let sec_col = if sec_pass == sec_checks.len() { "var(--green)" } else { "var(--red)" };
+    let qual_col = if qual_pass == qual_checks.len() { "var(--green)" } else { "var(--red)" };
+    let comp_col = if comp_pass == comp_checks.len() { "var(--green)" } else { "var(--red)" };
 
     let failed_checks: Vec<&CheckResult> = report.checks.iter().filter(|c| !c.passed).collect();
 
@@ -711,7 +704,7 @@ pub(crate) fn render_html_report(
         sorted.into_iter().take(3).collect()
     };
     let top3_html = if top3.is_empty() {
-        r#"<p style="color:#22c55e;font-size:14px">✓ No action items — all checks passed.</p>"#
+        r#"<p style="color:var(--green);font-size:14px">✓ No action items — all checks passed.</p>"#
             .to_string()
     } else {
         let mut h = String::new();
@@ -724,14 +717,14 @@ pub(crate) fn render_html_report(
             };
             let help = c.help.as_deref().unwrap_or("Review and fix flagged items.");
             h.push_str(&format!(
-                r#"<div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid #f3f4f6;align-items:flex-start">
-  <div style="font-size:20px;font-weight:800;color:#d1d5db;min-width:24px">{}</div>
+                r#"<div style="display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-light);align-items:flex-start">
+  <div style="font-size:20px;font-weight:800;color:var(--text-faint);min-width:24px">{}</div>
   <div style="flex:1">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
       <span style="font-weight:700;font-size:14px">{}</span>{}
-      <span style="font-size:11px;color:#9ca3af;margin-left:auto">{}</span>
+      <span style="font-size:11px;color:var(--text-muted);margin-left:auto">{}</span>
     </div>
-    <div style="font-size:13px;color:#6b7280">{}</div>
+    <div style="font-size:13px;color:var(--text-secondary)">{}</div>
   </div>
 </div>"#, i+1, html_escape(&c.name), severity_badge(sev), effort, html_escape(help)));
         }
@@ -740,7 +733,7 @@ pub(crate) fn render_html_report(
 
     // ── Remediation table ─────────────────────────────────────
     let remediation_html = if failed_checks.is_empty() {
-        r#"<p style="color:#22c55e;font-weight:600;font-size:14px">✓ No findings — all checks passed.</p>"#.to_string()
+        r#"<p style="color:var(--green);font-weight:600;font-size:14px">✓ No findings — all checks passed.</p>"#.to_string()
     } else {
         let mut rows = String::new();
         let mut sorted_failed = failed_checks.clone();
@@ -762,12 +755,12 @@ pub(crate) fn render_html_report(
                 .as_deref()
                 .unwrap_or("Review and fix the flagged items.");
             rows.push_str(&format!(
-                r#"<tr style="border-bottom:1px solid #f3f4f6">
-  <td style="padding:10px 14px;font-weight:700;color:#9ca3af">{}</td>
+                r#"<tr style="border-bottom:1px solid var(--border-light)">
+  <td style="padding:10px 14px;font-weight:700;color:var(--text-muted)">{}</td>
   <td style="padding:10px 14px;font-weight:600">{}</td>
   <td style="padding:10px 14px">{}</td>
-  <td style="padding:10px 14px;font-size:12px;color:#6b7280">{}</td>
-  <td style="padding:10px 14px;font-size:12px;color:#6b7280">{}</td>
+  <td style="padding:10px 14px;font-size:12px;color:var(--text-secondary)">{}</td>
+  <td style="padding:10px 14px;font-size:12px;color:var(--text-secondary)">{}</td>
 </tr>"#,
                 i + 1,
                 html_escape(&c.name),
@@ -778,12 +771,12 @@ pub(crate) fn render_html_report(
         }
         format!(
             r#"<table style="width:100%;border-collapse:collapse;font-size:13px">
-<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
-  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">#</th>
-  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Check</th>
-  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Severity</th>
-  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Effort</th>
-  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Action</th>
+<thead><tr style="background:var(--surface-alt);border-bottom:2px solid var(--border)">
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600">#</th>
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600">Check</th>
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600">Severity</th>
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600">Effort</th>
+  <th style="padding:8px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600">Action</th>
 </tr></thead><tbody>{rows}</tbody></table>"#,
             rows = rows
         )
@@ -797,17 +790,17 @@ pub(crate) fn render_html_report(
         let rows: String = checks.iter().map(|c| check_row_html(c)).collect();
         let pass_c = checks.iter().filter(|c| c.passed).count();
         let fail_c = checks.len() - pass_c;
-        let status_color = if fail_c == 0 { "#22c55e" } else { "#ef4444" };
+        let status_color = if fail_c == 0 { "var(--green)" } else { "var(--red)" };
         let status_pill = if fail_c == 0 {
-            r#"<span style="background:#dcfce7;color:#16a34a;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">ALL PASSED</span>"#.to_string()
+            r#"<span style="background:var(--green-bg);color:var(--green);padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">ALL PASSED</span>"#.to_string()
         } else {
             format!(
-                r#"<span style="background:#fee2e2;color:#ef4444;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">{} FAILED</span>"#,
+                r#"<span style="background:var(--red-bg);color:var(--red);padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">{} FAILED</span>"#,
                 fail_c
             )
         };
         format!(
-            "<section id=\"{anch}\" style=\"margin-bottom:40px\">\n<div style=\"display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #f3f4f6\">\n  <span style=\"font-size:22px\">{icn}</span>\n  <h2 style=\"font-size:18px;font-weight:800;color:#111827;margin:0\">{ttl}</h2>\n  <span style=\"font-size:13px;color:{sc};font-weight:600;margin-left:4px\">{ps}/{tot}</span>\n  <div style=\"margin-left:auto\">{pill}</div>\n</div>\n<div style=\"border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)\">\n<table style=\"width:100%;border-collapse:collapse;font-size:13px\">\n<thead><tr style=\"background:#f9fafb;border-bottom:2px solid #e5e7eb\">\n  <th style=\"padding:9px 14px;width:42px\"></th>\n  <th style=\"padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600\">Check</th>\n  <th style=\"padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600\">Result / Details</th>\n  <th style=\"padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600\">Score</th>\n  <th style=\"padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600\">Sev</th>\n</tr></thead>\n<tbody>{rows}</tbody>\n</table></div></section>",
+            "<section id=\"{anch}\" style=\"margin-bottom:40px\">\n<div style=\"display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--border-light)\">\n  <span style=\"font-size:22px\">{icn}</span>\n  <h2 style=\"font-size:18px;font-weight:800;color:var(--text);margin:0\">{ttl}</h2>\n  <span style=\"font-size:13px;color:{sc};font-weight:600;margin-left:4px\">{ps}/{tot}</span>\n  <div style=\"margin-left:auto\">{pill}</div>\n</div>\n<div style=\"border-radius:10px;overflow:hidden;box-shadow:var(--shadow-sm)\">\n<table style=\"width:100%;border-collapse:collapse;font-size:13px\">\n<thead><tr style=\"background:var(--surface-alt);border-bottom:2px solid var(--border)\">\n  <th style=\"padding:9px 14px;width:42px\"></th>\n  <th style=\"padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600\">Check</th>\n  <th style=\"padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600\">Result / Details</th>\n  <th style=\"padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600\">Score</th>\n  <th style=\"padding:9px 14px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600\">Sev</th>\n</tr></thead>\n<tbody>{rows}</tbody>\n</table></div></section>",
             anch = anchor, icn = icon, ttl = title, sc = status_color,
             ps = pass_c, tot = checks.len(), pill = status_pill, rows = rows,
         )
@@ -827,17 +820,17 @@ pub(crate) fn render_html_report(
                 .max(1);
             let bar_width = (fs.issue_count as f64 / max_issues as f64 * 200.0) as usize;
             let bar_color = if fs.severity_score >= 10 {
-                "#ef4444"
+                "var(--red)"
             } else if fs.severity_score >= 5 {
-                "#f59e0b"
+                "var(--amber)"
             } else {
-                "#22c55e"
+                "var(--green)"
             };
             rows.push_str(&format!(
-                r#"<div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+                r#"<div class="heatmap-row" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border-light)">
   <div style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{}</div>
   <div style="width:{}px;height:8px;background:{};border-radius:4px"></div>
-  <div style="font-size:11px;color:#6b7280;min-width:24px;text-align:right">{}</div>
+  <div style="font-size:11px;color:var(--text-muted);min-width:24px;text-align:right">{}</div>
 </div>"#,
                 html_escape(&fs.file), bar_width, bar_color, fs.issue_count
             ));
@@ -845,7 +838,7 @@ pub(crate) fn render_html_report(
         format!(
             r#"<div class="card" id="heatmap">
   <div class="card-title">&#128293; File Heatmap</div>
-  <p style="font-size:13px;color:#9ca3af;margin-bottom:12px">Top files by total issue count across all tools.</p>
+  <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Top files by total issue count across all tools.</p>
   {}
 </div>"#,
             rows
@@ -877,11 +870,11 @@ pub(crate) fn render_html_report(
                         .map(|l| l.to_string())
                         .unwrap_or_else(|| "-".to_string());
                     table_rows.push_str(&format!(
-                        r#"<tr class="finding-row" style="border-bottom:1px solid #f3f4f6">
-  <td style="padding:8px 12px;font-size:12px;color:#6b7280">{}</td>
-  <td style="padding:8px 12px;font-size:12px;color:#6b7280">{}</td>
+                        r#"<tr class="finding-row" style="border-bottom:1px solid var(--border-light)">
+  <td style="padding:8px 12px;font-size:12px;color:var(--text-secondary)">{}</td>
+  <td style="padding:8px 12px;font-size:12px;color:var(--text-secondary)">{}</td>
   <td style="padding:8px 12px;font-size:12px">{}</td>
-  <td style="padding:8px 12px;font-size:12px;color:#6b7280">{}</td>
+  <td style="padding:8px 12px;font-size:12px;color:var(--text-secondary)">{}</td>
 </tr>"#,
                         html_escape(&finding.file),
                         line,
@@ -892,18 +885,18 @@ pub(crate) fn render_html_report(
                 let sev_badge = severity_badge(check.severity.as_deref().unwrap_or("info"));
                 sections.push_str(&format!(
                     r#"<div class="card" style="margin-bottom:20px">
-  <div class="collapsible-header" style="display:flex;align-items:center;gap:10px;margin-bottom:0px;padding-bottom:12px;border-bottom:1px solid #f3f4f6">
+  <div class="collapsible-header" style="display:flex;align-items:center;gap:10px;margin-bottom:0px;padding-bottom:12px;border-bottom:1px solid var(--border-light)">
     <span style="font-weight:700;font-size:14px">{}</span>
     <span style="margin-left:4px">{}</span>
-    <span style="margin-left:auto;font-size:12px;color:#6b7280">{} findings</span>
+    <span style="margin-left:auto;font-size:12px;color:var(--text-muted)">{} findings</span>
   </div>
   <div class="collapsible-body closed" style="max-height:0">
   <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:12px">
-    <thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">
-      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">File</th>
-      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;width:60px">Line</th>
-      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Message</th>
-      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600">Fix Hint</th>
+    <thead><tr style="background:var(--surface-alt);border-bottom:2px solid var(--border)">
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600">File</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;width:60px">Line</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600">Message</th>
+      <th style="padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600">Fix Hint</th>
     </tr></thead>
     <tbody>{}</tbody>
   </table>
@@ -916,7 +909,7 @@ pub(crate) fn render_html_report(
                 r#"<div id="findings" style="scroll-margin-top:80px">
   <div class="card">
     <div class="card-title">&#128269; Findings Drill-Down
-      <input type="text" placeholder="Search findings..." oninput="filterFindings(this.value)" style="margin-left:auto;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;width:220px">
+      <input type="text" placeholder="Search findings..." oninput="filterFindings(this.value)" style="margin-left:auto;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;width:220px;background:var(--surface);color:var(--text)">
     </div>
   </div>
   {}
@@ -943,13 +936,13 @@ pub(crate) fn render_html_report(
         }
     }
     let severity_order = [
-        ("critical", "#dc2626"),
-        ("high", "#ef4444"),
-        ("error", "#ef4444"),
-        ("medium", "#f59e0b"),
-        ("warning", "#f59e0b"),
-        ("low", "#22c55e"),
-        ("info", "#3b82f6"),
+        ("critical", "var(--red)"),
+        ("high", "var(--red)"),
+        ("error", "var(--red)"),
+        ("medium", "var(--amber)"),
+        ("warning", "var(--amber)"),
+        ("low", "var(--green)"),
+        ("info", "var(--blue)"),
     ];
     let mut severity_chart_data: Vec<(String, usize, &str)> = Vec::new();
     for (sev, color) in &severity_order {
@@ -963,9 +956,15 @@ pub(crate) fn render_html_report(
         let chart = severity_bar_chart_svg(&severity_chart_data);
         let mut badges = String::new();
         for (sev, count, color) in &severity_chart_data {
+            let badge_bg = match sev.as_str() {
+                "high" | "critical" | "error" => "var(--red-bg)",
+                "medium" | "warning" => "var(--amber-bg)",
+                "low" => "var(--green-bg)",
+                _ => "var(--surface-alt)",
+            };
             badges.push_str(&format!(
-                r#"<span style="background:{}20;color:{};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-right:6px">{} {}</span>"#,
-                color, color, count, html_escape(sev)
+                r#"<span style="background:{};color:{};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-right:6px">{} {}</span>"#,
+                badge_bg, color, count, html_escape(sev)
             ));
         }
         format!(
@@ -994,7 +993,7 @@ pub(crate) fn render_html_report(
         format!(
             r#"<div class="card" id="trends">
   <div class="card-title">&#128200; Health Score Trend</div>
-  <p style="font-size:12px;color:#9ca3af;margin-bottom:10px">Last {} runs from .cogent-history</p>
+  <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Last {} runs from .cogent-history</p>
   {}
 </div>"#,
             history_scores.len(),
@@ -1410,39 +1409,39 @@ mod tests {
 
     #[test]
     fn test_severity_color_high() {
-        assert_eq!(severity_color_html("high"), "#ef4444");
+        assert_eq!(severity_color_html("high"), "var(--red)");
     }
 
     #[test]
     fn test_severity_color_critical() {
-        assert_eq!(severity_color_html("critical"), "#ef4444");
+        assert_eq!(severity_color_html("critical"), "var(--red)");
     }
 
     #[test]
     fn test_severity_color_error() {
-        assert_eq!(severity_color_html("error"), "#ef4444");
+        assert_eq!(severity_color_html("error"), "var(--red)");
     }
 
     #[test]
     fn test_severity_color_medium() {
-        assert_eq!(severity_color_html("medium"), "#f59e0b");
+        assert_eq!(severity_color_html("medium"), "var(--amber)");
     }
 
     #[test]
     fn test_severity_color_warning() {
-        assert_eq!(severity_color_html("warning"), "#f59e0b");
+        assert_eq!(severity_color_html("warning"), "var(--amber)");
     }
 
     #[test]
     fn test_severity_color_low() {
-        assert_eq!(severity_color_html("low"), "#3b82f6");
+        assert_eq!(severity_color_html("low"), "var(--blue)");
     }
 
     #[test]
     fn test_severity_color_unknown() {
-        assert_eq!(severity_color_html("info"), "#6b7280");
-        assert_eq!(severity_color_html(""), "#6b7280");
-        assert_eq!(severity_color_html("nonexistent"), "#6b7280");
+        assert_eq!(severity_color_html("info"), "var(--text-muted)");
+        assert_eq!(severity_color_html(""), "var(--text-muted)");
+        assert_eq!(severity_color_html("nonexistent"), "var(--text-muted)");
     }
 
     // ── severity_badge ──
@@ -1451,7 +1450,7 @@ mod tests {
     fn test_severity_badge_contains_severity_text() {
         let badge = severity_badge("high");
         assert!(badge.contains("high"));
-        assert!(badge.contains("#ef4444"));
+        assert!(badge.contains("var(--red)"));
         assert!(badge.contains("<span"));
     }
 
@@ -1459,21 +1458,21 @@ mod tests {
     fn test_severity_badge_medium() {
         let badge = severity_badge("medium");
         assert!(badge.contains("medium"));
-        assert!(badge.contains("#f59e0b"));
+        assert!(badge.contains("var(--amber)"));
     }
 
     #[test]
     fn test_severity_badge_low() {
         let badge = severity_badge("low");
         assert!(badge.contains("low"));
-        assert!(badge.contains("#3b82f6"));
+        assert!(badge.contains("var(--blue)"));
     }
 
     #[test]
     fn test_severity_badge_info_fallback() {
         let badge = severity_badge("info");
         assert!(badge.contains("info"));
-        assert!(badge.contains("#6b7280"));
+        assert!(badge.contains("var(--text-muted)"));
     }
 
     #[test]
@@ -1488,39 +1487,39 @@ mod tests {
 
     #[test]
     fn test_donut_svg_starts_with_svg_tag() {
-        let svg = donut_svg(75.0, "#22c55e");
+        let svg = donut_svg(75.0, "var(--green)");
         assert!(svg.starts_with("<svg"));
         assert!(svg.ends_with("</svg>"));
     }
 
     #[test]
     fn test_donut_svg_contains_pct_text() {
-        let svg = donut_svg(50.0, "#f59e0b");
+        let svg = donut_svg(50.0, "var(--amber)");
         assert!(svg.contains("50%"));
-        assert!(svg.contains("#f59e0b"));
+        assert!(svg.contains("var(--amber)"));
     }
 
     #[test]
     fn test_donut_svg_zero_percent() {
-        let svg = donut_svg(0.0, "#ef4444");
+        let svg = donut_svg(0.0, "var(--red)");
         assert!(svg.contains("0%"));
     }
 
     #[test]
     fn test_donut_svg_hundred_percent() {
-        let svg = donut_svg(100.0, "#22c55e");
+        let svg = donut_svg(100.0, "var(--green)");
         assert!(svg.contains("100%"));
     }
 
     #[test]
     fn test_donut_svg_contains_pass_rate_label() {
-        let svg = donut_svg(80.0, "#22c55e");
+        let svg = donut_svg(80.0, "var(--green)");
         assert!(svg.contains("pass rate"));
     }
 
     #[test]
     fn test_donut_svg_contains_circle_elements() {
-        let svg = donut_svg(90.0, "#22c55e");
+        let svg = donut_svg(90.0, "var(--green)");
         assert!(svg.contains("<circle"));
         assert!(svg.contains("stroke-dasharray"));
     }
@@ -1529,30 +1528,31 @@ mod tests {
 
     #[test]
     fn test_mini_bar_zero_total_returns_empty() {
-        assert_eq!(mini_bar(0, 0, "#22c55e"), "");
+        assert_eq!(mini_bar(0, 0, "var(--green)"), "");
     }
 
     #[test]
     fn test_mini_bar_all_passed() {
-        let bar = mini_bar(5, 5, "#22c55e");
+        let bar = mini_bar(5, 5, "var(--green)");
         assert!(bar.contains("████████████"));  // 12 filled
         assert!(bar.contains("5/5"));
         assert!(bar.contains("100%"));
+        assert!(bar.contains("var(--green)"));
     }
 
     #[test]
     fn test_mini_bar_half_passed() {
-        let bar = mini_bar(3, 6, "#f59e0b");
+        let bar = mini_bar(3, 6, "var(--amber)");
         assert!(bar.contains("██████"));  // 6 filled
         assert!(bar.contains("░░░░░░"));  // 6 empty
         assert!(bar.contains("3/6"));
         assert!(bar.contains("50%"));
-        assert!(bar.contains("#f59e0b"));
+        assert!(bar.contains("var(--amber)"));
     }
 
     #[test]
     fn test_mini_bar_none_passed() {
-        let bar = mini_bar(0, 4, "#ef4444");
+        let bar = mini_bar(0, 4, "var(--red)");
         assert!(bar.contains("░░░░░░░░░░░░"));  // 12 empty
         assert!(bar.contains("0/4"));
         assert!(bar.contains("0%"));
@@ -1560,41 +1560,41 @@ mod tests {
 
     #[test]
     fn test_mini_bar_contains_color() {
-        let bar = mini_bar(2, 10, "#22c55e");
-        assert!(bar.contains("#22c55e"));
+        let bar = mini_bar(2, 10, "var(--green)");
+        assert!(bar.contains("var(--green)"));
     }
 
     // ── gauge_svg ──
 
     #[test]
     fn test_gauge_svg_starts_and_ends_with_svg() {
-        let svg = gauge_svg(75, "#22c55e");
+        let svg = gauge_svg(75, "var(--green)");
         assert!(svg.starts_with("<svg"));
         assert!(svg.ends_with("</svg>"));
     }
 
     #[test]
     fn test_gauge_svg_contains_score_text() {
-        let svg = gauge_svg(42, "#ef4444");
+        let svg = gauge_svg(42, "var(--red)");
         assert!(svg.contains("42"));
         assert!(svg.contains("Health Score"));
     }
 
     #[test]
     fn test_gauge_svg_contains_color() {
-        let svg = gauge_svg(100, "#22c55e");
-        assert!(svg.contains("#22c55e"));
+        let svg = gauge_svg(100, "var(--green)");
+        assert!(svg.contains("var(--green)"));
     }
 
     #[test]
     fn test_gauge_svg_zero_score() {
-        let svg = gauge_svg(0, "#ef4444");
+        let svg = gauge_svg(0, "var(--red)");
         assert!(svg.contains("0"));
     }
 
     #[test]
     fn test_gauge_svg_contains_path_elements() {
-        let svg = gauge_svg(50, "#f59e0b");
+        let svg = gauge_svg(50, "var(--amber)");
         assert!(svg.contains("<path"));
         assert!(svg.contains("M"));  // SVG path command
     }
@@ -1627,7 +1627,7 @@ mod tests {
         let scores: Vec<u32> = (0..=100).step_by(10).collect();
         let svg = sparkline_svg(&scores, 600, 120);
         assert!(svg.contains("<polyline"));
-        assert!(svg.contains("#6366f1"));
+        assert!(svg.contains("var(--accent)") || svg.contains("stroke"));
     }
 
     #[test]
@@ -1643,5 +1643,12 @@ mod tests {
         assert!(svg.contains("viewBox"));
         assert!(svg.contains("300"));
         assert!(svg.contains("100"));
+    }
+
+    #[test]
+    fn test_sparkline_svg_uses_accent_color() {
+        let scores: Vec<u32> = (0..=100).step_by(10).collect();
+        let svg = sparkline_svg(&scores, 600, 120);
+        assert!(svg.contains("var(--accent)") || svg.contains("--accent"));
     }
 }

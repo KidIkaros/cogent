@@ -59,22 +59,64 @@ impl Language {
 
     fn ts_language(self) -> Option<TsLanguage> {
         match self {
+            #[cfg(feature = "rust")]
             Language::Rust => Some(tree_sitter_rust::LANGUAGE.into()),
+            #[cfg(not(feature = "rust"))]
+            Language::Rust => None,
+            #[cfg(feature = "python")]
             Language::Python => Some(tree_sitter_python::LANGUAGE.into()),
+            #[cfg(not(feature = "python"))]
+            Language::Python => None,
+            #[cfg(feature = "js")]
             Language::JavaScript => Some(tree_sitter_javascript::LANGUAGE.into()),
+            #[cfg(not(feature = "js"))]
+            Language::JavaScript => None,
+            #[cfg(feature = "ts")]
             Language::TypeScript => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+            #[cfg(not(feature = "ts"))]
+            Language::TypeScript => None,
+            #[cfg(feature = "go")]
             Language::Go => Some(tree_sitter_go::LANGUAGE.into()),
+            #[cfg(not(feature = "go"))]
+            Language::Go => None,
+            #[cfg(feature = "c")]
             Language::C => Some(tree_sitter_c::LANGUAGE.into()),
+            #[cfg(not(feature = "c"))]
+            Language::C => None,
+            #[cfg(feature = "cpp")]
             Language::Cpp => Some(tree_sitter_cpp::LANGUAGE.into()),
+            #[cfg(not(feature = "cpp"))]
+            Language::Cpp => None,
+            #[cfg(feature = "csharp")]
             Language::CSharp => Some(tree_sitter_c_sharp::LANGUAGE.into()),
+            #[cfg(not(feature = "csharp"))]
+            Language::CSharp => None,
+            #[cfg(feature = "java")]
             Language::Java => Some(tree_sitter_java::LANGUAGE.into()),
+            #[cfg(not(feature = "java"))]
+            Language::Java => None,
+            #[cfg(feature = "php")]
             Language::Php => Some(tree_sitter_php::LANGUAGE_PHP.into()),
+            #[cfg(not(feature = "php"))]
+            Language::Php => None,
+            #[cfg(feature = "ruby")]
             Language::Ruby => Some(tree_sitter_ruby::LANGUAGE.into()),
+            #[cfg(not(feature = "ruby"))]
+            Language::Ruby => None,
+            #[cfg(feature = "swift")]
             Language::Swift => Some(tree_sitter_swift::LANGUAGE.into()),
+            #[cfg(not(feature = "swift"))]
+            Language::Swift => None,
             Language::Kotlin => None, // Disabled: tree-sitter-kotlin uses tree-sitter 0.20, we use 0.26
+            #[cfg(feature = "solidity")]
             Language::Solidity => Some(tree_sitter_solidity::LANGUAGE.into()),
+            #[cfg(not(feature = "solidity"))]
+            Language::Solidity => None,
             Language::Vyper => None, // Disabled: tree-sitter-vyper crate status uncertain
+            #[cfg(feature = "ocaml")]
             Language::Ocaml => Some(tree_sitter_ocaml::LANGUAGE_OCAML.into()),
+            #[cfg(not(feature = "ocaml"))]
+            Language::Ocaml => None,
             Language::Unknown => None,
         }
     }

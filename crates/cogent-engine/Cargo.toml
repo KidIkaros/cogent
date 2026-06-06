@@ -1,23 +1,40 @@
 [package]
 name = "cogent-engine"
-description = "Audit orchestration engine — runs tools, aggregates results, manages the tool registry"
+description = "Cogent Engine — async audit orchestration library"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+default = ["engine"]
+engine = ["tokio"]
+mock = ["engine"]
+
 [dependencies]
+cogent-protocol = { path = "../cogent-protocol", version = "1.0.0" }
+cogent-common = { path = "../cogent-common", version = "1.0.0" }
+ast-parse-ts = { path = "../ast-parse-ts", version = "1.0.0", features = ["rust", "python", "js", "ts", "go", "c", "cpp", "swift", "ocaml", "solidity"] }
+
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-colored = "2"
-chrono = "0.4"
-syn = { version = "2", features = ["full", "parsing", "visit", "extra-traits"] }
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 tracing = { version = "0.1", features = ["max_level_debug"] }
 
-[dependencies.ast-parse-ts]
-path = "../ast-parse-ts"
-version = "1.0.0"
+# Async runtime
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"], optional = true }
 
-[dependencies.cogent-common]
-path = "../cogent-common"
-version = "1.0.0"
+# Embedded tool binaries path resolution
+dirs = "5"
+toml = "0.8"
+async-trait = "0.1"
+tokio-stream = "0.1"
+futures = "0.3"
+syn = { version = "2.0.117", features = ["full", "parsing", "visit"] }
+
+[dev-dependencies]
+tempfile = "3"
+mockall = "0.12"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs"] }

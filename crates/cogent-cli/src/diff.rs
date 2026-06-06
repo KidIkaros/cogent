@@ -289,6 +289,7 @@ mod tests {
         let passed = checks.iter().all(|c| c.passed);
         let total = checks.len();
         let passed_count = checks.iter().filter(|c| c.passed).count();
+        let (health, grade) = health_score(&checks);
         CheckReport {
             passed,
             path: ".".into(),
@@ -301,6 +302,9 @@ mod tests {
                 avg_complexity: 0.0,
                 avg_crap: 0.0,
             },
+            health_score: health,
+            grade: grade.to_string(),
+            audit: None,
             file_summary: vec![],
         }
     }

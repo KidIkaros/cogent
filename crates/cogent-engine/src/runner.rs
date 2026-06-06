@@ -35,9 +35,37 @@ impl ToolRunner for DefaultToolRunner {
         tool_start: Instant,
     ) -> Result<ToolResult, CogentError> {
         use std::process::{Command, Stdio};
+        use std::path::Path;
 
         info!(tool = bin_name, crate = crate_name, args = ?args, "spawning tool process");
-        let output = Command::new(bin_name)
+
+        // Try to find the binary in target/release/ first (workspace build)
+        let workspace_root = std::env::var("COGENT_WORKSPACE_ROOT").unwrap_or_else(|_| {
+            // Fallback: try to find workspace root from CARGO_MANIFEST_DIR
+            std::env::var("CARGO_MANIFEST_DIR")
+                .ok()
+                .and_then(|d| {
+                    std::path::Path::new(&d)
+                        .parent()
+                        .map(|p| p.to_string_lossy().to_string())
+                })
+                .unwrap_or_else(|| ".".to_string())
+        });
+        let release_binary = Path::new(&workspace_root)
+            .join("target")
+            .join("release")
+            .join(bin_name);
+
+        let binary_path = if release_binary.exists() {
+            info!(tool = bin_name, path = %release_binary.display(), "using pre-built release binary");
+            // Canonicalize to absolute path to avoid working directory issues
+            release_binary.canonicalize().unwrap_or(release_binary).to_string_lossy().to_string()
+        } else {
+            info!(tool = bin_name, "no pre-built binary found, searching PATH");
+            bin_name.to_string()
+        };
+
+        let output = Command::new(&binary_path)
             .args(args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -49,7 +77,10 @@ impl ToolRunner for DefaultToolRunner {
                 o
             }
             _ => {
-                warn!(tool = bin_name, "binary not found or failed; falling back to cargo run");
+                warn!(
+                    tool = bin_name,
+                    "binary not found or failed; falling back to cargo run"
+                );
                 let cargo_output = Command::new("cargo")
                     .args(["run", "--quiet", "-p", crate_name, "--bin", bin_name, "--"])
                     .args(args)

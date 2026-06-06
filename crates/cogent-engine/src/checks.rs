@@ -5,9 +5,29 @@ use cogent_common::{
     CheckResult, Finding,
     crap_score, function_coverage, parse_lcov, CoverageRecord, find_source_files,
 };
+use std::path::Path;
 use std::time::Instant;
 use syn::visit::Visit;
 use syn::{ImplItemFn, ItemEnum, ItemFn, ItemStruct, ItemTrait, Visibility};
+
+
+
+/// Detect if the given path is a Cargo workspace root with a `crates/` directory.
+/// If so, return the path to the crates directory for tools that need to scan source files.
+fn adjust_path_for_workspace(path: &str) -> String {
+    let path = Path::new(path);
+    let cargo_toml = path.join("Cargo.toml");
+    let crates_dir = path.join("crates");
+    
+    if cargo_toml.exists() && crates_dir.exists() && crates_dir.is_dir() {
+        if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
+            if content.contains("[workspace]") {
+                return crates_dir.to_string_lossy().to_string();
+            }
+        }
+    }
+    path.to_string_lossy().to_string()
+}
 
 /// Scan all source files under `path`, invoking `predicate` on each function.
 /// Returns `(total_functions_count, collected_items)`.
@@ -15,8 +35,9 @@ fn scan_source_functions<T, F>(path: &str, recursive: bool, mut predicate: F) ->
 where
     F: FnMut(&ast_parse_ts::FunctionInfo) -> Option<T>,
 {
+    let adjusted_path = adjust_path_for_workspace(path);
     let files = find_source_files(
-        path,
+        &adjusted_path,
         recursive,
         &[
             "rs", "py", "js", "ts", "go", "java", "c", "cpp", "cs", "php", "rb", "swift",
@@ -581,25 +602,25 @@ pub fn check_complexity(
         findings,
     }
 }
-pub fn check_access_control(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
-    check_access_control_with_runner(path, recursive, max_violations, &crate::DefaultToolRunner)
-}
-
-/// [`check_access_control`] with an injectable [`ToolRunner`] for testing.
-pub fn check_access_control_with_runner(
-    path: &str,
-    recursive: bool,
-    max_violations: usize,
-    runner: &dyn crate::ToolRunner,
-) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
+pub fn check_access_control(path: &str, recursive: bool, max_violations: usize, exclude_paths: &[String], runner: &dyn crate::ToolRunner) -> CheckResult {
+    // Use owned Strings for args to avoid lifetime issues with temporary values
+    let mut args: Vec<String> = vec![path.to_string(), "--format".to_string(), "json".to_string()];
     if recursive {
-        args.push("--recursive");
+        args.push("--recursive".to_string());
     }
-    let max_str = format!("{}", max_violations);
-    args.push("--max-violations");
-    args.push(&max_str);
-    let res = crate::run_tool_with_runner(runner, "access-control", "access-control", &args, Instant::now());
+    // Add exclude paths
+    let valid_excludes: Vec<&String> = exclude_paths.iter().filter(|s| !s.is_empty()).collect();
+    if !valid_excludes.is_empty() {
+        let exclude_str = valid_excludes.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(",");
+        args.push("--exclude".to_string());
+        args.push(exclude_str);
+    }
+    let max_str = max_violations.to_string();
+    args.push("--max-violations".to_string());
+    args.push(max_str);
+    // Convert to &[&str] for the runner
+    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let res = crate::run_tool_with_runner(runner, "access-control", "access-control", &args_ref, Instant::now());
     if res.data.is_null() {
         return crate::skipped_tool_check(
             "access-control",
@@ -700,7 +721,8 @@ pub fn check_taint(path: &str, recursive: bool, max_taint: usize) -> CheckResult
 }
 
 pub fn check_taint_with_runner(path: &str, recursive: bool, max_taint: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
@@ -729,7 +751,8 @@ pub fn check_dupfind(path: &str, recursive: bool, max_duplication: f64) -> Check
 }
 
 pub fn check_dupfind_with_runner(path: &str, recursive: bool, max_duplication: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
@@ -767,7 +790,8 @@ pub fn check_riskmap(path: &str, _recursive: bool, max_risk: f64) -> CheckResult
 }
 
 pub fn check_riskmap_with_runner(path: &str, _recursive: bool, max_risk: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let args = vec![adjusted_path.as_str(), "--format", "json"];
     let res = crate::run_tool_with_runner(runner, "risk-map", "riskmap", &args, Instant::now());
     let max_found_risk = res
         .data
@@ -809,7 +833,8 @@ pub fn check_coupling(path: &str, max_coupling: usize) -> CheckResult {
 }
 
 pub fn check_coupling_with_runner(path: &str, max_coupling: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let args = vec![adjusted_path.as_str(), "--format", "json"];
     let res = crate::run_tool_with_runner(runner, "coupling", "coupling", &args, Instant::now());
     let avg_fan_out = res
         .data
@@ -844,7 +869,8 @@ pub fn check_propcov(path: &str, recursive: bool, min_propcov: f64) -> CheckResu
 }
 
 pub fn check_propcov_with_runner(path: &str, recursive: bool, min_propcov: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
@@ -882,7 +908,8 @@ pub fn check_fuzz(path: &str, recursive: bool, max_fuzz_risk: usize) -> CheckRes
 }
 
 pub fn check_fuzz_with_runner(path: &str, recursive: bool, max_fuzz_risk: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
@@ -976,7 +1003,8 @@ pub fn check_halstead(path: &str, recursive: bool, max_bugs: f64) -> CheckResult
 
 pub fn check_halstead_with_runner(path: &str, recursive: bool, max_bugs: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
     let max_bugs_str = format!("{}", max_bugs);
-    let mut args = vec![path, "--format", "json", "--max-bugs", &max_bugs_str];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--max-bugs", &max_bugs_str];
     if recursive {
         args.push("--recursive");
     }
@@ -1025,19 +1053,35 @@ pub fn check_halstead_with_runner(path: &str, recursive: bool, max_bugs: f64, ru
     }
 }
 pub fn check_secrets(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
-    check_secrets_with_runner(path, recursive, max_violations, &crate::DefaultToolRunner)
+    check_secrets_with_excludes(path, recursive, max_violations, &[], &crate::DefaultToolRunner)
 }
 
-/// [`check_secrets`] with an injectable [`ToolRunner`] for testing.
-pub fn check_secrets_with_runner(
+/// [`check_secrets`] with path exclusions and an injectable [`ToolRunner`] for testing.
+///
+/// Empty strings in `exclude_paths` are filtered out before joining, since
+/// `"".contains("")` is `true` in Rust and would suppress all files.
+pub fn check_secrets_with_excludes(
     path: &str,
     recursive: bool,
     max_violations: usize,
+    exclude_paths: &[String],
     runner: &dyn crate::ToolRunner,
 ) -> CheckResult {
     let mut args = vec![path, "--format", "json"];
     if recursive {
         args.push("--recursive");
+    }
+    // Filter out empty strings before joining — they would match everything
+    // (defense-in-depth; parse_string_list already filters at config parse time)
+    let valid_excludes: Vec<&String> = exclude_paths.iter().filter(|s| !s.is_empty()).collect();
+    let exclude_str = if !valid_excludes.is_empty() {
+        Some(valid_excludes.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(","))
+    } else {
+        None
+    };
+    if let Some(ref s) = exclude_str {
+        args.push("--exclude");
+        args.push(s);
     }
     let res = crate::run_tool_with_runner(runner, "secrets", "secrets", &args, Instant::now());
     let findings = summary_u64(&res.data, "findings_count");
@@ -1075,7 +1119,8 @@ pub fn check_deadcode(path: &str, recursive: bool, max_violations: usize) -> Che
 }
 
 pub fn check_deadcode_with_runner(path: &str, recursive: bool, max_violations: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
@@ -1121,7 +1166,8 @@ pub fn check_sast(path: &str, recursive: bool, max_findings: usize) -> CheckResu
 
 pub fn check_sast_with_runner(path: &str, recursive: bool, max_findings: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
     let max_str = format!("{}", max_findings);
-    let mut args = vec![path, "--format", "json", "--max-findings", &max_str];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--max-findings", &max_str];
     if recursive {
         args.push("--recursive");
     }
@@ -1172,7 +1218,8 @@ pub fn check_crypto(path: &str, recursive: bool, max_findings: usize) -> CheckRe
 
 pub fn check_crypto_with_runner(path: &str, recursive: bool, max_findings: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
     let max_str = format!("{}", max_findings);
-    let mut args = vec![path, "--format", "json", "--max-findings", &max_str];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--max-findings", &max_str];
     if recursive {
         args.push("--recursive");
     }
@@ -1350,7 +1397,8 @@ pub fn check_typecov(path: &str, recursive: bool, min_pct: f64) -> CheckResult {
 
 pub fn check_typecov_with_runner(path: &str, recursive: bool, min_pct: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
     let min_pct_str = format!("{}", min_pct);
-    let mut args = vec![path, "--format", "json", "--min-pct", &min_pct_str];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--min-pct", &min_pct_str];
     if recursive {
         args.push("--recursive");
     }
@@ -1471,7 +1519,8 @@ pub fn check_cohesion(path: &str, recursive: bool, max_violations: usize) -> Che
 }
 
 pub fn check_cohesion_with_runner(path: &str, recursive: bool, max_violations: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
@@ -1526,7 +1575,8 @@ pub fn check_comments(path: &str, recursive: bool, min_ratio: f64) -> CheckResul
 
 pub fn check_comments_with_runner(path: &str, recursive: bool, min_ratio: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
     let min_ratio_str = format!("{}", min_ratio);
-    let mut args = vec![path, "--format", "json", "--min-ratio", &min_ratio_str];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--min-ratio", &min_ratio_str];
     if recursive {
         args.push("--recursive");
     }
@@ -1566,7 +1616,8 @@ pub fn check_errhandle(path: &str, recursive: bool, max_violations: usize) -> Ch
 }
 
 pub fn check_errhandle_with_runner(path: &str, recursive: bool, max_violations: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let mut args = vec![path, "--format", "json"];
+    let adjusted_path = adjust_path_for_workspace(path);
+    let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
@@ -1609,5 +1660,561 @@ pub fn check_errhandle_with_runner(path: &str, recursive: bool, max_violations: 
         ),
         findings: crate::extract_findings_from_details(&res.data, "errhandle_limit", "medium"),
         rule_id: Some("errhandle_limit".into()),
+    }
+}
+
+/// HQSE §Support/Debug: detects raw unstructured logging in non-test source files
+/// and checks for structured log crate imports.
+pub fn check_observability(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+) -> CheckResult {
+    let extensions = [
+        "rs", "py", "js", "ts", "go", "java", "cs", "rb", "php", "swift",
+    ];
+    let files = find_source_files(path, recursive, &extensions);
+
+    let raw_log_patterns: &[&str] = &[
+        "println!(",
+        "eprintln!(",
+        "console.log(",
+        "console.error(",
+        "console.warn(",
+        "fmt.Println(",
+        "fmt.Printf(",
+        "fmt.Fprintf(",
+        "System.out.println(",
+        "print(",
+        "puts(",
+    ];
+    let structured_log_imports: &[&str] = &[
+        "use tracing",
+        "use log",
+        "use slog",
+        "use env_logger",
+        "use log4rs",
+        "import winston",
+        "import pino",
+        "import bunyan",
+        "import structlog",
+        "\"go.uber.org/zap\"",
+        "\"github.com/sirupsen/logrus\"",
+        "import logging",
+        "import structlog",
+        "org.slf4j",
+        "org.apache.logging",
+    ];
+
+    let mut violations = Vec::new();
+    let mut total_non_test_files: usize = 0;
+    let mut files_with_structured_log = 0;
+
+    for file in &files {
+        let is_test = file.contains("test")
+            || file.contains("spec")
+            || file.contains("_test.")
+            || file.ends_with("_test.rs");
+        if is_test {
+            continue;
+        }
+        total_non_test_files += 1;
+        let source = match std::fs::read_to_string(file) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        if structured_log_imports
+            .iter()
+            .any(|pat| source.contains(pat)) {
+            files_with_structured_log += 1;
+        }
+        for (line_num, line) in source.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("//") || trimmed.starts_with('#') {
+                continue;
+            }
+            for pat in raw_log_patterns {
+                if line.contains(pat) {
+                    violations.push(
+                        serde_json::json!({ "file": file, "line": line_num + 1, "pattern": pat }),
+                    );
+                    break;
+                }
+            }
+        }
+    }
+
+    let count = violations.len();
+    let passed = count <= max_violations;
+    let (severity, rule_id, help) = if passed {
+        (
+            "info",
+            "observability-pass",
+            "Logging observability is acceptable.",
+        )
+    } else {
+        ("warning", "observability-raw-log",
+         "Replace raw println!/console.log with a structured logging crate (tracing, log, winston, zap).\nStructured logs are machine-parseable and essential for production observability.")
+    };
+
+    let findings: Vec<Finding> = violations
+        .iter()
+        .take(50)
+        .map(|v| {
+            let f = v
+                .get("file")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            let line = v.get("line").and_then(|x| x.as_u64());
+            let pat = v
+                .get("pattern")
+                .and_then(|x| x.as_str())
+                .unwrap_or("print")
+                .to_string();
+            Finding {
+                file: f.clone(),
+                line,
+                column: None,
+                severity: severity.to_string(),
+                message: format!(
+                    "Unstructured log call '{}' in {}",
+                    pat.trim_end_matches('('),
+                    f
+                ),
+                rule_id: "observability-raw-log".to_string(),
+                fix_hint:
+                    "Replace with a structured logging macro (e.g. tracing::info!, log::warn!)."
+                        .to_string(),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            }
+        })
+        .collect();
+
+    let unstructured_files = total_non_test_files.saturating_sub(files_with_structured_log);
+    CheckResult {
+        name: "observability".to_string(),
+        passed,
+        score: Some(count as f64),
+        threshold: Some(max_violations as f64),
+        message: if passed {
+            format!(
+                "{} raw log calls (<= {} allowed); {}/{} files use structured logging",
+                count, max_violations, files_with_structured_log, total_non_test_files
+            )
+        } else {
+            format!(
+                "{} raw log calls > {} allowed; {} files lack structured logging imports",
+                count, max_violations, unstructured_files
+            )
+        },
+        details: serde_json::json!({
+            "raw_log_calls": count,
+            "total_non_test_files": total_non_test_files,
+            "files_with_structured_log": files_with_structured_log,
+            "violations": violations.iter().take(20).collect::<Vec<_>>(),
+        }),
+        severity: Some(severity.to_string()),
+        help: Some(help.to_string()),
+        rule_id: Some(rule_id.to_string()),
+        findings,
+    }
+}
+
+/// HQSE §6 Test: detects non-deterministic patterns in test files
+/// and optionally reports mutation testing score.
+pub fn check_test_quality(
+    path: &str,
+    recursive: bool,
+    max_nondeterminism: usize,
+) -> CheckResult {
+    let extensions = ["rs", "py", "js", "ts", "go", "java", "cs", "rb"];
+    let files = find_source_files(path, recursive, &extensions);
+    let nondeterminism_patterns: &[&str] = &[
+        "SystemTime::now()",
+        "Instant::now()",
+        "thread::sleep(",
+        "time.sleep(",
+        "Time.now",
+        "Date.now()",
+        "new Date()",
+        "Math.random()",
+        "random.random()",
+        "rand()",
+        "time.Now()",
+        "os.Getpid()",
+    ];
+
+    let mut violations = Vec::new();
+    for file in &files {
+        let is_test = file.contains("test")
+            || file.contains("spec")
+            || file.contains("_test.")
+            || file.ends_with("_test.rs");
+        if !is_test && !file.ends_with(".rs") {
+            continue;
+        }
+        let source = match std::fs::read_to_string(file) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        for (line_num, line) in source.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("//") || trimmed.starts_with('#') {
+                continue;
+            }
+            for pat in nondeterminism_patterns {
+                if line.contains(pat) {
+                    violations.push(
+                        serde_json::json!({ "file": file, "line": line_num + 1, "pattern": pat }),
+                    );
+                    break;
+                }
+            }
+        }
+    }
+
+    let mutation_score: Option<f64> = {
+        let mut args = vec![path, "--format", "json"];
+        if recursive {
+            args.push("--recursive");
+        }
+        let res = crate::run_tool_with_runner(
+            &crate::DefaultToolRunner,
+            "mutation-test",
+            "mutate",
+            &args,
+            Instant::now(),
+        );
+        if res.data.is_null() {
+            None
+        } else {
+            res.data
+                .get("score")
+                .or_else(|| res.data.get("mutation_score"))
+                .and_then(|v| v.as_f64())
+        }
+    };
+
+    let count = violations.len();
+    let passed = count <= max_nondeterminism;
+    let (severity, rule_id, help) = if passed {
+        ("info", "test-quality-pass", "Non-determinism patterns are within acceptable limits.")
+    } else {
+        ("warning", "test-quality-nondeterminism",
+         "Non-deterministic patterns in tests cause flaky tests. Replace with mocks, fixed seeds, or deterministic alternatives.")
+    };
+
+    let findings: Vec<Finding> = violations
+        .iter()
+        .take(50)
+        .map(|v| {
+            let f = v
+                .get("file")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            let line = v.get("line").and_then(|x| x.as_u64());
+            let pat = v
+                .get("pattern")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            Finding {
+                file: f.clone(),
+                line,
+                column: None,
+                severity: severity.to_string(),
+                message: format!("Non-deterministic pattern '{}' in test file {}", pat, f),
+                rule_id: "test-quality-nondeterminism".to_string(),
+                fix_hint: "Replace with a mock, fixed seed, or deterministic alternative.".to_string(),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            }
+        })
+        .collect();
+
+    let msg_suffix = mutation_score
+        .map(|ms| format!("; mutation score: {:.1}%", ms))
+        .unwrap_or_default();
+    CheckResult {
+        name: "test-quality".to_string(),
+        passed,
+        score: Some(count as f64),
+        threshold: Some(max_nondeterminism as f64),
+        message: if passed {
+            format!(
+                "{} non-determinism patterns detected (<= {} allowed){}",
+                count, max_nondeterminism, msg_suffix
+            )
+        } else {
+            format!(
+                "{} non-determinism patterns > {} allowed{}",
+                count, max_nondeterminism, msg_suffix
+            )
+        },
+        details: serde_json::json!({
+            "nondeterminism_violations": count,
+            "mutation_score": mutation_score,
+            "violations": violations.iter().take(20).collect::<Vec<_>>(),
+        }),
+        severity: Some(severity.to_string()),
+        help: Some(help.to_string()),
+        rule_id: Some(rule_id.to_string()),
+        findings,
+    }
+}
+
+/// HQSE §Design: verifies design documentation pillars (ADR, Architecture, Changelog).
+pub fn check_design_docs(path: &str) -> CheckResult {
+    let base = std::path::Path::new(path);
+    let mut missing = Vec::new();
+    let mut present = Vec::new();
+    let mut pillars_present = 0;
+
+    let adr_dirs = [
+        "docs/adr",
+        "doc/adr",
+        "docs/decisions",
+        "doc/decisions",
+        "adr",
+    ];
+    let has_adr = adr_dirs.iter().any(|d| {
+        let dir = base.join(d);
+        if dir.is_dir() {
+            std::fs::read_dir(&dir)
+                .map(|e| {
+                    e.filter_map(|x| x.ok())
+                        .filter(|x| x.file_name().to_string_lossy().ends_with(".md"))
+                        .count()
+                        > 0
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    });
+    if has_adr {
+        pillars_present += 1;
+        present.push("ADR directory");
+    } else {
+        missing.push("ADR directory (docs/adr/ or doc/decisions/ with >=1 .md)");
+    }
+
+    let arch_candidates = [
+        "ARCHITECTURE.md",
+        "DESIGN.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DESIGN.md",
+        "docs/architecture/README.md",
+        "docs/design/README.md",
+    ];
+    if arch_candidates.iter().any(|f| base.join(f).exists()) {
+        pillars_present += 1;
+        present.push("Architecture/Design doc");
+    } else {
+        missing.push("ARCHITECTURE.md or DESIGN.md");
+    }
+
+    let changelog_candidates = [
+        "CHANGELOG.md",
+        "CHANGES.md",
+        "CHANGELOG",
+        "CHANGES",
+        "HISTORY.md",
+    ];
+    if changelog_candidates.iter().any(|f| base.join(f).exists()) {
+        pillars_present += 1;
+        present.push("CHANGELOG");
+    } else {
+        missing.push("CHANGELOG.md or CHANGES.md");
+    }
+
+    let passed = pillars_present >= 1;
+    let (severity, rule_id, help) = if pillars_present == 3 {
+        (
+            "info",
+            "design-docs-pass",
+            "All design documentation pillars present.",
+        )
+    } else if pillars_present >= 1 {
+        (
+            "warning",
+            "design-docs-partial",
+            "Missing design documentation. Add these to improve HQSE Design coverage.",
+        )
+    } else {
+        (
+            "warning",
+            "design-docs-missing",
+            "No design documentation found. Add ARCHITECTURE.md, ADRs, and CHANGELOG.md for HQSE Design compliance."
+        )
+    };
+
+    let findings: Vec<Finding> = if !passed {
+        missing
+            .iter()
+            .map(|m| Finding {
+                file: path.to_string(),
+                line: None,
+                column: None,
+                severity: severity.to_string(),
+                message: format!("Missing design documentation: {}", m),
+                rule_id: rule_id.to_string(),
+                fix_hint: format!("Create {} at the project root or docs/ directory.", m),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    CheckResult {
+        name: "design-docs".to_string(),
+        passed,
+        score: Some(pillars_present as f64),
+        threshold: Some(1.0),
+        message: if passed {
+            format!(
+                "{}/3 design doc pillars present: {}",
+                pillars_present,
+                present.join(", ")
+            )
+        } else {
+            format!(
+                "0/3 design doc pillars present -- missing: {}",
+                missing.join(", ")
+            )
+        },
+        details: serde_json::json!({
+            "pillars_present": pillars_present,
+            "present": present,
+            "missing": missing
+        }),
+        severity: Some(severity.to_string()),
+        help: Some(help.to_string()),
+        rule_id: Some(rule_id.to_string()),
+        findings,
+    }
+}
+
+/// HQSE Support/Debug: detects raw unstructured .unwrap()/.expect() calls
+/// without SAFETY comments or .context() in non-test Rust files.
+pub fn check_debuggability(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+) -> CheckResult {
+    let files = find_source_files(path, recursive, &["rs"]);
+    let mut violations = Vec::new();
+    for file in &files {
+        if file.contains("test") || file.contains("bench") || file.contains("spec") {
+            continue;
+        }
+        let source = match std::fs::read_to_string(file) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let lines: Vec<&str> = source.lines().collect();
+        for (i, line) in lines.iter().enumerate() {
+            if !line.contains(".unwrap()") && !line.contains(".expect(") {
+                continue;
+            }
+            let prev = if i > 0 { lines[i - 1].trim() } else { "" };
+            let has_safety = prev.contains("SAFETY") || prev.contains("safety");
+            let has_context = line.contains(".context(") || line.contains(".with_context(");
+            if !has_safety && !has_context {
+                let call = if line.contains(".unwrap()") {
+                    ".unwrap()"
+                } else {
+                    ".expect()"
+                };
+                violations.push(serde_json::json!({ "file": file, "line": i + 1, "call": call }));
+            }
+        }
+    }
+
+    let count = violations.len();
+    let passed = count <= max_violations;
+    let (severity, rule_id, help) = if passed {
+        (
+            "info",
+            "debuggability-pass",
+            "Contextless unwrap count is within acceptable limits.",
+        )
+    } else if count > max_violations * 2 {
+        (
+            "error",
+            "debuggability-contextless-unwrap",
+            "Many contextless .unwrap() calls make debugging hard. Use .context(\"what failed\") from anyhow/thiserror, or propagate with `?`."
+        )
+    } else {
+        (
+            "warning",
+            "debuggability-contextless-unwrap",
+            "Contextless .unwrap() calls reduce debuggability. Wrap with .context(\"description\") or annotate with // SAFETY."
+        )
+    };
+
+    let findings: Vec<Finding> = violations
+        .iter()
+        .take(50)
+        .map(|v| {
+            let f = v
+                .get("file")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string();
+            let line = v.get("line").and_then(|x| x.as_u64());
+            let call = v
+                .get("call")
+                .and_then(|x| x.as_str())
+                .unwrap_or(".unwrap()")
+                .to_string();
+            Finding {
+                file: f.clone(),
+                line,
+                column: None,
+                severity: severity.to_string(),
+                message: format!("Contextless {} in {}", call, f),
+                rule_id: "debuggability-contextless-unwrap".to_string(),
+                fix_hint: "Add .context(\"description\") or use `?` with a // SAFETY comment."
+                    .to_string(),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            }
+        })
+        .collect();
+
+    CheckResult {
+        name: "debuggability".to_string(),
+        passed,
+        score: Some(count as f64),
+        threshold: Some(max_violations as f64),
+        message: if passed {
+            format!(
+                "{} contextless unwrap calls (<= {} allowed)",
+                count, max_violations
+            )
+        } else {
+            format!(
+                "{} contextless unwrap calls > {} allowed",
+                count, max_violations
+            )
+        },
+        details: serde_json::json!({
+            "contextless_unwraps": count,
+            "violations": violations.iter().take(20).collect::<Vec<_>>()
+        }),
+        severity: Some(severity.to_string()),
+        help: Some(help.to_string()),
+        rule_id: Some(rule_id.to_string()),
+        findings,
     }
 }

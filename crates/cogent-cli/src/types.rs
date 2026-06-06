@@ -1,88 +1,19 @@
 //! Shared result types for cogent-cli.
+//!
+//! Re-exports the canonical type definitions from `cogent-common` so that
+//! all crates in the workspace share a single `CheckResult`, `Finding`, etc.
+//! This eliminates the serde roundtrip that was previously needed when
+//! passing results between `cogent-engine` and `cogent-cli`.
 
 #![deny(clippy::all)]
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub(crate) struct Finding {
-    pub(crate) file: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) line: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) column: Option<u64>,
-    pub(crate) severity: String,
-    pub(crate) message: String,
-    pub(crate) rule_id: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub(crate) fix_hint: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) evidence: Option<Evidence>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) suggested_fix: Option<SuggestedFix>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) controls: Option<Vec<String>>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub(crate) struct Evidence {
-    pub(crate) snippet: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) file_hash: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) context: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub(crate) struct SuggestedFix {
-    pub(crate) description: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) diff: Option<String>,
-    pub(crate) confidence: String,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub(crate) struct FileSummary {
-    pub(crate) file: String,
-    pub(crate) issue_count: usize,
-    pub(crate) severity_score: usize,
-    pub(crate) findings_by_severity: std::collections::HashMap<String, usize>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct CheckResult {
-    pub(crate) name: String,
-    pub(crate) passed: bool,
-    pub(crate) score: Option<f64>,
-    pub(crate) threshold: Option<f64>,
-    pub(crate) message: String,
-    pub(crate) details: serde_json::Value,
-    pub(crate) severity: Option<String>,
-    pub(crate) help: Option<String>,
-    pub(crate) rule_id: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub(crate) findings: Vec<Finding>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub(crate) struct CheckReport {
-    pub(crate) passed: bool,
-    pub(crate) path: String,
-    pub(crate) checks: Vec<CheckResult>,
-    pub(crate) summary: CheckSummary,
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub(crate) file_summary: Vec<FileSummary>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub(crate) struct CheckSummary {
-    pub(crate) total_checks: usize,
-    pub(crate) passed_checks: usize,
-    pub(crate) failed_checks: usize,
-    pub(crate) functions_analyzed: usize,
-    pub(crate) avg_complexity: f64,
-    pub(crate) avg_crap: f64,
-}
+// Re-export all shared types from cogent-common (the single source of truth).
+pub use cogent_common::{
+    CheckResult, CheckReport, CheckSummary,
+    Finding, Evidence, SuggestedFix, FileSummary,
+};
 
 #[derive(Serialize)]
 pub(crate) struct ToolInfo {

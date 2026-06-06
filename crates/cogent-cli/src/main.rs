@@ -20,6 +20,7 @@ mod report;
 mod report_formatters;
 mod serve;
 mod types;
+mod bench;
 mod watch;
 
 use cli::Cli;
@@ -113,7 +114,31 @@ fn init_tracing() -> OtelGuard {
     }
 }
 
+/// Reset SIGPIPE to its default behaviour (terminate the process).
+///
+/// Rust sets SIGPIPE to SIG_IGN by default, which means writing to a
+/// closed pipe returns `ErrorKind::BrokenPipe` instead of the normal
+/// Unix behaviour of silently terminating.  Tools like `head(1)` close
+/// the read end early, so every `println!` after that triggers a noisy
+/// broken-pipe error.
+///
+/// Resetting to SIG_DFL restores the expected contract: the kernel
+/// kills the writer, no error message is printed, and the exit code
+/// is 141 (128 + SIGPIPE).
+///
+/// See: <https://github.com/rust-lang/rust/issues/62569>
+#[cfg(unix)]
+fn reset_sigpipe() {
+    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_DFL); }
+}
+
+#[cfg(not(unix))]
+fn reset_sigpipe() {
+    // No-op on Windows — SIGPIPE does not exist there.
+}
+
 fn main() {
+    reset_sigpipe();
     let _otel_guard = init_tracing();
     let cli = Cli::parse();
     let exit_code = dispatcher::dispatch(cli.command);
@@ -251,6 +276,7 @@ mod tests {
     fn test_otel_guard_drop_impl_exists() {
         // Verify OtelGuard implements Drop (the compiler will reject this
         // if the impl is removed).
+        #[allow(drop_bounds)]
         fn assert_drop<T: Drop>() {}
         assert_drop::<OtelGuard>();
     }

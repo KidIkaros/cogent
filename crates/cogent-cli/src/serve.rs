@@ -14,19 +14,33 @@ use colored::Colorize;
 /// Generate the HTML index page listing reports in `history_dir`.
 pub(crate) fn serve_index_html(history_dir: &str) -> String {
     let mut body = String::new();
-    body.push_str("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='30'><title>Cogent Reports</title><style>");
-    body.push_str("body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#1e293b;padding:40px;max-width:800px;margin:0 auto}");
-    body.push_str("h1{font-size:24px;font-weight:800;margin-bottom:24px}");
+    body.push_str("<!DOCTYPE html><html lang='en'><head><meta charset='UTF-8'><meta http-equiv='refresh' content='30'><title>Cogent Reports</title>");
+    body.push_str("<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>");
+    body.push_str("<link href='https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;500;700;800&display=swap' rel='stylesheet'>");
+    body.push_str("<style>");
+    body.push_str(":root{--bg:#f8fafc;--surface:#fff;--surface-alt:#f1f5f9;--border:#e2e8f0;--border-light:#f1f5f9;--text:#0f172a;--text-secondary:#475569;--text-muted:#94a3b8;--accent:#6366f1;--accent-light:#818cf8;--green:#22c55e;--red:#ef4444;--shadow-sm:0 1px 2px rgba(0,0,0,.04),0 1px 3px rgba(0,0,0,.06)}");
+    body.push_str("[data-theme=\"dark\"]{--bg:#0c1222;--surface:#131b2e;--surface-alt:#1a2340;--border:#1e293b;--border-light:#1e293b;--text:#f1f5f9;--text-secondary:#94a3b8;--text-muted:#64748b;--accent:#818cf8;--accent-light:#a5b4fc;--green:#34d399;--red:#f87171;--shadow-sm:0 1px 3px rgba(0,0,0,.3)}");
+    body.push_str("*{box-sizing:border-box;margin:0;padding:0}");
+    body.push_str("body{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);padding:48px;max-width:860px;margin:0 auto;-webkit-font-smoothing:antialiased;line-height:1.6}");
+    body.push_str("h1{font-size:26px;font-weight:800;margin-bottom:8px;letter-spacing:-.3px}");
+    body.push_str(".subtitle{font-size:13px;color:var(--text-muted);margin-bottom:32px}");
     body.push_str("ul{list-style:none;padding:0}");
-    body.push_str("li{border-bottom:1px solid #e2e8f0;padding:12px 0;display:flex;justify-content:space-between;align-items:center}");
-    body.push_str("a{color:#6366f1;text-decoration:none;font-weight:600}");
-    body.push_str("a:hover{text-decoration:underline}");
-    body.push_str(".meta{font-size:12px;color:#94a3b8}");
-    body.push_str(".nav{margin-bottom:20px}");
-    body.push_str(".nav a{margin-right:16px;font-size:13px}");
+    body.push_str("li{border-bottom:1px solid var(--border-light);padding:14px 0;display:flex;justify-content:space-between;align-items:center;transition:background .12s}");
+    body.push_str("li:hover{background:var(--surface-alt);border-radius:8px;padding-left:12px;padding-right:12px}");
+    body.push_str("a{color:var(--accent);text-decoration:none;font-weight:600;transition:color .15s}");
+    body.push_str("a:hover{color:var(--accent-light)}");
+    body.push_str(".meta{font-size:12px;color:var(--text-muted);font-family:ui-monospace,monospace}");
+    body.push_str(".nav{margin-bottom:28px;display:flex;gap:8px}");
+    body.push_str(".nav a{padding:8px 16px;border-radius:8px;font-size:13px;background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);font-weight:500;transition:all .15s}");
+    body.push_str(".nav a:hover{background:var(--accent);color:#fff;border-color:var(--accent)}");
+    body.push_str(".footer{margin-top:40px;font-size:12px;color:var(--text-muted);text-align:center}");
+    body.push_str(".theme-toggle{position:fixed;top:16px;right:16px;padding:8px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--border);cursor:pointer;font-size:12px;color:var(--text-muted);transition:all .15s;font-family:inherit}");
+    body.push_str(".theme-toggle:hover{color:var(--text);border-color:var(--accent)}");
     body.push_str("</style></head><body>");
+    body.push_str("<button class='theme-toggle' onclick='toggleTheme()'>&#9788; Theme</button>");
+    body.push_str("<h1>Cogent Reports</h1><div class='subtitle'>Browse audit reports and quality snapshots</div>");
     body.push_str("<div class='nav'><a href='/latest'>Latest Report</a><a href='/api/latest'>API (JSON)</a></div>");
-    body.push_str("<h1>Cogent Reports</h1><ul>");
+    body.push_str("<ul>");
 
     if let Ok(entries) = std::fs::read_dir(history_dir) {
         let mut files: Vec<_> = entries.filter_map(|e| e.ok()).collect();
@@ -44,7 +58,9 @@ pub(crate) fn serve_index_html(history_dir: &str) -> String {
             }
         }
     }
-    body.push_str("</ul></body></html>");
+    body.push_str("</ul><div class='footer'>Cogent — automated code quality &amp; security auditing</div>");
+    body.push_str("<script>function toggleTheme(){var h=document.documentElement;var d=h.getAttribute('data-theme')==='dark';h.setAttribute('data-theme',d?'':'dark');localStorage.setItem('cogent-theme',d?'':'dark')}(function(){var s=localStorage.getItem('cogent-theme');if(s==='dark')document.documentElement.setAttribute('data-theme','dark')})()</script>");
+    body.push_str("</body></html>");
     body
 }
 

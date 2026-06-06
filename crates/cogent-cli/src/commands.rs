@@ -473,6 +473,30 @@ pub(crate) fn explain_command(tool: &str) {
             ],
             "",
         ),
+        "sbom" => (
+            "Software Bill of Materials (SBOM)",
+            "Generates an SBOM in SPDX or CycloneDX format. Lists all dependencies with versions, licenses, and hashes for audit trails.",
+            "max_sbom_violations = 0  (zero unknown/missing packages)",
+            "Output shows the full dependency tree in machine-readable format. Use for compliance audits and vulnerability scanning.",
+            vec![
+                "Run cogent sbom . --format spdx to generate SPDX JSON.",
+                "Upload to your compliance tool or vulnerability scanner.",
+                "Include SBOM artifacts in your release pipeline.",
+            ],
+            "",
+        ),
+        "taint-scan" | "taintscan" => (
+            "Taint Analysis",
+            "Tracks untrusted input flows through your code to find paths that reach security-sensitive operations (SQL, shell, file writes) without sanitization.",
+            "max_taint = 0  (zero-tolerance)",
+            "Each finding shows the full flow from source (user input) to sink (dangerous call). Red paths need sanitization or validation.",
+            vec![
+                "Add input validation at the API boundary (length, charset, regex).",
+                "Use parameterized queries / prepared statements for all SQL.",
+                "Never pass user input directly to std::process::Command or eval().",
+            ],
+            "",
+        ),
         _ => {
             eprintln!("  {} Unknown tool: '{}'", "✗".red().bold(), tool);
             eprintln!();

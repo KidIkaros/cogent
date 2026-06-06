@@ -277,6 +277,14 @@ pub(crate) fn save_remediation(log: &RemediationLog) -> Result<(), String> {
     std::fs::write(REMEDIATION_PATH, json).map_err(|e| e.to_string())
 }
 
+/// Clear the remediation log (for testing).
+pub fn clear_remediation() -> Result<(), String> {
+    if Path::new(REMEDIATION_PATH).exists() {
+        std::fs::remove_file(REMEDIATION_PATH).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Record new findings from a scan.
 pub(crate) fn record_findings(findings: &[Finding]) -> Vec<RemediationEntry> {
     let mut log = load_remediation();

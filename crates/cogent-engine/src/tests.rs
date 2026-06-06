@@ -1,8 +1,7 @@
 //! Tests for cogent-engine helpers.
 
-use crate::{MockToolRunner, ToolRunner};
+use crate::MockToolRunner;
 use cogent_common::CheckResult;
-use std::time::Instant;
 
 #[test]
 fn test_extract_findings_from_details_empty() {
@@ -137,7 +136,7 @@ fn test_check_secrets_passes_with_mock() {
             "summary": { "findings_count": 0 }
         }),
     );
-    let result = crate::checks::check_secrets_with_runner(".", false, 5, &runner);
+    let result = crate::checks::check_secrets_with_excludes(".", false, 5, &[], &runner);
     assert!(result.passed);
     assert_eq!(result.score, Some(0.0));
 }
@@ -150,9 +149,119 @@ fn test_check_secrets_fails_with_mock() {
             "summary": { "findings_count": 7 }
         }),
     );
-    let result = crate::checks::check_secrets_with_runner(".", false, 5, &runner);
+    let result = crate::checks::check_secrets_with_excludes(".", false, 5, &[], &runner);
     assert!(!result.passed);
     assert_eq!(result.score, Some(7.0));
+}
+
+// ═══════════════════════════════════════════
+// Integration tests: secrets_exclude_paths pipeline
+// ═══════════════════════════════════════════
+
+/// Verify that `check_secrets_with_excludes` passes `--exclude` to the secrets
+/// binary when exclude paths are provided, and omits it when empty.
+#[test]
+fn test_check_secrets_excludes_passes_arg_to_binary() {
+    // When exclude_paths is non-empty, the args should include --exclude
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--exclude:crates/engine,tests/fixtures",
+        serde_json::json!({
+            "summary": { "findings_count": 2 }
+        }),
+    );
+    let excludes = vec!["crates/engine".to_string(), "tests/fixtures".to_string()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &excludes, &runner,
+    );
+    assert!(result.passed, "2 findings <= 10");
+    assert_eq!(result.score, Some(2.0));
+}
+
+/// When exclude_paths is empty, no --exclude flag should appear in args.
+#[test]
+fn test_check_secrets_no_excludes_omits_flag() {
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json",
+        serde_json::json!({
+            "summary": { "findings_count": 0 }
+        }),
+    );
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &[], &runner,
+    );
+    assert!(result.passed, "0 findings <= 10");
+    assert_eq!(result.score, Some(0.0));
+}
+
+/// Verify that with excludes + recursive, both flags are present in args.
+#[test]
+fn test_check_secrets_excludes_with_recursive() {
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--recursive:--exclude:vendor",
+        serde_json::json!({
+            "summary": { "findings_count": 0 }
+        }),
+    );
+    let excludes = vec!["vendor".to_string()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", true, 10, &excludes, &runner,
+    );
+    assert!(result.passed, "0 findings <= 10");
+}
+
+/// Verify the contract that the registry relies on: check_secrets_with_excludes
+/// correctly forwards CheckThresholds.secrets_exclude_paths as --exclude args.
+#[test]
+fn test_check_secrets_excludes_forwards_thresholds_exclude_paths() {
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--exclude:crates/engine",
+        serde_json::json!({
+            "summary": { "findings_count": 3 }
+        }),
+    );
+    // Simulate what the registry does: extract secrets_exclude_paths from thresholds
+    let mut thresholds = crate::CheckThresholds::default();
+    thresholds.max_secrets = 5;
+    thresholds.secrets_exclude_paths = vec!["crates/engine".to_string()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, thresholds.max_secrets, &thresholds.secrets_exclude_paths, &runner,
+    );
+    assert!(result.passed, "3 findings <= 5");
+    assert_eq!(result.score, Some(3.0));
+}
+
+/// Regression guard: different exclude_paths produce different finding counts,
+/// confirming the mock contract matches the arg-construction logic.
+#[test]
+fn test_exclude_paths_changes_finding_count() {
+    // Without excludes, the binary would report 10 findings
+    let runner_no_exclude = MockToolRunner::new().with_response(
+        "secrets:.:--format:json",
+        serde_json::json!({
+            "summary": { "findings_count": 10 }
+        }),
+    );
+    let result_no_exclude = crate::checks::check_secrets_with_excludes(
+        ".", false, 20, &[], &runner_no_exclude,
+    );
+    assert_eq!(result_no_exclude.score, Some(10.0));
+
+    // With excludes, the binary reports only 3 findings (excluded path suppressed)
+    let runner_with_exclude = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--exclude:crates/engine",
+        serde_json::json!({
+            "summary": { "findings_count": 3 }
+        }),
+    );
+    let excludes = vec!["crates/engine".to_string()];
+    let result_with_exclude = crate::checks::check_secrets_with_excludes(
+        ".", false, 20, &excludes, &runner_with_exclude,
+    );
+    assert_eq!(result_with_exclude.score, Some(3.0));
+    assert!(result_with_exclude.passed, "3 findings <= 20");
+
+    // The excluded path reduced findings from 10 to 3
+    assert!(result_with_exclude.score.unwrap() < result_no_exclude.score.unwrap());
 }
 
 // ═══════════════════════════════════════════
@@ -650,4 +759,419 @@ fn test_check_errhandle_fails_with_mock() {
     );
     let result = crate::checks::check_errhandle_with_runner(".", false, 50, &runner);
     assert!(!result.passed, "100 findings > 50");
+}
+
+// ═══════════════════════════════════════════
+// CheckThresholds default values
+// ═══════════════════════════════════════════
+
+#[test]
+fn test_default_thresholds_secrets_exclude_empty() {
+    let t = crate::CheckThresholds::default();
+    assert!(t.secrets_exclude_paths.is_empty(), "default secrets_exclude_paths should be empty");
+    assert_eq!(t.max_crap, 30.0);
+    assert_eq!(t.max_secrets, 0);
+    assert_eq!(t.max_vuln_critical, 0);
+}
+
+#[test]
+fn test_default_thresholds_debuggability_nonzero() {
+    let t = crate::CheckThresholds::default();
+    assert!(t.max_debuggability > 0, "default max_debuggability should be > 0");
+}
+
+#[test]
+fn test_default_thresholds_coverage_path_is_none() {
+    let t = crate::CheckThresholds::default();
+    assert!(t.coverage_path.is_none(), "default coverage_path should be None");
+}
+
+#[test]
+fn test_default_thresholds_known_values() {
+    let t = crate::CheckThresholds::default();
+    assert_eq!(t.max_crap, 30.0);
+    assert_eq!(t.min_doc, 50.0);
+    assert_eq!(t.max_debt, 1000);
+    assert_eq!(t.max_secrets, 0);
+    assert_eq!(t.max_vuln_critical, 0);
+    assert_eq!(t.max_vuln_high, 0);
+    assert_eq!(t.max_sast, 0);
+    assert_eq!(t.max_crypto, 0);
+    assert_eq!(t.max_license_violations, 0);
+    assert_eq!(t.max_access_control, 0);
+    assert_eq!(t.max_supply_chain, 0);
+}
+
+// ═══════════════════════════════════════════
+// load_from_config negative / edge-case tests
+// ═══════════════════════════════════════════
+
+/// Missing file should return defaults (no panic).
+#[test]
+fn test_load_from_config_missing_file() {
+    let t = crate::CheckThresholds::load_from_config("/nonexistent/path/to/config.toml");
+    assert_eq!(t.max_crap, 30.0, "missing file should return default max_crap");
+    assert!(t.secrets_exclude_paths.is_empty(), "missing file should return empty excludes");
+    assert!(t.coverage_path.is_none(), "missing file should return None coverage_path");
+}
+
+/// Empty file should return all defaults.
+#[test]
+fn test_load_from_config_empty_file() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_empty_config.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        // write nothing
+    }
+    let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(t.max_crap, 30.0);
+    assert!(t.secrets_exclude_paths.is_empty());
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Comments-only file should return all defaults.
+#[test]
+fn test_load_from_config_comments_only() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_comments_only.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "# This is a comment").unwrap();
+        writeln!(f, "# Another comment").unwrap();
+    }
+    let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(t.max_crap, 30.0);
+    assert_eq!(t.max_secrets, 0);
+    assert!(t.secrets_exclude_paths.is_empty());
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Mixed numeric and string keys — both parsed correctly.
+#[test]
+fn test_load_from_config_mixed_keys() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_mixed_keys.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "max_avg = 42.0").unwrap();
+        writeln!(f, "max_secrets = 7").unwrap();
+        writeln!(f, "secrets_exclude = [\"a\", \"b\"]").unwrap();
+        writeln!(f, "min_pct = 80.0").unwrap();
+    }
+    let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(t.max_crap, 42.0);
+    assert_eq!(t.max_secrets, 7);
+    assert_eq!(t.secrets_exclude_paths, vec!["a".to_string(), "b".to_string()]);
+    assert_eq!(t.min_doc, 80.0);
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Numeric key with no space after `=` should still parse.
+#[test]
+fn test_load_from_config_no_space_after_eq() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_no_space.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "max_avg=99.0").unwrap();
+        writeln!(f, "max_secrets=3").unwrap();
+    }
+    let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(t.max_crap, 99.0);
+    assert_eq!(t.max_secrets, 3);
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Duplicate keys — last value wins (line-by-line parser behavior, not TOML spec).
+#[test]
+fn test_load_from_config_duplicate_keys_last_wins() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_dup_keys.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "max_avg = 10.0").unwrap();
+        writeln!(f, "max_avg = 50.0").unwrap();
+        writeln!(f, "secrets_exclude = [\"first\"]").unwrap();
+        writeln!(f, "secrets_exclude = [\"second\", \"third\"]").unwrap();
+    }
+    let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(t.max_crap, 50.0, "last value should win");
+    assert_eq!(t.secrets_exclude_paths, vec!["second".to_string(), "third".to_string()]);
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Config with only `secrets_exclude` and no numeric keys — all defaults preserved.
+#[test]
+fn test_load_from_config_only_exclude_preserves_defaults() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_only_exclude.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "secrets_exclude = [\"vendor\", \"test\"]").unwrap();
+    }
+    let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(t.max_crap, 30.0, "numeric defaults should be preserved");
+    assert_eq!(t.min_doc, 50.0);
+    assert_eq!(t.max_debt, 1000);
+    assert_eq!(t.max_secrets, 0);
+    assert_eq!(t.secrets_exclude_paths, vec!["vendor".to_string(), "test".to_string()]);
+    let _ = std::fs::remove_file(&path);
+}
+
+// ═══════════════════════════════════════════
+// load_from_config integration test for secrets_exclude_paths
+// ═══════════════════════════════════════════
+
+#[test]
+fn test_load_from_config_populates_secrets_exclude_paths() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_exclude_paths.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "max_avg = 25.0").unwrap();
+        writeln!(f, "max_secrets = 5").unwrap();
+        writeln!(f, "secrets_exclude = [\"vendor\", \"tests\", \"docs\"]").unwrap();
+    }
+    let thresholds = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(thresholds.max_crap, 25.0);
+    assert_eq!(thresholds.max_secrets, 5);
+    assert_eq!(
+        thresholds.secrets_exclude_paths,
+        vec!["vendor".to_string(), "tests".to_string(), "docs".to_string()]
+    );
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn test_load_from_config_no_secrets_exclude() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_no_exclude.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "max_avg = 20.0").unwrap();
+    }
+    let thresholds = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(thresholds.max_crap, 20.0);
+    assert!(thresholds.secrets_exclude_paths.is_empty());
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn test_load_from_config_bare_comma_exclude() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_bare_comma.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "secrets_exclude = vendor, test, docs").unwrap();
+    }
+    let thresholds = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(
+        thresholds.secrets_exclude_paths,
+        vec!["vendor".to_string(), "test".to_string(), "docs".to_string()]
+    );
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn test_load_from_config_empty_array_exclude() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_empty_array.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "secrets_exclude = []").unwrap();
+    }
+    let thresholds = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert!(thresholds.secrets_exclude_paths.is_empty());
+    let _ = std::fs::remove_file(&path);
+}
+
+// ═══════════════════════════════════════════
+// Edge case tests: malformed exclude paths
+// ═══════════════════════════════════════════
+
+/// Empty strings in exclude_paths are filtered out before joining.
+#[test]
+fn test_check_secrets_excludes_with_empty_string_in_list() {
+    // After Phase 5 filter, empty string is removed → only valid-path in --exclude
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--exclude:valid-path",
+        serde_json::json!({
+            "summary": { "findings_count": 1 }
+        }),
+    );
+    let excludes = vec!["valid-path".to_string(), String::new()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &excludes, &runner,
+    );
+    assert!(result.passed, "1 finding <= 10");
+    assert_eq!(result.score, Some(1.0));
+}
+
+/// Exclude path containing a comma — the join will split it, but the mock
+/// verifies the arg is constructed correctly.
+#[test]
+fn test_check_secrets_excludes_with_comma_in_path() {
+    let runner = MockToolRunner::new().with_response(
+        r"secrets:.:--format:json:--exclude:path\with\,comma",
+        serde_json::json!({
+            "summary": { "findings_count": 0 }
+        }),
+    );
+    // A single path that contains a comma — this is an edge case
+    let excludes = vec![r"path\with\,comma".to_string()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &excludes, &runner,
+    );
+    assert!(result.passed);
+    assert_eq!(result.score, Some(0.0));
+}
+
+/// Exclude path containing a colon — should still work as a substring match.
+#[test]
+fn test_check_secrets_excludes_with_colon_in_path() {
+    let runner = MockToolRunner::new().with_response(
+        r"secrets:.:--format:json:--exclude:C:\Users\test",
+        serde_json::json!({
+            "summary": { "findings_count": 0 }
+        }),
+    );
+    let excludes = vec![r"C:\Users\test".to_string()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &excludes, &runner,
+    );
+    assert!(result.passed);
+}
+
+/// Very long exclude string — should not cause issues.
+#[test]
+fn test_check_secrets_excludes_with_long_path() {
+    let long_path = "a".repeat(500);
+    let mock_key = format!("secrets:.:--format:json:--exclude:{}", long_path);
+    let runner = MockToolRunner::new().with_response(
+        &mock_key,
+        serde_json::json!({
+            "summary": { "findings_count": 0 }
+        }),
+    );
+    let excludes = vec![long_path];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &excludes, &runner,
+    );
+    assert!(result.passed);
+}
+
+/// Unicode in exclude path — should pass through correctly.
+#[test]
+fn test_check_secrets_excludes_with_unicode_path() {
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--exclude:src/日本語テスト",
+        serde_json::json!({
+            "summary": { "findings_count": 0 }
+        }),
+    );
+    let excludes = vec!["src/日本語テスト".to_string()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &excludes, &runner,
+    );
+    assert!(result.passed);
+}
+
+/// Single exclude path — verify no trailing comma.
+#[test]
+fn test_check_secrets_excludes_single_path_no_trailing_comma() {
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--exclude:vendor",
+        serde_json::json!({
+            "summary": { "findings_count": 2 }
+        }),
+    );
+    let excludes = vec!["vendor".to_string()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &excludes, &runner,
+    );
+    assert!(result.passed, "2 findings <= 10");
+}
+
+/// Three or more exclude paths — verify correct comma joining.
+#[test]
+fn test_check_secrets_excludes_multiple_paths_joined() {
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--exclude:vendor,test,docs",
+        serde_json::json!({
+            "summary": { "findings_count": 0 }
+        }),
+    );
+    let excludes = vec!["vendor".to_string(), "test".to_string(), "docs".to_string()];
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false, 10, &excludes, &runner,
+    );
+    assert!(result.passed);
+}
+
+// ═══════════════════════════════════════════
+// Full pipeline: config → thresholds → check_secrets_with_excludes
+// ═══════════════════════════════════════════
+
+/// Verify end-to-end that a `.quality.toml` file with `secrets_exclude`
+/// produces a `CheckThresholds` that forwards excludes to the secrets runner.
+#[test]
+fn test_config_to_check_secrets_pipeline() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_pipeline.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "max_secrets = 3").unwrap();
+        writeln!(f, "secrets_exclude = [\"vendor\", \"tests/fixtures\"]").unwrap();
+    }
+    let thresholds = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert_eq!(thresholds.max_secrets, 3);
+    assert_eq!(
+        thresholds.secrets_exclude_paths,
+        vec!["vendor".to_string(), "tests/fixtures".to_string()]
+    );
+
+    // Simulate the registry dispatching to check_secrets_with_excludes
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json:--exclude:vendor,tests/fixtures",
+        serde_json::json!({"summary": {"findings_count": 1}}),
+    );
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false,
+        thresholds.max_secrets,
+        &thresholds.secrets_exclude_paths,
+        &runner,
+    );
+    assert!(result.passed, "1 finding <= 3");
+    assert_eq!(result.score, Some(1.0));
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Config with empty `secrets_exclude` should produce no --exclude arg.
+#[test]
+fn test_config_empty_exclude_to_check_pipeline() {
+    use std::io::Write;
+    let path = std::env::temp_dir().join("cogent_engine_test_pipeline_empty.toml");
+    {
+        let mut f = std::fs::File::create(&path).unwrap();
+        writeln!(f, "max_secrets = 5").unwrap();
+        writeln!(f, "secrets_exclude = []").unwrap();
+    }
+    let thresholds = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
+    assert!(thresholds.secrets_exclude_paths.is_empty());
+
+    // No --exclude should appear in args
+    let runner = MockToolRunner::new().with_response(
+        "secrets:.:--format:json",
+        serde_json::json!({"summary": {"findings_count": 0}}),
+    );
+    let result = crate::checks::check_secrets_with_excludes(
+        ".", false,
+        thresholds.max_secrets,
+        &thresholds.secrets_exclude_paths,
+        &runner,
+    );
+    assert!(result.passed);
+    assert_eq!(result.score, Some(0.0));
+    let _ = std::fs::remove_file(&path);
 }

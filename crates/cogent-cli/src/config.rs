@@ -213,6 +213,12 @@ min_lines = 3
 
 [skip]
 checks = []
+
+[secrets]
+# Exclude paths from secrets scanner (TOML array or bare comma list)
+# secrets_exclude = ["vendor", "tests"]
+# Also settable via CLI: --secrets-exclude vendor,tests
+# Or env var: COGENT_SECRETS_EXCLUDE=vendor,tests
 "#,
         ecosystem = profile.ecosystem,
         test_cmd = serde_json::to_string(&profile.test_cmd).unwrap_or_default(),
@@ -345,6 +351,11 @@ pub type Thresholds = (
 
 /// Load thresholds from `.quality.toml` if present, falling back to `defaults`.
 /// Parsing is intentionally line-by-line to avoid pulling in a TOML dependency.
+///
+/// **Section-aware**: tracks `[section]` headers and only parses keys in the
+/// top-level section (no `[header]`) or in known tool sections. Lines inside
+/// `[override.*]` sections are skipped to prevent per-path overrides from
+/// leaking into global thresholds.
 pub fn load_config_thresholds(config_path: &str, defaults: Thresholds) -> Thresholds {
     let Ok(content) = std::fs::read_to_string(config_path) else {
         return defaults;
@@ -372,9 +383,29 @@ pub fn load_config_thresholds(config_path: &str, defaults: Thresholds) -> Thresh
     let mut max_sast: usize = defaults.20;
     let mut max_crypto: usize = defaults.21;
     let mut max_license_violations: usize = defaults.22;
+
+    // Track which TOML section we're in. "" = top-level (no header yet).
+    // Lines in `[override.*]` sections must be ignored so per-path overrides
+    // (e.g. max_secrets = 9999 for tests) don't clobber global thresholds.
+    let mut current_section: String = String::new();
+
     for line in content.lines() {
         let line = line.trim();
-        if line.starts_with('#') || line.is_empty() {
+        if line.is_empty() {
+            continue;
+        }
+        // Track section headers: [section_name]
+        if line.starts_with('[') && line.ends_with(']') && !line.starts_with("[[") {
+            let section = &line[1..line.len() - 1];
+            current_section = section.to_string();
+            continue;
+        }
+        // Skip comment lines (but only outside section headers)
+        if line.starts_with('#') {
+            continue;
+        }
+        // Skip lines inside [override.*] sections — these are per-path overrides
+        if current_section.starts_with("override.") {
             continue;
         }
         if let Some(val) = parse_toml_f64(line, "max_avg") {
@@ -474,13 +505,72 @@ pub fn load_config_thresholds(config_path: &str, defaults: Thresholds) -> Thresh
     )
 }
 
+/// Load `secrets_exclude` paths for the secrets scanner.
+/// Priority: `COGENT_SECRETS_EXCLUDE` env var > `.quality.toml` > empty.
+/// Supports both single-line and multi-line TOML array syntax.
+pub fn load_secrets_exclude(config_path: &str) -> Vec<String> {
+    // Environment variable overrides config file
+    if let Ok(val) = std::env::var("COGENT_SECRETS_EXCLUDE") {
+        if !val.is_empty() {
+            return val.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+    }
+    let Ok(content) = std::fs::read_to_string(config_path) else {
+        return Vec::new();
+    };
+    let mut in_multiline = false;
+    let mut multiline_buf = String::new();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with('#') || line.is_empty() {
+            if in_multiline {
+                // Empty/comment lines inside a multi-line array — skip
+                continue;
+            }
+            continue;
+        }
+        if in_multiline {
+            multiline_buf.push_str(line);
+            multiline_buf.push(' ');
+            if line.contains(']') {
+                // End of multi-line array — parse the concatenated result
+                in_multiline = false;
+                if let Some(val) = parse_toml_string_list(&multiline_buf, "secrets_exclude") {
+                    return val;
+                }
+                multiline_buf.clear();
+            }
+            continue;
+        }
+        // Detect start of multi-line array: key = [
+        // Must be checked BEFORE single-line parse, because `secrets_exclude = [`
+        // returns Some(["["]) from parse_string_list due to chained unwrap_or fallback.
+        if line.contains("secrets_exclude") && line.contains('[') && !line.contains(']') {
+            in_multiline = true;
+            multiline_buf.clear();
+            multiline_buf.push_str(line);
+            multiline_buf.push(' ');
+            continue;
+        }
+        // Single-line attempt
+        if let Some(val) = parse_toml_string_list(line, "secrets_exclude") {
+            return val;
+        }
+    }
+    Vec::new()
+}
+
+/// Parse a `key = "a", "b"` or `key = a, b` line for a comma-separated string list.
+/// Delegates to `cogent_common::parse_string_list`.
+fn parse_toml_string_list(line: &str, key: &str) -> Option<Vec<String>> {
+    cogent_common::parse_string_list(line, key)
+}
+
 fn parse_toml_f64(line: &str, key: &str) -> Option<f64> {
-    let prefix = format!("{} =", key);
-    let prefix2 = format!("{}=", key);
-    let rest = line
-        .strip_prefix(&prefix)
-        .or_else(|| line.strip_prefix(&prefix2))?;
-    rest.split_whitespace().next()?.parse().ok()
+    cogent_common::parse_toml_f64(line, key)
 }
 
 fn parse_toml_usize(line: &str, key: &str) -> Option<usize> {
@@ -628,5 +718,315 @@ mod tests {
         let workflow = build_gha_workflow(&profile);
         assert!(workflow.contains("Upload SARIF to GitHub Security"));
         assert!(workflow.contains("github/codeql-action/upload-sarif@v3"));
+    }
+
+    // ── parse_toml_string_list ──
+
+    #[test]
+    fn test_string_list_toml_array() {
+        assert_eq!(
+            parse_toml_string_list("secrets_exclude = [\"a\", \"b\"]", "secrets_exclude"),
+            Some(vec!["a".to_string(), "b".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_string_list_bare_comma_separated() {
+        assert_eq!(
+            parse_toml_string_list("secrets_exclude = a, b", "secrets_exclude"),
+            Some(vec!["a".to_string(), "b".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_string_list_single_item() {
+        assert_eq!(
+            parse_toml_string_list("secrets_exclude = [\"only\"]", "secrets_exclude"),
+            Some(vec!["only".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_string_list_empty_array() {
+        assert_eq!(
+            parse_toml_string_list("secrets_exclude = []", "secrets_exclude"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_string_list_key_not_found() {
+        assert_eq!(
+            parse_toml_string_list("other = [\"a\"]", "secrets_exclude"),
+            None
+        );
+    }
+
+    #[test]
+    fn test_string_list_no_spaces() {
+        assert_eq!(
+            parse_toml_string_list("secrets_exclude=[\"x\",\"y\"]", "secrets_exclude"),
+            Some(vec!["x".to_string(), "y".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_string_list_trims_whitespace() {
+        // trim() strips outer whitespace; trim_matches strips quotes;
+        // inner spaces inside quotes are preserved (consistent with engine parser)
+        assert_eq!(
+            parse_toml_string_list("secrets_exclude = [  \" a \" , \" b \"  ]", "secrets_exclude"),
+            Some(vec![" a ".to_string(), " b ".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_string_list_filters_empty_strings() {
+        // Empty quoted strings should be filtered out
+        assert_eq!(
+            parse_toml_string_list("secrets_exclude = [\"valid\", \"\", \"also_valid\"]", "secrets_exclude"),
+            Some(vec!["valid".to_string(), "also_valid".to_string()])
+        );
+    }
+
+    // ── load_secrets_exclude ──
+
+    #[test]
+    fn test_load_secrets_exclude_missing_file() {
+        assert_eq!(load_secrets_exclude("nonexistent.toml"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_load_secrets_exclude_with_config() {
+        use std::io::Write;
+        let dir = std::env::temp_dir().join("cogent_test_config");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test_secrets_exclude.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "max_secrets = 100").unwrap();
+            writeln!(f, "secrets_exclude = [\"crates/engine\", \"tests/fixtures\"]").unwrap();
+        }
+        let result = load_secrets_exclude(path.to_str().unwrap());
+        assert_eq!(result, vec!["crates/engine".to_string(), "tests/fixtures".to_string()]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_secrets_exclude_no_match() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_no_exclude_cli.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "max_secrets = 100").unwrap();
+        }
+        let result = load_secrets_exclude(path.to_str().unwrap());
+        assert!(result.is_empty());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_secrets_exclude_roundtrip() {
+        use std::io::Write;
+        // Write a config with both TOML array and bare-comma syntax, then verify
+        // load_secrets_exclude parses both correctly.
+        let path = std::env::temp_dir().join("cogent_test_roundtrip_cli.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "max_secrets = 50").unwrap();
+            writeln!(f, "secrets_exclude = [\"vendor\", \"tests\", \"target\"]").unwrap();
+        }
+        let result = load_secrets_exclude(path.to_str().unwrap());
+        assert_eq!(result, vec!["vendor".to_string(), "tests".to_string(), "target".to_string()]);
+        // Now verify it round-trips through the dispatcher's pattern:
+        // load_secrets_exclude → Vec<String> → secrets binary --exclude arg
+        let joined = result.join(",");
+        assert_eq!(joined, "vendor,tests,target");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_secrets_exclude_bare_comma_syntax() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_bare_comma_cli.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "secrets_exclude = vendor, tests").unwrap();
+        }
+        let result = load_secrets_exclude(path.to_str().unwrap());
+        assert_eq!(result, vec!["vendor".to_string(), "tests".to_string()]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_secrets_exclude_multiline_toml_array() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_multiline_cli.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "max_secrets = 50").unwrap();
+            writeln!(f, "secrets_exclude = [").unwrap();
+            writeln!(f, "  \"vendor\",").unwrap();
+            writeln!(f, "  \"tests\",").unwrap();
+            writeln!(f, "  \"target\"").unwrap();
+            writeln!(f, "]").unwrap();
+        }
+        let result = load_secrets_exclude(path.to_str().unwrap());
+        assert_eq!(result, vec!["vendor".to_string(), "tests".to_string(), "target".to_string()]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_secrets_exclude_multiline_with_comments() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_multiline_comments_cli.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "secrets_exclude = [").unwrap();
+            writeln!(f, "  \"vendor\",  # C++ vendored deps").unwrap();
+            writeln!(f, "  \"tests\"    # test fixtures").unwrap();
+            writeln!(f, "]").unwrap();
+        }
+        let result = load_secrets_exclude(path.to_str().unwrap());
+        // Lines with comments are trimmed per-line; the comment text is part of the value
+        // This is expected behavior for a line-by-line parser
+        assert!(!result.is_empty(), "should parse multiline array with comments");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// RAII guard for environment variables in tests.
+    /// Sets the var on creation and restores the original state on drop.
+    struct EnvGuard {
+        key: String,
+        original: Option<String>,
+    }
+    impl EnvGuard {
+        fn set(key: &str, value: &str) -> Self {
+            let original = std::env::var(key).ok();
+            std::env::set_var(key, value);
+            Self {
+                key: key.to_string(),
+                original,
+            }
+        }
+    }
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            match self.original.as_deref() {
+                Some(val) => std::env::set_var(&self.key, val),
+                None => std::env::remove_var(&self.key),
+            }
+        }
+    }
+
+    #[test]
+    fn test_load_secrets_exclude_env_var_override() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_env_override_cli.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "secrets_exclude = [\"config_val\"]").unwrap();
+        }
+        let _guard = EnvGuard::set("COGENT_SECRETS_EXCLUDE", "env_val1,env_val2");
+        let result = load_secrets_exclude(path.to_str().unwrap());
+        assert_eq!(result, vec!["env_val1".to_string(), "env_val2".to_string()]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_secrets_exclude_env_var_empty_falls_back_to_config() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_env_empty_cli.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "secrets_exclude = [\"config_val\"]").unwrap();
+        }
+        let _guard = EnvGuard::set("COGENT_SECRETS_EXCLUDE", "");
+        let result = load_secrets_exclude(path.to_str().unwrap());
+        assert_eq!(result, vec!["config_val".to_string()]);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // ── load_config_thresholds section-aware parsing ──────────────
+
+    #[test]
+    fn test_load_config_thresholds_ignores_override_sections() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_section_aware.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            // Base thresholds
+            writeln!(f, "max_secrets = 50").unwrap();
+            writeln!(f, "max_deadcode = 100").unwrap();
+            writeln!(f, "max_errhandle = 200").unwrap();
+            writeln!(f, "max_linelen = 120").unwrap();
+            writeln!(f, "max_fuzz_risk = 80").unwrap();
+            writeln!(f, "max_markers = 10").unwrap();
+            // Override section — these should NOT overwrite globals
+            writeln!(f, "").unwrap();
+            writeln!(f, "[override.\"crates/*/tests/**\"]").unwrap();
+            writeln!(f, "max_secrets = 9999").unwrap();
+            writeln!(f, "max_deadcode = 9999").unwrap();
+            writeln!(f, "max_errhandle = 9999").unwrap();
+            writeln!(f, "max_linelen = 9999").unwrap();
+            writeln!(f, "max_fuzz_risk = 9999").unwrap();
+        }
+        let defaults: Thresholds = (
+            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0,
+            0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
+        let (max_secrets, max_deadcode, max_errhandle, max_linelen, max_fuzz_risk, max_debt) = {
+            let t = load_config_thresholds(path.to_str().unwrap(), defaults);
+            (t.12, t.13, t.16, t.10, t.9, t.2)
+        };
+        // Override values (9999) must NOT leak into global thresholds
+        assert_eq!(max_secrets, 50, "secrets should be 50, not 9999");
+        assert_eq!(max_deadcode, 100, "deadcode should be 100, not 9999");
+        assert_eq!(max_errhandle, 200, "errhandle should be 200, not 9999");
+        assert_eq!(max_linelen, 120, "linelen should be 120, not 9999");
+        assert_eq!(max_fuzz_risk, 80, "fuzz should be 80, not 9999");
+        assert_eq!(max_debt, 10, "debt should be 10, not 9999");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_config_thresholds_takes_last_top_level_value() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_last_value.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            writeln!(f, "max_secrets = 10").unwrap();
+            writeln!(f, "max_secrets = 20").unwrap();
+        }
+        let defaults: Thresholds = (
+            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0,
+            0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
+        let t = load_config_thresholds(path.to_str().unwrap(), defaults);
+        assert_eq!(t.12, 20, "last top-level value should win");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_load_config_thresholds_section_before_override_wins() {
+        use std::io::Write;
+        let path = std::env::temp_dir().join("cogent_test_section_order.toml");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            // Tool section sets the value
+            writeln!(f, "[secrets]").unwrap();
+            writeln!(f, "max_secrets = 75").unwrap();
+            // Override section tries to override it
+            writeln!(f, "").unwrap();
+            writeln!(f, "[override.\"crates/*/tests/**\"]").unwrap();
+            writeln!(f, "max_secrets = 9999").unwrap();
+        }
+        let defaults: Thresholds = (
+            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0,
+            0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
+        let t = load_config_thresholds(path.to_str().unwrap(), defaults);
+        assert_eq!(t.12, 75, "section value should win over override");
+        let _ = std::fs::remove_file(&path);
     }
 }

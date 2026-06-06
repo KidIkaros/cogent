@@ -226,11 +226,11 @@ fn history_html(dir: &str, last: usize) -> i32 {
             if idx > 0 {
                 let prev = recent[idx - 1].3;
                 if *score > prev {
-                    "<span style=\"color:#22c55e\">↑</span>"
+                    "<span style=\"color:var(--green)\">↑</span>"
                 } else if *score < prev {
-                    "<span style=\"color:#ef4444\">↓</span>"
+                    "<span style=\"color:var(--red)\">↓</span>"
                 } else {
-                    "<span style=\"color:#9ca3af\">→</span>"
+                    "<span style=\"color:var(--text-muted)\">→</span>"
                 }
             } else {
                 ""
@@ -239,7 +239,7 @@ fn history_html(dir: &str, last: usize) -> i32 {
             ""
         };
         table_rows.push_str(&format!(
-            "<tr style=\"border-bottom:1px solid #f3f4f6\"><td style=\"padding:10px 14px\">{}</td><td style=\"padding:10px 14px;text-align:center\">{}</td><td style=\"padding:10px 14px;text-align:center;color:#22c55e\">{}</td><td style=\"padding:10px 14px;text-align:center;color:#ef4444\">{}</td><td style=\"padding:10px 14px;text-align:center\">{}/100 {}</td></tr>",
+            "<tr style=\"border-bottom:1px solid var(--border-light)\"><td style=\"padding:10px 14px\">{}</td><td style=\"padding:10px 14px;text-align:center\">{}</td><td style=\"padding:10px 14px;text-align:center;color:var(--green)\">{}</td><td style=\"padding:10px 14px;text-align:center;color:var(--red)\">{}</td><td style=\"padding:10px 14px;text-align:center\">{}/100 {}</td></tr>",
             format_ts(*ts), recent.iter().position(|(t, _, _, _)| *t == *ts).map(|i| i + 1).unwrap_or(0), passed, failed, score, trend
         ));
     }
@@ -251,19 +251,35 @@ fn history_html(dir: &str, last: usize) -> i32 {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cogent History Trend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
+:root{{
+  --bg:#f8fafc;--surface:#fff;--surface-alt:#f1f5f9;--border:#e2e8f0;--border-light:#f1f5f9;
+  --text:#0f172a;--text-secondary:#475569;--text-muted:#94a3b8;
+  --accent:#6366f1;--green:#22c55e;--red:#ef4444;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04),0 1px 3px rgba(0,0,0,.06);
+}}
+[data-theme="dark"]{{
+  --bg:#0c1222;--surface:#131b2e;--surface-alt:#1a2340;--border:#1e293b;--border-light:#1e293b;
+  --text:#f1f5f9;--text-secondary:#94a3b8;--text-muted:#64748b;
+  --accent:#818cf8;--green:#34d399;--red:#f87171;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.3);
+}}
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#1e293b;line-height:1.5;padding:40px;max-width:900px;margin:0 auto}}
-.card{{background:#fff;border-radius:12px;padding:28px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:28px;border:1px solid #f1f5f9}}
-.card-title{{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:16px}}
+body{{font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;padding:40px;max-width:900px;margin:0 auto;-webkit-font-smoothing:antialiased}}
+.card{{background:var(--surface);border-radius:14px;padding:28px;box-shadow:var(--shadow-sm);margin-bottom:28px;border:1px solid var(--border-light)}}
+.card-title{{font-size:15px;font-weight:700;color:var(--text);margin-bottom:16px}}
 table{{width:100%;border-collapse:collapse;font-size:13px}}
-th{{padding:8px 14px;text-align:center;font-size:11px;text-transform:uppercase;color:#9ca3af;font-weight:600;border-bottom:2px solid #e5e7eb}}
-.footer{{font-size:12px;color:#94a3b8;text-align:center;margin-top:48px}}
+th{{padding:8px 14px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;border-bottom:2px solid var(--border)}}
+.footer{{font-size:12px;color:var(--text-muted);text-align:center;margin-top:48px}}
+.theme-toggle{{position:fixed;top:16px;right:16px;padding:8px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--border);cursor:pointer;font-size:12px;color:var(--text-muted);transition:all .15s}}
+.theme-toggle:hover{{color:var(--text);border-color:var(--accent)}}
 </style>
 </head>
 <body>
+<button class="theme-toggle" onclick="toggleTheme()">◐ Theme</button>
 <h1 style="font-size:22px;font-weight:800;margin-bottom:8px">Cogent History Trend</h1>
-<p style="color:#6b7280;font-size:13px;margin-bottom:28px">{} &nbsp;&middot;&nbsp; {} runs</p>
+<p style="color:var(--text-secondary);font-size:13px;margin-bottom:28px">{} &nbsp;&middot;&nbsp; {} runs</p>
 
 <div class="card">
   <div class="card-title">Health Score Over Time</div>
@@ -279,6 +295,15 @@ th{{padding:8px 14px;text-align:center;font-size:11px;text-transform:uppercase;c
 </div>
 
 <div class="footer">Generated by Cogent — {}</div>
+<script>
+function toggleTheme(){{
+  const h=document.documentElement;
+  const d=h.getAttribute('data-theme')==='dark';
+  h.setAttribute('data-theme',d?'':'dark');
+  localStorage.setItem('cogent-theme',d?'':'dark');
+}}
+(function(){{const s=localStorage.getItem('cogent-theme');if(s==='dark')document.documentElement.setAttribute('data-theme','dark');}})();
+</script>
 </body>
 </html>"##,
         dir,
@@ -431,7 +456,7 @@ mod tests {
         assert_eq!(code, 0, "history_record should succeed");
 
         // Should have created a .jsonl file
-        let mut entries: Vec<_> = std::fs::read_dir(dir.path())
+        let entries: Vec<_> = std::fs::read_dir(dir.path())
             .unwrap()
             .filter_map(|e| e.ok())
             .filter(|e| e.path().extension().is_some_and(|x| x == "jsonl"))

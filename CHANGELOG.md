@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-—
+### Added
+- Inline comment stripping in `parse_string_list` — `#` outside double quotes is stripped before parsing
+- **`secrets_exclude`** in `.quality.toml` — suppress secret findings by path substring (TOML array, bare comma list, or multi-line array)
+- **`--secrets-exclude` CLI flag** — overrides `.quality.toml` at runtime for `cogent check` and `cogent secrets`
+- **`COGENT_SECRETS_EXCLUDE` env var** — CI-friendly override (highest priority over config file)
+- Shared `parse_string_list` parser in `cogent-common` — single TOML list parser replaces duplicated engine/CLI implementations
+- `cogent init` now includes a commented-out `secrets_exclude` example in generated `.quality.toml`
+- Documentation: `docs/tools/secrets.md` covers config, CLI flag, and env var
+
+### Fixed
+- `parse_string_list` chained `unwrap_or(rest)` bug: `secrets_exclude = [` no longer returns incorrect results
+
+### Changed
+- Extracted `parse_string_list` into `cogent-common`; engine and CLI delegate to it
+- Replaced `Box::leak` in `check_secrets_with_excludes` with scoped `Option<String>` (eliminates per-invocation leak)
+- Empty-string guard in `is_excluded` prevents `"".contains("")` from suppressing all files
+- Fixed `load_secrets_exclude` to support multi-line TOML arrays (`secrets_exclude = [\n  "vendor"\n]`)
+
+### Testing
+- 25+ new tests: TOML array syntax, bare comma lists, single-quoted strings, empty arrays, trailing commas, paths with slashes, empty-string filtering, path traversal, unicode, multi-line TOML arrays, env var override, `CheckThresholds::default()` invariants, `load_from_config` negative cases, full config→check pipeline integration, and proptest fuzz tests
 
 ## [1.2.0] — 2026-06-04
 

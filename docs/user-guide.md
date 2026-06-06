@@ -16,7 +16,7 @@ This guide shows how to use Cogent to audit and improve your project's code qual
    cogent init
    ```
 
-3. **Run all 21 checks**:
+3. **Run all 31 checks**:
    ```bash
    cogent check .
    ```
@@ -84,7 +84,7 @@ cogent init
 # 2. Edit thresholds if needed
 vim .quality.toml
 
-# 3. Run all 21 checks
+# 3. Run all 31 checks
 cogent check .
 
 # 4. Generate visual report
@@ -112,7 +112,7 @@ Or add manually to your GitHub Actions workflow:
 
 ```bash
 cogent watch .            # runs debt + doc + crap on every file change
-cogent watch . --full     # runs all 21 checks every cycle
+cogent watch . --full     # runs all 31 checks every cycle
 cogent watch . --no-tests # skip tests, metrics-only
 ```
 

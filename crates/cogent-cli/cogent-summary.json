@@ -2,11 +2,12 @@
   "critical_findings": 0,
   "failed_checks": [
     "comments",
+    "design-docs",
     "fuzz",
     "supply-chain"
   ],
-  "grade": "B",
+  "grade": "A",
   "passed": false,
   "report_url": "./cogent-report.html",
-  "score": 88
+  "score": 90
 }

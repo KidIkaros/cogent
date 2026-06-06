@@ -12,11 +12,227 @@ pub use error::CogentError;
 pub use types::*;
 
 // ═══════════════════════════════════════════
-// CHECK RESULT TYPES (re-exported from types.rs)
+// AUDIT OPINION MODEL
 // ═══════════════════════════════════════════
+
+/// Audit opinion — mirrors professional audit firm language.
+/// - **UnqualifiedPass**: all gate killers pass, weighted score ≥ 80
+/// - **QualifiedPass**: all gate killers pass, weighted score 60–79
+/// - **Adverse**: one or more gate killers failed
+/// - **Disclaimer**: too many tools unavailable (5+ skipped)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AuditOpinion {
+    UnqualifiedPass,
+    QualifiedPass,
+    Adverse,
+    Disclaimer,
+}
+
+impl std::fmt::Display for AuditOpinion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnqualifiedPass => write!(f, "UNQUALIFIED PASS"),
+            Self::QualifiedPass => write!(f, "QUALIFIED PASS"),
+            Self::Adverse => write!(f, "ADVERSE"),
+            Self::Disclaimer => write!(f, "DISCLAIMER"),
+        }
+    }
+}
+
+/// Per-category weighted score.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryScore {
+    pub name: String,
+    pub weight: u32,
+    pub score: f64,
+    pub checks_passed: usize,
+    pub checks_total: usize,
+}
+
+/// Full audit result: opinion, weighted score, gate killers, category breakdown, margin risks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditResult {
+    pub opinion: AuditOpinion,
+    pub overall_score: u32,
+    pub grade: char,
+    pub gate_killers_passed: bool,
+    pub gate_killer_names: Vec<String>,
+    pub gate_killer_passed_names: Vec<String>,
+    /// Gate killers that were not present in the check results (skipped/not run).
+    /// Missing gate killers cause `gate_killers_passed` to be false, which
+    /// triggers an Adverse opinion. This prevents projects that skip security
+    /// checks from receiving an Unqualified Pass.
+    #[serde(default)]
+    pub missing_gate_killers: Vec<String>,
+    pub categories: Vec<CategoryScore>,
+    pub margin_risks: Vec<(String, f64)>,
+    pub unavailable_count: usize,
+}
+
+/// Compute the full audit opinion from check results.
+///
+/// Tier 1 — Gate Killers (binary pass/fail):
+///   secrets, vulnscan, sast, taint — any failure → Adverse
+///
+/// Tier 2 — Weighted Category Scores (0–100 each):
+///   Security 5×, Compliance 3×, Quality 2×, Hygiene 1×, Operations 1×
+///
+/// Tier 3 — Margin-to-threshold (closest to failing)
+pub fn compute_audit(checks: &[CheckResult]) -> AuditResult {
+    // ── Gate Killers ──
+    let gate_killer_names: Vec<String> =
+        ["secrets", "vulnscan", "sast", "taint"].iter().map(|s| s.to_string()).collect();
+    let mut gate_killer_passed_names = Vec::new();
+    let mut missing_gate_killers = Vec::new();
+    for gk in &gate_killer_names {
+        if let Some(c) = checks.iter().find(|c| &c.name == gk) {
+            if c.passed {
+                gate_killer_passed_names.push(gk.clone());
+            }
+            // If c.passed is false, it's a failure — don't add to passed list
+        } else {
+            // Gate killer not run — track as missing (not implicitly passing).
+            // This ensures a project that skips `secrets` doesn't get an
+            // UNQUALIFIED PASS. Missing gate killers cause gate_killers_passed=false,
+            // which triggers AuditOpinion::Adverse.
+            missing_gate_killers.push(gk.clone());
+        }
+    }
+    let gate_killers_passed = gate_killer_passed_names.len() == gate_killer_names.len();
+
+    // ── Category definitions ──
+    let security_tools = [
+        "secrets", "sast", "crypto", "taint", "vulnscan", "access-control", "errhandle",
+    ];
+    let compliance_tools = ["licenses", "sbom", "supply-chain", "outdated"];
+    let quality_tools = [
+        "crap", "complexity", "deadcode", "coupling", "dupfind", "duplication",
+        "riskmap", "halstead", "cohesion", "fuzz", "propcov",
+    ];
+    let hygiene_tools = ["debt", "comments", "linelen", "doccov", "doc_coverage", "typecov"];
+    let operations_tools = ["observability", "test-quality", "design-docs", "debuggability"];
+
+    let cat_defs: &[(&str, u32, &[&str])] = &[
+        ("Security", 5, &security_tools),
+        ("Compliance", 3, &compliance_tools),
+        ("Quality", 2, &quality_tools),
+        ("Hygiene", 1, &hygiene_tools),
+        ("Operations", 1, &operations_tools),
+    ];
+
+    // ── Category scores ──
+    let mut categories = Vec::new();
+    for &(name, weight, tools) in cat_defs {
+        let cat_checks: Vec<&CheckResult> = checks
+            .iter()
+            .filter(|c| tools.contains(&c.name.as_str()))
+            .collect();
+        if cat_checks.is_empty() {
+            continue;
+        }
+        let passed = cat_checks.iter().filter(|c| c.passed).count();
+        let total = cat_checks.len();
+        let score = if total > 0 { passed as f64 / total as f64 * 100.0 } else { 100.0 };
+        categories.push(CategoryScore {
+            name: name.to_string(),
+            weight,
+            score,
+            checks_passed: passed,
+            checks_total: total,
+        });
+    }
+
+    // ── Weighted overall score ──
+    let mut weighted_sum = 0.0f64;
+    let mut weight_total = 0u32;
+    for cat in &categories {
+        weighted_sum += cat.score * cat.weight as f64;
+        weight_total += cat.weight;
+    }
+    let overall_score = if weight_total > 0 {
+        (weighted_sum / weight_total as f64) as u32
+    } else {
+        100
+    };
+    let grade = match overall_score {
+        90..=100 => 'A',
+        80..=89 => 'B',
+        65..=79 => 'C',
+        50..=64 => 'D',
+        _ => 'F',
+    };
+
+    // ── Unavailable count ──
+    let unavailable_count = checks
+        .iter()
+        .filter(|c| c.message.starts_with("Skipped"))
+        .count();
+
+    // ── Opinion ──
+    // Empty checks → vacuous truth: no failures = UnqualifiedPass.
+    // Missing gate killers only trigger Adverse when other checks exist
+    // (meaning the user deliberately ran checks but skipped gate killers).
+    let has_any_checks = !checks.is_empty();
+    let gate_killer_failure = has_any_checks && !gate_killers_passed;
+    let opinion = if unavailable_count >= 5 {
+        AuditOpinion::Disclaimer
+    } else if gate_killer_failure {
+        AuditOpinion::Adverse
+    } else if overall_score >= 80 {
+        AuditOpinion::UnqualifiedPass
+    } else {
+        AuditOpinion::QualifiedPass
+    };
+
+    // ── Margin risks (top 3 closest to failing) ──
+    let mut margin_risks: Vec<(String, f64)> = checks
+        .iter()
+        .filter(|c| c.passed)
+        .filter_map(|c| {
+            let score = c.score?;
+            let threshold = c.threshold?;
+            if threshold == 0.0 { return None; }
+            let inverted = matches!(
+                c.name.as_str(),
+                "doc_coverage" | "doccov" | "propcov" | "typecov"
+            );
+            let margin = if inverted {
+                ((score - threshold) / threshold * 100.0).clamp(0.0, 100.0)
+            } else {
+                ((threshold - score) / threshold * 100.0).clamp(0.0, 100.0)
+            };
+            if margin < 25.0 {
+                Some((c.name.clone(), margin))
+            } else {
+                None
+            }
+        })
+        .collect();
+    margin_risks.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+    margin_risks.truncate(3);
+
+    AuditResult {
+        opinion,
+        overall_score,
+        grade,
+        gate_killers_passed,
+        gate_killer_names,
+        gate_killer_passed_names,
+        missing_gate_killers,
+        categories,
+        margin_risks,
+        unavailable_count,
+    }
+}
 
 /// Compute a weighted health score 0–100 and letter grade.
 /// Security failures penalise harder (×3), compliance (×2), quality (×1).
+///
+/// This uses a simpler two-tier model than [`compute_audit`], which has a full
+/// five-category breakdown (Security, Compliance, Quality, Hygiene, Operations)
+/// with gate killers and opinion semantics. `health_score` is retained for
+/// backward compatibility and lightweight summary displays.
 pub fn health_score(checks: &[CheckResult]) -> (u32, char) {
     let security = [
         "secrets", "vulnscan", "taint", "errhandle", "sast", "crypto",
@@ -232,6 +448,120 @@ pub fn scan_dir(dir: &Path, recursive: bool, extensions: &[&str], files: &mut Ve
             scan_dir(&path, recursive, extensions, files);
         }
     }
+}
+
+// ═══════════════════════════════════════════
+// SHARED PARSING UTILITIES
+// ═══════════════════════════════════════════
+
+/// Parse a TOML value (`key = <value>`) from a line of `.quality.toml` content.
+/// Returns the numeric value as `f64`, or `None` if the key is not found.
+///
+/// Does NOT track sections — callers that need section-aware parsing should
+/// maintain their own `current_section` state and skip lines in `[override.*]`
+/// sections before calling this function. See `parse_toml_f64_aware` for a
+/// ready-made section-tracking variant.
+pub fn parse_toml_f64(line: &str, key: &str) -> Option<f64> {
+    let prefix = format!("{} = ", key);
+    let prefix2 = format!("{}= ", key);
+    let prefix3 = format!("{} =", key);
+    let prefix4 = format!("{}=", key);
+    let rest = line
+        .strip_prefix(&prefix)
+        .or_else(|| line.strip_prefix(&prefix2))
+        .or_else(|| line.strip_prefix(&prefix3))
+        .or_else(|| line.strip_prefix(&prefix4))?;
+    let val_str = rest.split_whitespace().next()?;
+    // Strip trailing comment
+    let val_str = val_str.split('#').next().unwrap_or(val_str).trim();
+    val_str.parse::<f64>().ok()
+}
+
+/// Parse a TOML numeric key from content, tracking sections and skipping
+/// `[override.*]` sections. This is the recommended way to read a single
+/// threshold value from `.quality.toml`.
+///
+/// ```text
+/// max_secrets = 135       // found, returns Some(135.0)
+///
+/// [override."crates/*/tests/**"]
+/// max_secrets = 9999      // skipped (inside override section)
+/// ```
+pub fn parse_toml_f64_aware(content: &str, key: &str) -> Option<f64> {
+    let mut in_override = false;
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with('#') || line.is_empty() {
+            continue;
+        }
+        // Track section headers: [section_name]
+        if line.starts_with('[') && line.ends_with(']') && !line.starts_with("[[") {
+            let section = &line[1..line.len() - 1];
+            in_override = section.starts_with("override.");
+            continue;
+        }
+        if in_override {
+            continue;
+        }
+        if let Some(val) = parse_toml_f64(line, key) {
+            return Some(val);
+        }
+    }
+    None
+}
+
+/// Parse a TOML-style `key = "a", "b"` or `key = a, b` line for a comma-separated string list.
+/// Handles TOML array syntax `["a", "b"]`, bare commas `a, b`, and single-quoted strings.
+/// Inline comments (everything after an unquoted `#`) are stripped before parsing.
+/// Returns `None` if the key is missing or the result is empty after filtering.
+/// Empty strings and whitespace-only items are filtered out.
+pub fn parse_string_list(line: &str, key: &str) -> Option<Vec<String>> {
+    let prefix = format!("{} = ", key);
+    let prefix2 = format!("{}= ", key);
+    let prefix3 = format!("{} =", key);
+    let prefix4 = format!("{}=", key);
+    let rest = line
+        .strip_prefix(&prefix)
+        .or_else(|| line.strip_prefix(&prefix2))
+        .or_else(|| line.strip_prefix(&prefix3))
+        .or_else(|| line.strip_prefix(&prefix4))?;
+    let rest = rest.trim();
+    if rest == "[]" {
+        return None;
+    }
+    // Strip inline comments FIRST (before bracket stripping), because comments
+    // may appear after the closing bracket: `["a"]  # comment`.
+    // Only strip `#` outside double quotes. TOML uses `"` for strings.
+    let value = {
+        let mut in_double = false;
+        let mut comment_pos = None;
+        for (i, ch) in rest.char_indices() {
+            if ch == '"' {
+                in_double = !in_double;
+            } else if ch == '#' && !in_double {
+                comment_pos = Some(i);
+                break;
+            }
+        }
+        match comment_pos {
+            Some(pos) => rest[..pos].trim(),
+            None => rest,
+        }
+    };
+    // Strip optional brackets: `["a", "b"]` -> inner without brackets.
+    // Uses explicit match to avoid chained unwrap_or(rest) bug where
+    // strip_prefix succeeds but strip_suffix fails and unwrap_or falls back
+    // to the ORIGINAL rest instead of the intermediate result.
+    let inner = match value.strip_prefix('[') {
+        Some(stripped) => stripped.strip_suffix(']').unwrap_or(stripped),
+        None => value,
+    };
+    let items: Vec<String> = inner
+        .split(',')
+        .map(|s| s.trim().trim_matches(|c| c == '"' || c == '\'').to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if items.is_empty() { None } else { Some(items) }
 }
 
 // ═══════════════════════════════════════════
@@ -665,6 +995,203 @@ mod tests {
         assert_eq!(estimate_fn_line(source, "foo"), 1);
         assert_eq!(estimate_fn_line(source, "bar"), 3);
     }
+
+    // ── parse_toml_f64 / parse_toml_f64_aware ──
+
+    #[test]
+    fn test_parse_toml_f64_basic() {
+        assert_eq!(parse_toml_f64("max_avg = 15.0", "max_avg"), Some(15.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_integer() {
+        assert_eq!(parse_toml_f64("max_secrets = 30", "max_secrets"), Some(30.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_no_space() {
+        assert_eq!(parse_toml_f64("max_avg=15.0", "max_avg"), Some(15.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_missing_key() {
+        assert_eq!(parse_toml_f64("other_key = 42.0", "max_avg"), None);
+    }
+
+    #[test]
+    fn test_parse_toml_f64_comment() {
+        assert_eq!(parse_toml_f64("# max_avg = 15.0", "max_avg"), None);
+    }
+
+    #[test]
+    fn test_parse_toml_f64_trailing_comment() {
+        assert_eq!(parse_toml_f64("max_avg = 15.0 # threshold", "max_avg"), Some(15.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_aware_skips_override_sections() {
+        let content = r#"max_secrets = 135
+
+[override."crates/*/tests/**"]
+max_secrets = 9999"#;
+        assert_eq!(parse_toml_f64_aware(content, "max_secrets"), Some(135.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_aware_section_before_override_wins() {
+        let content = r#"[secrets]
+max_secrets = 75
+
+[override."crates/*/tests/**"]
+max_secrets = 9999"#;
+        assert_eq!(parse_toml_f64_aware(content, "max_secrets"), Some(75.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_aware_no_sections() {
+        let content = "max_avg = 63.0\nmax_markers = 18\n";
+        assert_eq!(parse_toml_f64_aware(content, "max_avg"), Some(63.0));
+        assert_eq!(parse_toml_f64_aware(content, "max_markers"), Some(18.0));
+    }
+
+    #[test]
+    fn test_parse_toml_f64_aware_returns_none_for_missing() {
+        let content = "max_avg = 63.0\n";
+        assert_eq!(parse_toml_f64_aware(content, "nonexistent"), None);
+    }
+
+    // ── compute_audit ─────────────────────────────────────────────────────
+
+    fn make_audit_check(name: &str, passed: bool) -> CheckResult {
+        CheckResult {
+            name: name.into(),
+            passed,
+            score: None,
+            threshold: None,
+            message: String::new(),
+            details: serde_json::Value::Null,
+            severity: None,
+            help: None,
+            rule_id: None,
+            findings: vec![],
+        }
+    }
+
+    #[test]
+    fn test_compute_audit_all_pass() {
+        let checks = vec![
+            make_audit_check("secrets", true),
+            make_audit_check("vulnscan", true),
+            make_audit_check("sast", true),
+            make_audit_check("taint", true),
+            make_audit_check("crap", true),
+            make_audit_check("debt", true),
+        ];
+        let audit = compute_audit(&checks);
+        assert!(audit.gate_killers_passed);
+        assert_eq!(audit.opinion, AuditOpinion::UnqualifiedPass);
+        assert!(audit.overall_score >= 80, "score should be >= 80, got {}", audit.overall_score);
+    }
+
+    #[test]
+    fn test_compute_audit_gate_killer_fail_is_adverse() {
+        let checks = vec![
+            make_audit_check("secrets", false),
+            make_audit_check("vulnscan", true),
+            make_audit_check("sast", true),
+            make_audit_check("taint", true),
+            make_audit_check("crap", true),
+        ];
+        let audit = compute_audit(&checks);
+        assert!(!audit.gate_killers_passed);
+        assert_eq!(audit.opinion, AuditOpinion::Adverse);
+        assert!(audit.gate_killer_names.contains(&"secrets".to_string()));
+    }
+
+    #[test]
+    fn test_compute_audit_disclaimer_when_many_unavailable() {
+        let mut checks: Vec<CheckResult> = Vec::new();
+        for i in 0..6 {
+            let mut c = make_audit_check(&format!("tool_{}", i), true);
+            c.message = "Skipped: tool not available".into();
+            checks.push(c);
+        }
+        let audit = compute_audit(&checks);
+        assert_eq!(audit.opinion, AuditOpinion::Disclaimer);
+        assert!(audit.unavailable_count >= 5, "should detect 5+ unavailable, got {}", audit.unavailable_count);
+    }
+
+    #[test]
+    fn test_compute_audit_qualified_pass() {
+        // All 4 gate killers present and passing, but weighted score is 60-79
+        let checks = vec![
+            make_audit_check("secrets", true),
+            make_audit_check("vulnscan", true),
+            make_audit_check("sast", true),
+            make_audit_check("taint", true),
+            make_audit_check("crap", false),
+            make_audit_check("complexity", false),
+            make_audit_check("deadcode", false),
+            make_audit_check("coupling", false),
+            make_audit_check("dupfind", true),
+            make_audit_check("debt", false),
+            make_audit_check("comments", false),
+            make_audit_check("linelen", false),
+            make_audit_check("doccov", true),
+        ];
+        let audit = compute_audit(&checks);
+        assert!(audit.gate_killers_passed);
+        assert_eq!(audit.opinion, AuditOpinion::QualifiedPass,
+            "score {} should trigger QualifiedPass", audit.overall_score);
+    }
+
+    #[test]
+    fn test_compute_audit_empty_checks() {
+        let audit = compute_audit(&[]);
+        // All 4 gate killers are missing → gate_killers_passed=false
+        assert!(!audit.gate_killers_passed);
+        assert_eq!(audit.missing_gate_killers.len(), 4);
+        // But with no checks at all, vacuous truth: no failures = UnqualifiedPass
+        assert_eq!(audit.opinion, AuditOpinion::UnqualifiedPass);
+    }
+
+    #[test]
+    fn test_compute_audit_categories_populated() {
+        let checks = vec![
+            make_audit_check("secrets", true),
+            make_audit_check("sast", true),
+            make_audit_check("licenses", true),
+            make_audit_check("crap", true),
+            make_audit_check("debt", true),
+            make_audit_check("observability", true),
+        ];
+        let audit = compute_audit(&checks);
+        let cat_names: Vec<&str> = audit.categories.iter().map(|c| c.name.as_str()).collect();
+        assert!(cat_names.contains(&"Security"));
+        assert!(cat_names.contains(&"Compliance"));
+        assert!(cat_names.contains(&"Quality"));
+        assert!(cat_names.contains(&"Hygiene"));
+        assert!(cat_names.contains(&"Operations"));
+    }
+
+    #[test]
+    fn test_compute_audit_gate_killer_not_run_tracked_as_missing() {
+        let checks = vec![
+            make_audit_check("secrets", true),
+            make_audit_check("crap", true),
+        ];
+        let audit = compute_audit(&checks);
+        // Only secrets is present and passed; vulnscan, sast, taint are missing
+        // Missing gate killers cause gate_killers_passed=false because not ALL 4 passed
+        assert!(!audit.gate_killers_passed, "missing gate killers should not pass");
+        assert_eq!(audit.gate_killer_passed_names.len(), 1, "only secrets is present and passed");
+        assert_eq!(audit.missing_gate_killers.len(), 3, "3 gate killers not run: vulnscan, sast, taint");
+        assert!(audit.missing_gate_killers.contains(&"vulnscan".to_string()));
+        assert!(audit.missing_gate_killers.contains(&"sast".to_string()));
+        assert!(audit.missing_gate_killers.contains(&"taint".to_string()));
+    }
+
+    // ── health_score (existing tests) ─────────────────────────────────────
 
     #[test]
     fn test_health_score_all_pass() {
@@ -1111,6 +1638,126 @@ mod tests {
     #[test]
     fn test_print_verdict_fails_above() {
         print_verdict(10.0, 5.0, "good", "bad");
+    }
+
+    // ── parse_string_list (canonical tests for shared parser) ──
+
+    #[test]
+    fn test_parse_string_list_toml_array() {
+        assert_eq!(parse_string_list("secrets_exclude = [\"a\", \"b\"]", "secrets_exclude"), Some(vec!["a".to_string(), "b".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_string_list_bare_comma() {
+        assert_eq!(parse_string_list("secrets_exclude = a, b", "secrets_exclude"), Some(vec!["a".to_string(), "b".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_string_list_single_quoted() {
+        assert_eq!(parse_string_list("secrets_exclude = ['vendor', 'test']", "secrets_exclude"), Some(vec!["vendor".to_string(), "test".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_string_list_empty_array() {
+        assert_eq!(parse_string_list("secrets_exclude = []", "secrets_exclude"), None);
+    }
+
+    #[test]
+    fn test_parse_string_list_filters_empty_strings() {
+        assert_eq!(parse_string_list("secrets_exclude = [\"valid\", \"\", \"also_valid\"]", "secrets_exclude"), Some(vec!["valid".to_string(), "also_valid".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_string_list_no_key() {
+        assert_eq!(parse_string_list("other = [\"a\"]", "secrets_exclude"), None);
+    }
+
+    #[test]
+    fn test_parse_string_list_no_space_after_eq() {
+        assert_eq!(parse_string_list("secrets_exclude=[\"x\"]", "secrets_exclude"), Some(vec!["x".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_string_list_trailing_comma() {
+        assert_eq!(parse_string_list("secrets_exclude = [\"a\", \"b\", ]", "secrets_exclude"), Some(vec!["a".to_string(), "b".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_string_list_paths_with_slashes() {
+        assert_eq!(parse_string_list("secrets_exclude = [\"crates/engine\", \"tests/fixtures\"]", "secrets_exclude"), Some(vec!["crates/engine".to_string(), "tests/fixtures".to_string()]));
+    }
+
+    #[test]
+    fn test_parse_string_list_opening_bracket_only() {
+        // Regression: `secrets_exclude = [` used to return Some(vec!["["])
+        // due to chained unwrap_or(rest) fallback. Should return None.
+        assert_eq!(parse_string_list("secrets_exclude = [", "secrets_exclude"), None);
+    }
+
+    #[test]
+    fn test_parse_string_list_inline_comment_stripped() {
+        // Inline comments after # should be stripped
+        assert_eq!(
+            parse_string_list("secrets_exclude = [\"vendor\", \"tests\"]  # excluded paths", "secrets_exclude"),
+            Some(vec!["vendor".to_string(), "tests".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_parse_string_list_inline_comment_in_array() {
+        // Comment inside array brackets strips everything after #
+        // (including subsequent values — this is expected TOML-like behavior)
+        assert_eq!(
+            parse_string_list("secrets_exclude = [\"a\" # first, \"b\"]", "secrets_exclude"),
+            Some(vec!["a".to_string()])
+        );
+    }
+
+    #[test]
+    fn test_parse_string_list_comment_only_after_value() {
+        // Single value with trailing comment
+        assert_eq!(
+            parse_string_list("secrets_exclude = vendor  # skip this", "secrets_exclude"),
+            Some(vec!["vendor".to_string()])
+        );
+    }
+
+    // ── proptest fuzz tests for parse_string_list ──
+
+    proptest::proptest! {
+        #[test]
+        fn test_parse_string_list_never_panics(line in ".*", key in "[a-z_]{1,20}") {
+            // The parser must never panic on arbitrary input.
+            let _ = parse_string_list(&line, &key);
+        }
+
+        #[test]
+        fn test_parse_string_list_result_invariants(line in ".*", key in "[a-z_]{1,20}") {
+            if let Some(items) = parse_string_list(&line, &key) {
+                // No empty strings in result
+                assert!(items.iter().all(|s| !s.is_empty()),
+                    "empty string in result for key='{}', line='{}'", key, line);
+                // No duplicates of empty strings
+                assert_eq!(items.len(), items.iter().collect::<std::collections::HashSet<_>>().len(),
+                    "duplicate items for key='{}', line='{}'", key, line);
+            }
+        }
+
+        #[test]
+        fn test_parse_string_list_toml_array_never_returns_bare_strings(parts in proptest::collection::vec("[a-zA-Z0-9_/-]{1,30}", 0..5)) {
+            // A well-formed TOML array should parse correctly
+            let inner: Vec<String> = parts.iter().map(|s| format!("\"{}\"", s)).collect();
+            let line = format!("secrets_exclude = [{}]", inner.join(", "));
+            let result = parse_string_list(&line, "secrets_exclude");
+            if parts.iter().any(|p| !p.is_empty()) {
+                assert!(result.is_some(), "TOML array should parse for: {}", line);
+                let items = result.unwrap();
+                assert_eq!(items.len(), parts.len());
+                for (item, expected) in items.iter().zip(parts.iter()) {
+                    assert_eq!(item, expected);
+                }
+            }
+        }
     }
 }
 

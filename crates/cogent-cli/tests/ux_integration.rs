@@ -127,7 +127,6 @@ fn test_cogent_doctor_json() {
     let output = cmd.output().expect("failed to run cogent doctor");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let combined = format!("{}{}", stderr, stdout);
 
     // Exit 0 (doctor is informational, never fails)
     assert!(

@@ -9,14 +9,14 @@ use std::time::Instant;
 use colored::Colorize;
 
 use crate::audit;
-use crate::check_runners::*;
+use crate::check_runners::{run_batch, run_parallel_checks, run_tool};
 use crate::cli::{CacheAction, Commands, ExceptionAction, PolicyAction, hqse_phase_for};
-use crate::config::{detect_project, generate_config, load_config_thresholds};
+use crate::config::{detect_project, generate_config, load_config_thresholds, load_secrets_exclude};
 use crate::diff::diff_command;
 use crate::history::history_command;
 use crate::hooks::{install_hooks, uninstall_hooks};
 use crate::progress::{
-    format_elapsed, health_score, print_fix_summary,
+    format_elapsed, print_audit_opinion, print_fix_summary, print_margin_summary,
     print_offenders, print_severity_grouped, print_summary_box, run_with_spinner,
 };
 use crate::report::{render_html_report, report_command, setup_command};
@@ -29,6 +29,9 @@ use crate::types::{
 use crate::watch::watch_mode;
 use crate::commands::{discover_command, explain_command, init_ci};
 use crate::doctor::doctor_command;
+use cogent_common::{compute_audit, health_score};
+use cogent_engine::{registry, CheckThresholds};
+use cogent_fix::{collect_patches, apply_patches, FixPatch};
 
 /// Resolve the output format: CI mode forces JSON regardless of the specified format.
 fn ci_format(format: String, ci: bool) -> String {
@@ -58,12 +61,12 @@ fn run_audit_subcommand(path: String, format: String, cfg: AuditCommandConfig) -
     let audit_start = Instant::now();
 
     let security_checks = [
-        "secrets", "sast", "crypto", "taint", "vulnscan", "access-control",
+        "secrets", "sast", "crypto", "taint", "vulnscan", "access-control", "errhandle",
     ];
     let quality_checks = [
         "crap", "debt", "doccov", "complexity", "dupfind", "riskmap",
         "coupling", "propcov", "fuzz", "linelen", "halstead", "deadcode",
-        "cohesion", "comments", "errhandle", "typecov", "observability",
+        "cohesion", "comments", "typecov", "observability",
         "test-quality", "design-docs", "debuggability",
     ];
     let compliance_checks = ["licenses", "supply-chain", "outdated", "sbom"];
@@ -89,42 +92,60 @@ fn run_audit_subcommand(path: String, format: String, cfg: AuditCommandConfig) -
 
     let mut checks_run: Vec<CheckResult> = Vec::new();
 
+    let reg = registry();
+    let secrets_exclude_paths = load_secrets_exclude(".quality.toml");
+    let audit_thresholds = CheckThresholds {
+        max_crap: 30.0, min_doc: 0.0, max_debt: usize::MAX,
+        max_complexity_violations: usize::MAX, min_complexity: 10,
+        max_taint: 0, max_duplication: 100.0, max_risk: 100.0,
+        max_coupling: usize::MAX, min_propcov: 0.0, max_fuzz_risk: usize::MAX,
+        max_linelen: usize::MAX, max_halstead_bugs: 100.0,
+        max_secrets: 0, max_deadcode: usize::MAX, max_cohesion: usize::MAX,
+        min_comment_ratio: 0.0, max_errhandle: usize::MAX, min_typecov: 0.0,
+        max_vuln_critical: 0, max_vuln_high: 0, max_sast: 0, max_crypto: 0,
+        max_license_violations: 0, max_outdated: usize::MAX,
+        max_access_control: 0, max_supply_chain: 0, coverage_path: None,
+        secrets_exclude_paths,
+        max_observability: 1000, max_test_quality: 60,
+        max_debuggability: 1000,
+        access_control_exclude_paths: Vec::new(),
+    };
+
     macro_rules! run_audit_check {
-        ($name:expr, $expr:expr) => {
+        ($name:expr) => {
             if should_run_audit($name) {
-                checks_run.push(run_with_spinner($name, || $expr));
+                let t = audit_thresholds.clone();
+                let p = path.clone();
+                checks_run.push(run_with_spinner($name, || reg.run_check($name, &p, true, &t).unwrap()));
             }
         };
     }
 
-    run_audit_check!("secrets", check_secrets(&path, true, 0));
-    run_audit_check!("sast", check_sast(&path, true, 0));
-    run_audit_check!("crypto", check_crypto(&path, true, 0));
-    run_audit_check!("taint", check_taint(&path, true, 0));
-    run_audit_check!("vulnscan", check_vulnscan(&path, 0, 0));
-    run_audit_check!("access-control", check_access_control(&path, true, 0));
-    run_audit_check!("licenses", check_licenses(&path, 0));
-    run_audit_check!("supply-chain", check_supply_chain(&path, 0));
-    run_audit_check!("crap", check_crap(&path, true, &None, 30.0));
-    run_audit_check!("debt", check_debt(&path, true, usize::MAX));
-    run_audit_check!("doccov", check_doc_coverage(&path, true, 0.0));
-    run_audit_check!(
-        "complexity",
-        check_complexity(&path, true, 10u32, usize::MAX)
-    );
-    run_audit_check!("dupfind", check_dupfind(&path, true, 100.0));
-    run_audit_check!("riskmap", check_riskmap(&path, true, 100.0));
-    run_audit_check!("coupling", check_coupling(&path, usize::MAX));
-    run_audit_check!("deadcode", check_deadcode(&path, true, usize::MAX));
-    run_audit_check!("cohesion", check_cohesion(&path, true, usize::MAX));
-    run_audit_check!("comments", check_comments(&path, true, 0.0));
-    run_audit_check!("errhandle", check_errhandle(&path, true, usize::MAX));
-    run_audit_check!("halstead", check_halstead(&path, true, 100.0));
-    run_audit_check!("linelen", check_linelen(&path, true, usize::MAX));
-    run_audit_check!("observability", check_observability(&path, true, usize::MAX));
-    run_audit_check!("test-quality", check_test_quality(&path, true, usize::MAX));
-    run_audit_check!("design-docs", check_design_docs(&path));
-    run_audit_check!("debuggability", check_debuggability(&path, true, usize::MAX));
+    run_audit_check!("secrets");
+    run_audit_check!("sast");
+    run_audit_check!("crypto");
+    run_audit_check!("taint");
+    run_audit_check!("vulnscan");
+    run_audit_check!("access-control");
+    run_audit_check!("licenses");
+    run_audit_check!("supply-chain");
+    run_audit_check!("crap");
+    run_audit_check!("debt");
+    run_audit_check!("doccov");
+    run_audit_check!("complexity");
+    run_audit_check!("dupfind");
+    run_audit_check!("riskmap");
+    run_audit_check!("coupling");
+    run_audit_check!("deadcode");
+    run_audit_check!("cohesion");
+    run_audit_check!("comments");
+    run_audit_check!("errhandle");
+    run_audit_check!("halstead");
+    run_audit_check!("linelen");
+    run_audit_check!("observability");
+    run_audit_check!("test-quality");
+    run_audit_check!("design-docs");
+    run_audit_check!("debuggability");
 
     let meta = prepare_audit_report_meta(
         checks_run,
@@ -172,6 +193,60 @@ fn run_check_command_full(label: &str, result: CheckResult, format: &str) -> i32
     if passed { 0 } else { 1 }
 }
 
+/// Fix command handler: collects patches from cogent-fix and applies or diffs them.
+fn run_fix_command(
+    path: String,
+    check: String,
+    dry_run: bool,
+    force: bool,
+    format: &str,
+) -> i32 {
+    let patches = collect_patches(&path, &check);
+    if patches.is_empty() {
+        eprintln!("No patches found for check: {}", check);
+        return 0;
+    }
+    if dry_run {
+        eprintln!("{} patches would be applied:", patches.len());
+        for p in &patches {
+            eprintln!("{}", p.to_diff());
+        }
+        return 0;
+    }
+    let results = apply_patches(&patches, false, !force);
+    let mut total_applied = 0;
+    let mut total_rejected = 0;
+    for r in &results {
+        total_applied += r.patches_applied;
+        total_rejected += r.patches_rejected;
+        for rej in &r.rejected {
+            eprintln!(
+                "{}: patch rejected at {}:{} — {}",
+                rej.file, rej.line, rej.rule_id,
+                if rej.old_text.is_empty() { "no match" } else { "source mismatch" }
+            );
+        }
+    }
+    if format == "json" {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "applied": total_applied,
+                "rejected": total_rejected,
+                "results": results
+            }))
+            .unwrap()
+        );
+    } else {
+        eprintln!(
+            "{} Fix: {} applied, {} rejected",
+            if total_rejected == 0 { "✓" } else { "⚠" },
+            total_applied, total_rejected
+        );
+    }
+    if total_rejected > 0 { 1 } else { 0 }
+}
+
 /// Parse a comma-separated list from an `Option<String>` into a `Vec<String>`.
 /// Empty items, whitespace, and case are normalized: each item is trimmed, lowercased,
 /// and empty strings are filtered out. Returns an empty vec when `input` is `None`.
@@ -183,6 +258,37 @@ fn parse_comma_list(input: &Option<String>) -> Vec<String> {
         .map(|s| s.trim().to_lowercase())
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+/// Detect the package name for mutation testing in a workspace.
+/// Returns the first member crate name, or None if not a workspace.
+fn detect_mutate_package(path: &str) -> Option<String> {
+    use std::path::Path;
+    let cargo_toml = Path::new(path).join("Cargo.toml");
+    if !cargo_toml.exists() {
+        return None;
+    }
+    let content = std::fs::read_to_string(&cargo_toml).ok()?;
+    if !content.contains("[workspace]") {
+        return None;
+    }
+    // Parse workspace members - look for the first one
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with("members") && line.contains('[') {
+            // Extract crate names from members array
+            let start = line.find('[')?;
+            let end = line.find(']')?;
+            let members_str = &line[start + 1..end];
+            for member in members_str.split(',') {
+                let member = member.trim().trim_matches('"');
+                if let Some(name) = member.split('/').last() {
+                    return Some(name.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Computed metadata for formatting audit report output.
@@ -344,6 +450,9 @@ fn run_audit_report_format(format: &str, meta: &AuditReportMeta) -> i32 {
                     avg_complexity: 0.0,
                     avg_crap: 0.0,
                 },
+                health_score: meta.health,
+                grade: meta.grade.to_string(),
+                audit: None,
                 file_summary: aggregate_file_summary(&meta.checks_run),
             };
             output_json(&report);
@@ -361,6 +470,9 @@ fn run_audit_report_format(format: &str, meta: &AuditReportMeta) -> i32 {
                     avg_complexity: 0.0,
                     avg_crap: 0.0,
                 },
+                health_score: meta.health,
+                grade: meta.grade.to_string(),
+                audit: None,
                 file_summary: vec![],
             };
             output_markdown_with_framework(&report, &meta.path, &meta.use_framework);
@@ -425,6 +537,7 @@ struct AuditCommandConfig {
 /// Configuration for the `cogent check` command, mirroring the `Commands::Check` variant fields.
 struct CheckCommandConfig {
     coverage: Option<String>,
+    profile: String,
     max_crap: f64,
     min_doc: f64,
     max_debt: usize,
@@ -457,6 +570,9 @@ struct CheckCommandConfig {
     force: bool,
     no_cache: bool,
     clear_cache: bool,
+    secrets_exclude: Option<String>,
+    access_control_exclude: Option<String>,
+    save_baselines: bool,
 }
 
 /// Run the `cogent check` command: orchestrates 20+ quality/security checks,
@@ -559,9 +675,32 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     let skip_list: Vec<String> = parse_comma_list(&skip);
     let only_list: Vec<String> = parse_comma_list(&only);
 
+    // Profile-based tool selection:
+    //   quick    = core 8 fast checks (debt, doc, crap, complexity, secrets, deadcode, linelen, errhandle)
+    //   standard = all 20+ checks (default)
+    //   full     = all checks including mutate (slow)
+    let profile_skips: Vec<String> = match cfg.profile.as_str() {
+        "quick" => vec![
+            "taint", "dup", "dupfind", "duplication", "risk", "riskmap",
+            "coupling", "propcov", "fuzz", "halstead", "cohesion", "comments",
+            "typecov", "vulnscan", "sast", "crypto", "licenses",
+            "mutate", "access-control", "supply-chain", "outdated",
+        ].iter().map(|s| s.to_string()).collect(),
+        "full" => vec![],
+        _ => vec![],
+    };
+
+    let effective_skip_list: Vec<String> = skip_list.iter()
+        .chain(profile_skips.iter())
+        .cloned()
+        .collect();
 
     let check_start = Instant::now();
     let show_progress = format == "text";
+
+    if show_progress && cfg.profile != "standard" {
+        eprintln!("  \u{25b6} Profile: {}", cfg.profile.cyan());
+    }
 
     // Build check definitions for parallel (or serial) execution.
     // Each check is a (name, closure) pair. Parallel execution uses
@@ -575,99 +714,112 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
         };
     }
 
-    if check_should_run("crap", &only_list, &skip_list) {
-        let p = path.clone();
-        let cov = coverage.clone();
-        add_check!("crap", move || check_crap(&p, recursive, &cov, max_crap));
+    // Build a single CheckThresholds from loaded config values.
+    // Each closure clones this struct and passes it to registry().run_check().
+    // CLI --secrets-exclude flag overrides the .quality.toml value.
+    // CLI --access-control-exclude flag overrides the .quality.toml value.
+    let mut reg_thresholds = CheckThresholds::load_from_config(".quality.toml");
+    if let Some(ref cli_exclude) = cfg.secrets_exclude {
+        reg_thresholds.secrets_exclude_paths = parse_comma_list(&Some(cli_exclude.clone()));
     }
-    if check_should_run("debt", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("debt", move || check_debt(&p, recursive, max_debt));
+    if let Some(ref cli_ac_exclude) = cfg.access_control_exclude {
+        reg_thresholds.access_control_exclude_paths = parse_comma_list(&Some(cli_ac_exclude.clone()));
     }
-    if check_should_run("doc", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("doc_coverage", move || check_doc_coverage(&p, recursive, min_doc));
+    // Override with CLI threshold values
+    reg_thresholds.max_crap = max_crap;
+    reg_thresholds.min_doc = min_doc;
+    reg_thresholds.max_debt = max_debt;
+    reg_thresholds.max_complexity_violations = max_complexity_violations;
+    reg_thresholds.min_complexity = 10;
+    reg_thresholds.max_taint = max_taint;
+    reg_thresholds.max_duplication = max_duplication;
+    reg_thresholds.max_risk = max_risk;
+    reg_thresholds.max_coupling = max_coupling;
+    reg_thresholds.min_propcov = min_propcov;
+    reg_thresholds.max_fuzz_risk = max_fuzz_risk;
+    reg_thresholds.max_linelen = max_linelen;
+    reg_thresholds.max_halstead_bugs = max_halstead_bugs;
+    reg_thresholds.max_secrets = max_secrets;
+    reg_thresholds.max_deadcode = max_deadcode;
+    reg_thresholds.max_cohesion = max_cohesion;
+    reg_thresholds.min_comment_ratio = min_comment_ratio;
+    reg_thresholds.max_errhandle = max_errhandle;
+    reg_thresholds.min_typecov = min_typecov;
+    reg_thresholds.max_vuln_critical = max_vuln_critical;
+    reg_thresholds.max_vuln_high = max_vuln_high;
+    reg_thresholds.max_sast = max_sast;
+    reg_thresholds.max_crypto = max_crypto;
+    reg_thresholds.max_license_violations = max_license_violations;
+    reg_thresholds.max_outdated = max_outdated;
+    reg_thresholds.max_access_control = 0;
+    reg_thresholds.max_supply_chain = 0;
+    reg_thresholds.coverage_path = coverage.clone();
+    // HQSE thresholds: use sensible defaults instead of usize::MAX.
+    // Previously these were usize::MAX, making the checks impossible to fail.
+    // See CHANGES-PLAN.md Phase 2.
+    reg_thresholds.max_observability = 1000;
+    // max_test_quality loaded from .quality.toml (default 60, overridden via config)
+    reg_thresholds.max_debuggability = 1000;
+    let reg = registry();
+
+    macro_rules! reg_check {
+        ($check:expr, $tool:expr, $rec:expr) => {
+            if check_should_run($check, &only_list, &effective_skip_list) {
+                let p = path.clone();
+                let t = reg_thresholds.clone();
+                add_check!($check, move || reg.run_check($tool, &p, $rec, &t).unwrap_or_else(|| panic!("registry missing automated check for tool '{}' (update run_check match arms AND ToolRegistry::default entries)", $tool)));
+            }
+        };
     }
-    if check_should_run("complexity", &only_list, &skip_list) {
+
+    reg_check!("crap", "crap", recursive);
+    reg_check!("debt", "debt", recursive);
+    reg_check!("doc", "doccov", recursive);
+    reg_check!("complexity", "complexity", recursive);
+    reg_check!("taint", "taint", recursive);
+    if check_should_run("dup", &only_list, &effective_skip_list)
+        || check_should_run("dupfind", &only_list, &effective_skip_list)
+        || check_should_run("duplication", &only_list, &effective_skip_list)
+    {
         let p = path.clone();
-        add_check!("complexity", move || check_complexity(&p, recursive, 10, max_complexity_violations));
+        let t = reg_thresholds.clone();
+        add_check!("duplication", move || reg.run_check("dupfind", &p, recursive, &t).unwrap());
     }
-    if check_should_run("taint", &only_list, &skip_list) {
+    if check_should_run("risk", &only_list, &effective_skip_list)
+        || check_should_run("riskmap", &only_list, &effective_skip_list)
+    {
         let p = path.clone();
-        add_check!("taint", move || check_taint(&p, recursive, max_taint));
+        let t = reg_thresholds.clone();
+        add_check!("riskmap", move || reg.run_check("riskmap", &p, false, &t).unwrap());
     }
-    if check_should_run("dup", &only_list, &skip_list) || check_should_run("dupfind", &only_list, &skip_list) || check_should_run("duplication", &only_list, &skip_list) {
+    reg_check!("coupling", "coupling", false);
+    reg_check!("propcov", "propcov", recursive);
+    reg_check!("fuzz", "fuzz", recursive);
+    reg_check!("linelen", "linelen", recursive);
+    reg_check!("halstead", "halstead", recursive);
+    reg_check!("secrets", "secrets", recursive);
+    reg_check!("deadcode", "deadcode", recursive);
+    reg_check!("cohesion", "cohesion", recursive);
+    reg_check!("comments", "comments", recursive);
+    reg_check!("errhandle", "errhandle", recursive);
+    if check_should_run("typecov", &only_list, &effective_skip_list) && min_typecov > 0.0 {
         let p = path.clone();
-        add_check!("duplication", move || check_dupfind(&p, recursive, max_duplication));
+        let t = reg_thresholds.clone();
+        add_check!("typecov", move || reg.run_check("typecov", &p, recursive, &t).unwrap());
     }
-    if check_should_run("risk", &only_list, &skip_list) || check_should_run("riskmap", &only_list, &skip_list) {
+    reg_check!("vulnscan", "vulnscan", false);
+    reg_check!("sast", "sast", recursive);
+    reg_check!("crypto", "crypto", recursive);
+    reg_check!("licenses", "licenses", false);
+    if check_should_run("mutate", &only_list, &effective_skip_list) {
         let p = path.clone();
-        add_check!("riskmap", move || check_riskmap(&p, recursive, max_risk));
-    }
-    if check_should_run("coupling", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("coupling", move || check_coupling(&p, max_coupling));
-    }
-    if check_should_run("propcov", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("propcov", move || check_propcov(&p, recursive, min_propcov));
-    }
-    if check_should_run("fuzz", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("fuzz", move || check_fuzz(&p, recursive, max_fuzz_risk));
-    }
-    if check_should_run("linelen", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("linelen", move || check_linelen(&p, recursive, max_linelen));
-    }
-    if check_should_run("halstead", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("halstead", move || check_halstead(&p, recursive, max_halstead_bugs));
-    }
-    if check_should_run("secrets", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("secrets", move || check_secrets(&p, recursive, max_secrets));
-    }
-    if check_should_run("deadcode", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("deadcode", move || check_deadcode(&p, recursive, max_deadcode));
-    }
-    if check_should_run("cohesion", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("cohesion", move || check_cohesion(&p, recursive, max_cohesion));
-    }
-    if check_should_run("comments", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("comments", move || check_comments(&p, recursive, min_comment_ratio));
-    }
-    if check_should_run("errhandle", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("errhandle", move || check_errhandle(&p, recursive, max_errhandle));
-    }
-    if check_should_run("typecov", &only_list, &skip_list) && min_typecov > 0.0 {
-        let p = path.clone();
-        add_check!("typecov", move || check_typecov(&p, recursive, min_typecov));
-    }
-    if check_should_run("vulnscan", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("vulnscan", move || check_vulnscan(&p, max_vuln_critical, max_vuln_high));
-    }
-    if check_should_run("sast", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("sast", move || check_sast(&p, recursive, max_sast));
-    }
-    if check_should_run("crypto", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("crypto", move || check_crypto(&p, recursive, max_crypto));
-    }
-    if check_should_run("licenses", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("licenses", move || check_licenses(&p, max_license_violations));
-    }
-    if check_should_run("mutate", &only_list, &skip_list) {
-        let p = path.clone();
+        let mutate_pkg = detect_mutate_package(&p);
         add_check!("mutate", move || {
-            let args = vec![&p as &str, "--format", "json"];
+            let mut args: Vec<&str> = vec![&p as &str, "--format", "json"];
+            if let Some(ref pkg) = mutate_pkg {
+                args.push("-p");
+                args.push(pkg.as_str());
+            }
             let res = run_tool("mutation-test", "mutate", &args, Instant::now());
             let score = res.data.get("summary").and_then(|s| s.get("kill_rate")).and_then(|v| v.as_f64()).unwrap_or(0.0);
             let min_kill_rate = std::fs::read_to_string(".quality.toml")
@@ -689,18 +841,13 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
             }
         });
     }
-    if check_should_run("access-control", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("access-control", move || check_access_control(&p, true, 0));
-    }
-    if check_should_run("supply-chain", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("supply-chain", move || check_supply_chain(&p, 0));
-    }
-    if check_should_run("outdated", &only_list, &skip_list) {
-        let p = path.clone();
-        add_check!("outdated", move || check_outdated(&p, max_outdated));
-    }
+    reg_check!("access-control", "access-control", true);
+    reg_check!("supply-chain", "supply-chain", false);
+    reg_check!("outdated", "outdated", false);
+    reg_check!("observability", "observability", recursive);
+    reg_check!("test-quality", "test-quality", recursive);
+    reg_check!("design-docs", "design-docs", false);
+    reg_check!("debuggability", "debuggability", recursive);
 
     // Wrap check closures with incremental cache logic.
     // If the workspace fingerprint hasn't changed, return cached results.
@@ -749,7 +896,14 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
             } else {
                 String::new()
             };
-            eprintln!("  {} {:<18} {}{}", icon, name_col, msg_col, cached_tag);
+            let timing_tag = c.details.get("duration_ms").and_then(|v| v.as_u64()).map(|ms| {
+                if ms < 1000 {
+                    format!(" {}ms", ms).bright_black().to_string()
+                } else {
+                    format!(" {:.1}s", ms as f64 / 1000.0).bright_black().to_string()
+                }
+            }).unwrap_or_default();
+            eprintln!("  {} {:<18} {}{}{}", icon, name_col, msg_col, cached_tag, timing_tag);
             if !c.passed || verbose { print_offenders(c); }
         }
     }
@@ -778,6 +932,8 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     let failed_count = checks.len() - passed_count;
     let total_checks = checks.len();
 
+    let (health, grade) = health_score(&checks);
+    let audit_result = compute_audit(&checks);
     let report = CheckReport {
         passed,
         path: path.clone(),
@@ -790,9 +946,11 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
             avg_complexity: 0.0,
             avg_crap: 0.0,
         },
+        health_score: audit_result.overall_score,
+        grade: audit_result.grade.to_string(),
+        audit: Some(audit_result.clone()),
         file_summary: aggregate_file_summary(&checks),
     };
-    let (health, grade) = health_score(&report.checks);
 
     if pr_comment {
         let md = pr_comment_md(&report, &path);
@@ -802,15 +960,27 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
 
     match format.as_str() {
         "text" => {
-            print_summary_box(
-                "COGENT CHECK",
-                passed,
-                &path,
-                passed_count,
-                total_checks,
-                check_start.elapsed(),
-                &report.checks,
-            );
+            if let Some(ref audit) = report.audit {
+                print_audit_opinion(
+                    "COGENT CHECK",
+                    audit,
+                    passed_count,
+                    total_checks,
+                    check_start.elapsed(),
+                    &path,
+                );
+            } else {
+                print_summary_box(
+                    "COGENT CHECK",
+                    passed,
+                    &path,
+                    passed_count,
+                    total_checks,
+                    check_start.elapsed(),
+                    &report.checks,
+                );
+            }
+            print_margin_summary(&report.checks);
             if !passed {
                 print_severity_grouped(&report.checks);
                 print_fix_summary(&report.checks);
@@ -879,6 +1049,40 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     let total_findings: usize = report.checks.iter().map(|c| c.findings.len()).sum();
     audit::append_audit_trail("check", &path, total_findings, check_start.elapsed());
 
+    // Save baselines if requested: map check results to the threshold keys that
+    // `cogent doctor` reads from `.cogent-baselines.json`.
+    if cfg.save_baselines {
+        let mut baselines = serde_json::Map::new();
+        for c in &checks {
+            // Each check name maps to a threshold key and the value is the
+            // check's score (or finding count as fallback).
+            let (threshold_key, value) = match c.name.as_str() {
+                "crap" => ("max_avg", c.score.unwrap_or(c.findings.len() as f64)),
+                "debt" => ("max_markers", c.score.unwrap_or(c.findings.len() as f64)),
+                "complexity" => ("max_violations", c.score.unwrap_or(c.findings.len() as f64)),
+                "duplication" => ("max_duplicates", c.score.unwrap_or(c.findings.len() as f64)),
+                "secrets" => ("max_secrets", c.score.unwrap_or(c.findings.len() as f64)),
+                "errhandle" => ("max_errhandle", c.score.unwrap_or(c.findings.len() as f64)),
+                "linelen" => ("max_linelen", c.score.unwrap_or(c.findings.len() as f64)),
+                "fuzz" => ("max_fuzz_risk", c.score.unwrap_or(c.findings.len() as f64)),
+                "deadcode" => ("max_deadcode", c.score.unwrap_or(c.findings.len() as f64)),
+                "halstead" => ("max_halstead_bugs", c.score.unwrap_or(c.findings.len() as f64)),
+                _ => continue,
+            };
+            baselines.insert(threshold_key.to_string(), serde_json::json!(value));
+        }
+        match serde_json::to_string_pretty(&serde_json::Value::Object(baselines)) {
+            Ok(json) => {
+                if let Err(e) = std::fs::write(".cogent-baselines.json", &json) {
+                    eprintln!("Warning: could not write .cogent-baselines.json: {}", e);
+                } else {
+                    eprintln!("  {} Wrote baselines to .cogent-baselines.json", "✓".green().bold());
+                }
+            }
+            Err(e) => eprintln!("Warning: could not serialize baselines: {}", e),
+        }
+    }
+
     if passed { 0 } else { 1 }
 }
 
@@ -914,11 +1118,13 @@ fn command_name(cmd: &Commands) -> &'static str {
         Commands::AccessControl { .. } => "access-control",
         Commands::SupplyChain { .. } => "supply-chain",
         Commands::Sbom { .. } => "sbom",
+        Commands::Fix { .. } => "fix",
         Commands::Doctor { .. } => "doctor",
         Commands::Setup => "setup",
         Commands::Init { .. } => "init",
         Commands::Explain { .. } => "explain",
         Commands::Discover { .. } => "discover",
+        Commands::Bench { .. } => "bench",
         Commands::Run { .. } => "run",
         Commands::History { .. } => "history",
         Commands::InstallHooks { .. } => "install-hooks",
@@ -971,18 +1177,23 @@ pub fn dispatch(command: Commands) -> i32 {
             max_outdated,
             skip,
             only,
+            profile,
             ci,
             verbose,
             pr_comment,
             force,
             no_cache,
             clear_cache,
+            secrets_exclude,
+            access_control_exclude,
+            save_baselines,
         } => run_check_subcommand(
             path,
             recursive,
             format,
             CheckCommandConfig {
                 coverage,
+                profile,
                 max_crap,
                 min_doc,
                 max_debt,
@@ -1015,24 +1226,59 @@ pub fn dispatch(command: Commands) -> i32 {
                 force,
                 no_cache,
                 clear_cache,
+                secrets_exclude,
+                access_control_exclude,
+                save_baselines,
             },
         ),
 
-        Commands::Crap { path, recursive, coverage, format } => run_check_command_full("crap", run_spinner_or("crap", &format, || check_crap(&path, recursive, &coverage, 30.0)), &format),
+        Commands::Crap { path, recursive, coverage, format } => {
+            let thresholds = CheckThresholds { coverage_path: coverage, ..Default::default() };
+            let reg = registry();
+            run_check_command_full("crap", run_spinner_or("crap", &format, move || reg.run_check("crap", &path, recursive, &thresholds).unwrap()), &format)
+        }
 
-        Commands::Debt { path, recursive, format, .. } => run_check_command_full("debt", run_spinner_or("debt", &format, || check_debt(&path, recursive, 1000)), &format),
+        Commands::Debt { path, recursive, format, .. } => {
+            let thresholds = CheckThresholds { ..Default::default() };
+            let reg = registry();
+            run_check_command_full("debt", run_spinner_or("debt", &format, move || reg.run_check("debt", &path, recursive, &thresholds).unwrap()), &format)
+        }
 
-        Commands::Doccov { path, recursive, format } => run_check_command_full("doccov", run_spinner_or("doccov", &format, || check_doc_coverage(&path, recursive, 0.0)), &format),
+        Commands::Doccov { path, recursive, format } => {
+            let thresholds = CheckThresholds { min_doc: 0.0, ..Default::default() };
+            let reg = registry();
+            run_check_command_full("doccov", run_spinner_or("doccov", &format, move || reg.run_check("doccov", &path, recursive, &thresholds).unwrap()), &format)
+        }
 
-        Commands::Dupfind { path, recursive, min_lines, format } => run_check_command(run_spinner_or("dupfind", &format, || check_dupfind(&path, recursive, min_lines as f64)), &format),
+        Commands::Dupfind { path, recursive, min_lines, format } => {
+            let thresholds = CheckThresholds { max_duplication: min_lines as f64, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("dupfind", &format, move || reg.run_check("dupfind", &path, recursive, &thresholds).unwrap()), &format)
+        }
 
-        Commands::Complexity { path, recursive, min_complexity, format } => run_check_command_full("complexity", run_spinner_or("complexity", &format, || check_complexity(&path, recursive, min_complexity, 0)), &format),
+        Commands::Complexity { path, recursive, min_complexity, format } => {
+            let thresholds = CheckThresholds { min_complexity, ..Default::default() };
+            let reg = registry();
+            run_check_command_full("complexity", run_spinner_or("complexity", &format, move || reg.run_check("complexity", &path, recursive, &thresholds).unwrap()), &format)
+        }
 
-        Commands::Taint { path, recursive, max_taint, format } => run_check_command(run_spinner_or("taint", &format, || check_taint(&path, recursive, max_taint)), &format),
+        Commands::Taint { path, recursive, max_taint, format } => {
+            let thresholds = CheckThresholds { max_taint, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("taint", &format, move || reg.run_check("taint", &path, recursive, &thresholds).unwrap()), &format)
+        }
 
-        Commands::Coupling { path, max_coupling, format } => run_check_command(run_spinner_or("coupling", &format, || check_coupling(&path, max_coupling)), &format),
+        Commands::Coupling { path, max_coupling, format } => {
+            let thresholds = CheckThresholds { max_coupling, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("coupling", &format, move || reg.run_check("coupling", &path, false, &thresholds).unwrap()), &format)
+        }
 
-        Commands::Riskmap { path, max_risk, format } => run_check_command(run_spinner_or("riskmap", &format, || check_riskmap(&path, false, max_risk)), &format),
+        Commands::Riskmap { path, max_risk, format } => {
+            let thresholds = CheckThresholds { max_risk, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("riskmap", &format, move || reg.run_check("riskmap", &path, false, &thresholds).unwrap()), &format)
+        }
 
         Commands::Mutate { path, format } => {
             let args = vec![&path, "--format", "json"];
@@ -1053,24 +1299,98 @@ pub fn dispatch(command: Commands) -> i32 {
             if passed { 0 } else { 1 }
         }
 
-        Commands::Fuzz { path, recursive, max_fuzz_risk, format } => run_check_command(run_spinner_or("fuzz", &format, || check_fuzz(&path, recursive, max_fuzz_risk)), &format),
-        Commands::Propcov { path, recursive, min_propcov, format } => run_check_command(run_spinner_or("propcov", &format, || check_propcov(&path, recursive, min_propcov)), &format),
-        Commands::Linelen { path, recursive, max_violations, format } => run_check_command(run_spinner_or("linelen", &format, || check_linelen(&path, recursive, max_violations)), &format),
-        Commands::Halstead { path, recursive, max_bugs, format } => run_check_command(run_spinner_or("halstead", &format, || check_halstead(&path, recursive, max_bugs)), &format),
-        Commands::Secrets { path, recursive, max_findings, format } => run_check_command(run_spinner_or("secrets", &format, || check_secrets(&path, recursive, max_findings)), &format),
-        Commands::Deadcode { path, recursive, max_findings, format } => run_check_command(run_spinner_or("deadcode", &format, || check_deadcode(&path, recursive, max_findings)), &format),
+        Commands::Fuzz { path, recursive, max_fuzz_risk, format } => {
+            let thresholds = CheckThresholds { max_fuzz_risk, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("fuzz", &format, move || reg.run_check("fuzz", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Propcov { path, recursive, min_propcov, format } => {
+            let thresholds = CheckThresholds { min_propcov, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("propcov", &format, move || reg.run_check("propcov", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Linelen { path, recursive, max_violations, format } => {
+            let thresholds = CheckThresholds { max_linelen: max_violations, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("linelen", &format, move || reg.run_check("linelen", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Halstead { path, recursive, max_bugs, format } => {
+            let thresholds = CheckThresholds { max_halstead_bugs: max_bugs, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("halstead", &format, move || reg.run_check("halstead", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Secrets { path, recursive, max_findings, format, secrets_exclude } => {
+            let secrets_exclude_paths = if let Some(ref cli_exclude) = secrets_exclude {
+                // CLI flag overrides .quality.toml
+                parse_comma_list(&Some(cli_exclude.clone()))
+            } else {
+                load_secrets_exclude(".quality.toml")
+            };
+            let thresholds = CheckThresholds { max_secrets: max_findings, secrets_exclude_paths, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("secrets", &format, move || reg.run_check("secrets", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Deadcode { path, recursive, max_findings, format } => {
+            let thresholds = CheckThresholds { max_deadcode: max_findings, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("deadcode", &format, move || reg.run_check("deadcode", &path, recursive, &thresholds).unwrap()), &format)
+        }
 
-        Commands::Cohesion { path, recursive, max_violations, format } => run_check_command(run_spinner_or("cohesion", &format, || check_cohesion(&path, recursive, max_violations)), &format),
-        Commands::Comments { path, recursive, min_ratio, format } => run_check_command(run_spinner_or("comments", &format, || check_comments(&path, recursive, min_ratio)), &format),
-        Commands::Errhandle { path, recursive, max_violations, format } => run_check_command(run_spinner_or("errhandle", &format, || check_errhandle(&path, recursive, max_violations)), &format),
-        Commands::Typecov { path, recursive, min_pct, format } => run_check_command(run_spinner_or("typecov", &format, || check_typecov(&path, recursive, min_pct)), &format),
-        Commands::Vulnscan { path, max_critical, max_high, format } => run_check_command(run_spinner_or("vulnscan", &format, || check_vulnscan(&path, max_critical, max_high)), &format),
-        Commands::Sast { path, recursive, max_findings, format } => run_check_command(run_spinner_or("sast", &format, || check_sast(&path, recursive, max_findings)), &format),
-        Commands::Crypto { path, recursive, max_findings, format } => run_check_command(run_spinner_or("crypto", &format, || check_crypto(&path, recursive, max_findings)), &format),
-        Commands::Licenses { path, max_violations, format } => run_check_command(run_spinner_or("licenses", &format, || check_licenses(&path, max_violations)), &format),
-        Commands::Outdated { path, max_major_behind, format } => run_check_command(run_spinner_or("outdated", &format, || check_outdated(&path, max_major_behind)), &format),
-        Commands::AccessControl { path, recursive, max_violations, format } => run_check_command(run_spinner_or("access-control", &format, || check_access_control(&path, recursive, max_violations)), &format),
-        Commands::SupplyChain { path, max_risks, format } => run_check_command(run_spinner_or("supply-chain", &format, || check_supply_chain(&path, max_risks)), &format),
+        Commands::Cohesion { path, recursive, max_violations, format } => {
+            let thresholds = CheckThresholds { max_cohesion: max_violations, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("cohesion", &format, move || reg.run_check("cohesion", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Comments { path, recursive, min_ratio, format } => {
+            let thresholds = CheckThresholds { min_comment_ratio: min_ratio, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("comments", &format, move || reg.run_check("comments", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Errhandle { path, recursive, max_violations, format } => {
+            let thresholds = CheckThresholds { max_errhandle: max_violations, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("errhandle", &format, move || reg.run_check("errhandle", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Typecov { path, recursive, min_pct, format } => {
+            let thresholds = CheckThresholds { min_typecov: min_pct, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("typecov", &format, move || reg.run_check("typecov", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Vulnscan { path, max_critical, max_high, format } => {
+            let thresholds = CheckThresholds { max_vuln_critical: max_critical, max_vuln_high: max_high, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("vulnscan", &format, move || reg.run_check("vulnscan", &path, false, &thresholds).unwrap()), &format)
+        }
+        Commands::Sast { path, recursive, max_findings, format } => {
+            let thresholds = CheckThresholds { max_sast: max_findings, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("sast", &format, move || reg.run_check("sast", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Crypto { path, recursive, max_findings, format } => {
+            let thresholds = CheckThresholds { max_crypto: max_findings, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("crypto", &format, move || reg.run_check("crypto", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::Licenses { path, max_violations, format } => {
+            let thresholds = CheckThresholds { max_license_violations: max_violations, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("licenses", &format, move || reg.run_check("licenses", &path, false, &thresholds).unwrap()), &format)
+        }
+        Commands::Outdated { path, max_major_behind, format } => {
+            let thresholds = CheckThresholds { max_outdated: max_major_behind, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("outdated", &format, move || reg.run_check("outdated", &path, false, &thresholds).unwrap()), &format)
+        }
+        Commands::AccessControl { path, recursive, max_violations, format, access_control_exclude: _ } => {
+            let thresholds = CheckThresholds { max_access_control: max_violations, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("access-control", &format, move || reg.run_check("access-control", &path, recursive, &thresholds).unwrap()), &format)
+        }
+        Commands::SupplyChain { path, max_risks, format } => {
+            let thresholds = CheckThresholds { max_supply_chain: max_risks, ..Default::default() };
+            let reg = registry();
+            run_check_command(run_spinner_or("supply-chain", &format, move || reg.run_check("supply-chain", &path, false, &thresholds).unwrap()), &format)
+        }
 
         Commands::Sbom { path, format, output } => {
             let args = vec![&path, "--format", &format];
@@ -1207,6 +1527,8 @@ pub fn dispatch(command: Commands) -> i32 {
             discover_command(&format);
             0
         }
+
+        Commands::Bench { path, format } => crate::bench::bench_command(&path, &format),
 
         Commands::Run {
             path,
@@ -1452,6 +1774,14 @@ pub fn dispatch(command: Commands) -> i32 {
             0
         }
 
+        Commands::Fix {
+            path,
+            check,
+            diff,
+            force,
+            format,
+        } => run_fix_command(path, check, diff, force, &format),
+
         Commands::AuditTrail { verify, command, since } => {
             if verify {
                 let (ok, errors) = audit::verify_audit_trail();
@@ -1674,6 +2004,7 @@ mod tests {
         // Verify the struct can be constructed with typical defaults
         let cfg = CheckCommandConfig {
             coverage: None,
+            profile: "standard".to_string(),
             max_crap: 30.0,
             min_doc: 50.0,
             max_debt: 100,
@@ -1706,6 +2037,8 @@ mod tests {
             force: false,
             no_cache: false,
             clear_cache: false,
+            secrets_exclude: None,
+            save_baselines: false,
         };
         assert!(!cfg.ci);
         assert!(!cfg.no_cache);
@@ -1719,6 +2052,7 @@ mod tests {
     fn test_check_command_config_with_coverage_and_skip() {
         let cfg = CheckCommandConfig {
             coverage: Some("lcov.info".into()),
+            profile: "standard".to_string(),
             max_crap: 15.0,
             min_doc: 80.0,
             max_debt: 50,
@@ -1751,6 +2085,8 @@ mod tests {
             force: true,
             no_cache: false,
             clear_cache: false,
+            secrets_exclude: None,
+            save_baselines: false,
         };
         assert!(cfg.ci);
         assert!(cfg.force);
@@ -1763,6 +2099,7 @@ mod tests {
     fn test_check_command_config_with_only() {
         let cfg = CheckCommandConfig {
             coverage: None,
+            profile: "standard".to_string(),
             max_crap: 30.0,
             min_doc: 50.0,
             max_debt: 100,
@@ -1795,6 +2132,8 @@ mod tests {
             force: false,
             no_cache: true,
             clear_cache: true,
+            secrets_exclude: None,
+            save_baselines: false,
         };
         assert!(cfg.pr_comment);
         assert!(cfg.no_cache);
@@ -2166,6 +2505,8 @@ mod tests {
             ],
             rule_id: Some("audit-check".into()),
         };
+        // Clear remediation log for test isolation
+        crate::audit::clear_remediation().unwrap();
         // evidence=true triggers enrich_finding: line=None means snippet/context skipped,
         // but "test-sqli" and "test-xss" DO match suggested_fix_for/controls_for patterns
         // (sqli, xss) so suggested_fix and controls WILL be added to those findings.
@@ -2332,6 +2673,58 @@ mod tests {
         assert!(set.contains("secrets"));
         assert!(set.contains("sast"));
         assert!(!set.contains("crypto"));
+    }
+
+    // ── profile filtering ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_quick_profile_skips_non_core_tools() {
+        let quick_skips: Vec<String> = vec![
+            "taint", "dup", "dupfind", "duplication", "risk", "riskmap",
+            "coupling", "propcov", "fuzz", "halstead", "cohesion", "comments",
+            "typecov", "vulnscan", "sast", "crypto", "licenses",
+            "mutate", "access-control", "supply-chain", "outdated",
+        ].iter().map(|s| s.to_string()).collect();
+        for core in &["crap", "debt", "doc", "complexity", "secrets", "deadcode", "linelen", "errhandle"] {
+            assert!(!quick_skips.contains(&core.to_string()),
+                "core tool '{}' should not be skipped in quick profile", core);
+        }
+        for heavy in &["taint", "sast", "crypto", "mutate", "halstead"] {
+            assert!(quick_skips.contains(&heavy.to_string()),
+                "heavy tool '{}' should be skipped in quick profile", heavy);
+        }
+    }
+
+    #[test]
+    fn test_full_profile_has_no_extra_skips() {
+        let full_skips: Vec<String> = vec![];
+        assert!(full_skips.is_empty(), "full profile should have no extra skips");
+    }
+
+    #[test]
+    fn test_effective_skip_list_merges_user_and_profile() {
+        let user_skip: Vec<String> = vec!["comments".to_string()];
+        let profile_skips: Vec<String> = vec!["taint".to_string(), "sast".to_string()];
+        let effective: Vec<String> = user_skip.iter()
+            .chain(profile_skips.iter())
+            .cloned()
+            .collect();
+        assert!(effective.contains(&"comments".to_string()));
+        assert!(effective.contains(&"taint".to_string()));
+        assert!(effective.contains(&"sast".to_string()));
+        assert!(!effective.contains(&"crap".to_string()));
+    }
+
+    #[test]
+    fn test_standard_profile_has_no_extra_skips() {
+        let standard_skips: Vec<String> = vec![];
+        let user_skip: Vec<String> = vec!["crypto".to_string()];
+        let effective: Vec<String> = user_skip.iter()
+            .chain(standard_skips.iter())
+            .cloned()
+            .collect();
+        assert!(effective.contains(&"crypto".to_string()));
+        assert_eq!(effective.len(), 1, "only user skip should be present");
     }
 }
 

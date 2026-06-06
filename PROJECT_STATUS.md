@@ -1,9 +1,9 @@
 # Project Status — Cogent
 
 ## Current Phase
-**Stable v1.1.0** — Production-ready, GitHub public at `github.com/KidIkaros/cogent`
+**Stable v1.2.0** — Production-ready, GitHub public at `github.com/KidIkaros/cogent`
 
-## 26 Checks Across 4 Categories (All Green)
+## 31 Checks Across 5 Categories
 
 **Quality (16):** crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate
 
@@ -11,7 +11,9 @@
 
 **Compliance (2):** licenses · sbom
 
-**Supply Chain (1):** supply-chain
+**Supply Chain (2):** supply-chain · outdated
+
+**Operations (4):** observability · test-quality · design-docs · debuggability
 
 | Check | Binary | Status |
 |-------|--------|--------|
@@ -41,6 +43,11 @@
 | Taint Scan | `taint` | ✓ |
 | Type Coverage | `typecov` | ✓ |
 | Vuln Scan | `vulnscan` | ✓ |
+| Outdated | `outdated` | ✓ |
+| Observability | `observability` | ✓ |
+| Test Quality | `test-quality` | ✓ |
+| Design Docs | `design-docs` | ✓ |
+| Debuggability | `debuggability` | ✓ |
 
 ## Recent Work
 - Rebrand from `quality-tools` → `cogent` (May 2026)
@@ -52,7 +59,7 @@
 ## Production Readiness (Completed)
 
 ### Phase 1: Testing & Schema Coverage
-- **JSON Schemas**: All 26 tools have validated JSON schemas in `schemas/`
+- **JSON Schemas**: All 31 tools have validated JSON schemas in `schemas/`
 - **Integration Tests**: 29 tests validating all tool binaries run and produce valid output
 - **Schema Validation**: CI validates tool output against schemas
 
@@ -63,7 +70,7 @@
 - **Shell Completions**: `cogent completions <shell>` generates bash/zsh/fish/powershell/elvish scripts
 
 ### Phase 3: Documentation
-- **Tool Docs**: All 26 tools documented in `docs/tools/<tool>.md`
+- **Tool Docs**: All 31 tools documented in `docs/tools/<tool>.md`
 - **README**: Installation, quick start, CI/CD integration sections added
 - **Reporting Guide**: `docs/reporting.md` covers all output formats
 
@@ -74,7 +81,7 @@
 - Expanded from 10 to 26 checks: added access-control, supply-chain, sast, crypto, secrets, licenses, sbom, deadcode, linelen, complexity, typecov, comments, cohesion, errhandle, vulnscan, halstead
 - HTML audit report with sidebar navigation, health score (A–F), SVG gauge, inline offenders
 - Watch mode `--full` flag + cycle diff; `--verbose` flag on check; health score in summary box
-- Self-audit clean: 26/26 checks pass (`cogent check .` scores 100/100)
+- Self-audit clean: 31/31 checks pass (`cogent check .` scores 100/100)
 
 ## Known Limitations
 | Tool | Limitation |
@@ -89,7 +96,7 @@
 - [x] Fix `load_config_thresholds` — all `.quality.toml` keys now parsed
 - [x] Add access-control and supply-chain analyzers
 - [x] Self-audit passes at 100/100
-- [x] Expand JSON schema coverage to all 26 tools (29 of 29 done)
+- [x] Expand JSON schema coverage to all 31 tools (29 of 29 done)
 - [x] Add integration tests for all tool binaries (29 of 29 done)
 - [ ] Publish crates to crates.io — guide at `docs/PUBLISHING.md` (pending API token)
 
@@ -97,13 +104,13 @@
 ```bash
 cargo build --release
 cogent init                        # detect ecosystem, write .quality.toml
-cogent check .                     # self-audit (26 checks, scores 100/100)
+cogent check .                     # self-audit (31 checks, weighted scoring)
 bash scripts/test.sh               # full test suite
 ```
 
 ## Repo Structure
 ```
-crates/          30 crates: 26 tool engines + common + CLI + server + fixtures + ast-parse-ts
+crates/          34 crates: 28 tool engines + engine + config + report + fix + protocol + common + CLI + server + fixtures + ast-parse-ts
 hermes/          Hermes Agent skills (AI integration)
 docs/            Guides & integration notes
 schemas/         JSON schemas for output validation (29 of 29 complete)
@@ -112,4 +119,4 @@ scripts/         CI/build helpers
 
 ---
 
-*Last updated: 2026-05-23 | Branch: master*
+*Last updated: 2026-06-05 | Branch: master*

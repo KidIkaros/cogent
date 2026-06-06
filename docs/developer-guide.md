@@ -7,10 +7,15 @@ This guide explains the project architecture, how to add new tools, and testing 
 ```
 Cogent/
 ├── crates/
-│   ├── ast-parse-ts/      # Universal AST parsing (tree-sitter)
-│   ├── cogent-common/     # Shared utilities (coverage, CRAP, file discovery)
-│   ├── cogent-cli/        # Unified CLI (cogent command)
-│   ├── cogent-server/     # HTTP API server
+│   ├── cogent-engine/      # Audit orchestration, tool registry, result aggregation
+│   ├── cogent-config/      # Configuration, project detection, threshold loading
+│   ├── cogent-report/      # HTML/Markdown report generation
+│   ├── cogent-fix/         # Auto-fix engine (replacer, patch application)
+│   ├── cogent-protocol/    # JSON-RPC wire protocol types
+│   ├── cogent-common/      # Shared types, utilities, CRAP scoring, file discovery
+│   ├── cogent-cli/         # Unified CLI (cogent command)
+│   ├── cogent-server/      # MCP/HTTP server
+│   ├── ast-parse-ts/       # Universal AST parsing (tree-sitter)
 │   ├── crap-metric/        # CRAP score calculator
 │   ├── debt-scan/          # Technical debt scanner
 │   ├── doc-coverage/       # Documentation coverage
@@ -20,7 +25,23 @@ Cogent/
 │   ├── mutation-test/      # Mutation testing (Rust-only)
 │   ├── fuzz-surface/       # Fuzzable function identification
 │   ├── prop-cov/           # Property test coverage
-│   └── taint-scan/        # Taint analysis (data flow)
+│   ├── taint-scan/         # Taint analysis (data flow)
+│   ├── secrets/            # Hardcoded secret detection
+│   ├── sast/               # SAST scanner
+│   ├── crypto-check/       # Cryptographic issue detection
+│   ├── vuln-scan/          # Vulnerability scanning
+│   ├── access-control/     # Access control analysis
+│   ├── supply-chain/       # Supply chain risk analysis
+│   ├── licenses/           # OSS license compliance
+│   ├── sbom/               # SBOM generation
+│   ├── error-handling/     # Error handling pattern analysis
+│   ├── dead-code/          # Dead code detection
+│   ├── line-length/        # Line length violations
+│   ├── type-coverage/      # Type annotation coverage
+│   ├── cohesion/           # LCOM4 cohesion metric
+│   ├── comment-ratio/      # Comment density analysis
+│   ├── halstead/           # Halstead complexity metrics
+│   └── fixtures/           # Test fixture files
 ├── docs/                   # Documentation (user/developer guides)
 ├── .quality.toml           # Quality gate configuration
 └── scripts/test.sh         # Safe test runner (batched)

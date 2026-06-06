@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/License-Apache--2.0%20%7C%20OPL--1.1-blue)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/KidIkaros/cogent/pkgs/container/cogent)
 
-**The unified security audit & compliance platform** — 32 specialized commands (26 analyzers + 6 utilities) that replace SonarQube, CodeQL, Snyk, and Slither with a single, zero-config CLI. Designed for CI/CD gatekeeping, compliance reporting, and autonomous AI agent integration.
+**The unified security audit & compliance platform** — 31 audit tools across 5 categories that replace SonarQube, CodeQL, Snyk, and Slither with a single, zero-config CLI. Designed for CI/CD gatekeeping, compliance reporting, and autonomous AI agent integration.
 
 ---
 
@@ -33,15 +33,16 @@ Cogent replaces the entire stack with one CLI that speaks JSON, NDJSON, and SARI
 
 ## Solution
 
-**One CLI. 32 commands. Zero config.**
+**One CLI. 31 tools. Zero config.**
 
 Cogent unifies code quality, security, and compliance under a single tool that runs locally in seconds:
 
 ```
-Quality        —  crap · debt · doccov · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate
+Quality        —  crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate
 Security       —  secrets · taint · errhandle · vulnscan · sast · crypto · access-control
 Compliance     —  licenses · sbom
-Supply Chain   —  supply-chain
+Supply Chain   —  supply-chain · outdated
+Operations     —  observability · test-quality · design-docs · debuggability
 ```
 
 No JVM. No cloud token. No per-seat pricing. Install the binary, run `cogent check .`, and get a deterministic pass/fail gate with structured JSON, SARIF for GitHub Security, or an HTML audit report.
@@ -176,15 +177,17 @@ cogent-audit:
 cogent check . --format json || exit 1
 ```
 
-## 32-Command Engine Suite
+## 31-Tool Engine Suite
 
-**Quality** — crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate
+**Quality (16)** — crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate
 
-**Security** — secrets · taint · errhandle · vulnscan · sast · crypto · access-control
+**Security (7)** — secrets · taint · errhandle · vulnscan · sast · crypto · access-control
 
-**Compliance** — licenses · sbom
+**Compliance (2)** — licenses · sbom
 
-**Supply Chain** — supply-chain
+**Supply Chain (2)** — supply-chain · outdated
+
+**Operations (4)** — observability · test-quality · design-docs · debuggability
 
 | Engine | Promise | Output |
 |---|---|---|
@@ -215,6 +218,10 @@ cogent check . --format json || exit 1
 | **outdated** | Direct deps ≥1 major version behind latest (via cargo-outdated) | Stale package list |
 | **access-control** | Missing auth guards, hardcoded credentials, IAM policies, CORS | Finding count + remediation |
 | **supply-chain** | Dependency integrity, typosquatting, unpinned deps, lockfile checks | Package risk list |
+| **observability** | Structured logging coverage (tracing/logging framework detection) | Violation count |
+| **test-quality** | Non-determinism in tests (time-dependent, random, order-dependent) | Score % |
+| **design-docs** | Design documentation pillar check (CHANGELOG, README, architecture docs) | Pillar count |
+| **debuggability** | Contextless unwrap/panic detection (unwrap without error context) | Violation count |
 
 Invoke individually (`cogent crap src/`) or run the full battery (`cogent check .`).
 
@@ -252,7 +259,7 @@ export PATH="$PWD/target/release:$PATH"
 # 1. Auto-detect your ecosystem and write .quality.toml
 cogent init
 
-# 2. Run all 26 checks against your project (auto-loads thresholds)
+# 2. Run all 31 checks against your project (auto-loads thresholds)
 cogent check .
 
 # 3. Generate a visual HTML audit report
@@ -293,7 +300,7 @@ cogent init && cogent check . --format text
   ╔══════════════════════════════════════════════════════╗
   ║  COGENT CHECK  ·  PASSED ✓                          ║
   ╠══════════════════════════════════════════════════════╣
-  ║  22/22 checks passed  ·  4.2s total                  ║
+  ║  31/31 checks passed  ·  5.1s total                  ║
   ║  Score: 100/100  A                                   ║
   ║  Path: .                                             ║
   ╚══════════════════════════════════════════════════════╝
@@ -315,7 +322,7 @@ Cogent computes a **weighted health score (0–100)** and a letter grade:
 | 60–69  | **D** | Poor — major issues need attention |
 | < 60   | **F** | Critical — security or compliance failures |
 
-**Security checks are weighted 3×** (secrets, vulnscan, sast, crypto, taint)  
+**Security checks are weighted 3×** (secrets, vulnscan, sast, crypto, taint, errhandle)  
 **Compliance checks are weighted 2×** (licenses, sbom)  
 **Quality checks are weighted 1×** (everything else)
 
@@ -380,7 +387,7 @@ Reports: `cogent report . --format <html|markdown|pdf> [--open]`.
 | Status | Detail |
 |---|---|
 | Current Release | Stable v1.0.0 |
-| CI Pipeline | ✅ All 26 checks green (25 run, 1 optional — outdated) |
+| CI Pipeline | ✅ All 31 checks green (30 run, 1 optional — outdated) |
 | Schema Validation | ✅ JSON schemas published in `schemas/` |
 | Test Suite | `cargo test` — workspace-wide passing (2 known flaky edge cases ignored) |
 | Self-Hosting | Runs on its own codebase continuously |

@@ -3,6 +3,7 @@
 #![deny(clippy::all)]
 
 use crate::progress::run_standalone_check;
+use cogent_engine::DefaultToolRunner;
 
 /// Data-driven dispatch for standalone tool checks.
 /// Maps a tool name string to the corresponding check function.
@@ -33,7 +34,7 @@ pub fn dispatch_tool(name: &str, path: &str, recursive: bool, format: &str) -> i
         "sast" => run_standalone_check(name, format, move || cogent_engine::checks::check_sast(&p, recursive, 0)),
         "crypto" => run_standalone_check(name, format, move || cogent_engine::checks::check_crypto(&p, recursive, 0)),
         "licenses" | "license" => run_standalone_check(name, format, move || cogent_engine::checks::check_licenses(&p, 0)),
-        "access-control" | "accesscontrol" => run_standalone_check(name, format, move || cogent_engine::checks::check_access_control(&p, recursive, 0)),
+        "access-control" | "accesscontrol" => run_standalone_check(name, format, move || cogent_engine::checks::check_access_control(&p, recursive, 0, &[], &cogent_engine::DefaultToolRunner)),
         "supply-chain" | "supplychain" => run_standalone_check(name, format, move || cogent_engine::checks::check_supply_chain(&p, 0)),
         "outdated" => run_standalone_check(name, format, move || cogent_engine::checks::check_outdated(&p, 0)),
         _ => {

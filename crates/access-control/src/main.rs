@@ -18,6 +18,8 @@ struct Cli {
     format: String,
     #[arg(long, default_value = "0")]
     max_violations: usize,
+    #[arg(long, value_delimiter = ',', num_args = 0..)]
+    exclude: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -607,6 +609,14 @@ fn run(cli: Cli) {
     } else {
         find_source_files(&cli.path, cli.recursive, &extensions)
     };
+
+    // Apply exclude patterns
+    let files: Vec<String> = files
+        .into_iter()
+        .filter(|f| {
+            cli.exclude.is_empty() || !cli.exclude.iter().any(|ex| f.contains(ex))
+        })
+        .collect();
 
     // First pass: collect auth middleware context across all files
     let ctx = collect_project_context(&files);

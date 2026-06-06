@@ -108,7 +108,7 @@ pub enum Commands {
         path: String,
 
         /// Recursive scan
-        #[arg(short, long)]
+        #[arg(short, long, default_value = "true")]
         recursive: bool,
 
         /// Output format: json (default), text, sarif, junit, findings, ndjson, or markdown
@@ -223,6 +223,10 @@ pub enum Commands {
         #[arg(long)]
         only: Option<String>,
 
+        /// Check profile preset: quick (core 8 checks), standard (default 20+), full (all checks including mutate)
+        #[arg(long, default_value = "standard")]
+        profile: String,
+
         /// CI mode: JSON output, no TTY colors or progress (equivalent to --format json + COGENT_NO_PROGRESS=1)
         #[arg(long)]
         ci: bool,
@@ -246,9 +250,22 @@ pub enum Commands {
         /// Clear the cache before running checks
         #[arg(long)]
         clear_cache: bool,
-    },
 
-    /// Verify environment dependencies (doctor)
+        /// Path substrings to exclude from secrets scanner (comma-separated; overrides .quality.toml)
+        /// Also settable via env var COGENT_SECRETS_EXCLUDE
+        #[arg(long)]
+        secrets_exclude: Option<String>,
+
+        /// Path substrings to exclude from access control scanner (comma-separated; overrides .quality.toml)
+        /// Also settable via env var COGENT_ACCESS_CONTROL_EXCLUDE
+        #[arg(long)]
+        access_control_exclude: Option<String>,
+
+        /// Write actual finding counts to .cogent-baselines.json after checks complete.
+        /// This file is read by `cogent doctor` to detect when thresholds are too close to actuals.
+        #[arg(long)]
+        save_baselines: bool,
+    },
     Setup,
 
     /// Collect diagnostic info: versions, config, PATH, available binaries, OS info
@@ -439,6 +456,20 @@ pub enum Commands {
         format: String,
     },
 
+    /// Benchmark all tools: measure wall time, memory, and parallel speedup per tool
+    #[command(
+        after_help = "Example: cogent bench . --format text → shows per-tool timing, memory, and system info.\nUse --format json for machine-readable benchmark results."
+    )]
+    Bench {
+        /// Path to analyze
+        #[arg(default_value = ".")]
+        path: String,
+
+        /// Output format: json or text (default)
+        #[arg(short, long, default_value = "text")]
+        format: String,
+    },
+
     /// Generate a human-readable audit report (HTML or Markdown) from a check run
     Report {
         /// Path to audit (default: current directory)
@@ -572,6 +603,10 @@ pub enum Commands {
         max_findings: usize,
         #[arg(short, long, default_value = "json")]
         format: String,
+        /// Path substrings to exclude from secrets scanner (comma-separated; overrides .quality.toml)
+        /// Also settable via env var COGENT_SECRETS_EXCLUDE
+        #[arg(long)]
+        secrets_exclude: Option<String>,
     },
 
     /// Dead code detection only
@@ -689,6 +724,10 @@ pub enum Commands {
         max_violations: usize,
         #[arg(short, long, default_value = "json")]
         format: String,
+        /// Path substrings to exclude from access control scanner (comma-separated; overrides .quality.toml)
+        /// Also settable via env var COGENT_ACCESS_CONTROL_EXCLUDE
+        #[arg(long)]
+        access_control_exclude: Option<String>,
     },
 
     /// Supply chain checker only
@@ -768,6 +807,24 @@ pub enum Commands {
         verify: bool,
         /// Path to analyze
         path: String,
+    },
+
+    Fix {
+        /// Target path (file or directory)
+        #[arg(default_value = ".")]
+        path: String,
+        /// Which fixer to run (all, errhandle, deadcode, debt, secrets, crypto, doccov)
+        #[arg(short, long, default_value = "all")]
+        check: String,
+        /// Show patches without writing
+        #[arg(long)]
+        diff: bool,
+        /// Skip patch validation
+        #[arg(long)]
+        force: bool,
+        /// Output format (text, json)
+        #[arg(short, long, default_value = "text")]
+        format: String,
     },
 
     /// Query and verify the signed audit trail

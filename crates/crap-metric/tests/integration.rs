@@ -35,19 +35,19 @@ fn test_json_output() {
 #[test]
 fn test_with_coverage() {
     // Create a minimal valid lcov file
-    let lcov_path = "/tmp/test-integration-crap.info";
-    std::fs::write(lcov_path, "TN:\nSF:/fake.rs\nLF:10\nLH:5\nend_of_record\n").unwrap();
+    let lcov_path = std::env::temp_dir().join("test-integration-crap.info");
+    std::fs::write(&lcov_path, "TN:\nSF:/fake.rs\nLF:10\nLH:5\nend_of_record\n").unwrap();
 
     let src = format!("{}/src", TEST_PROJECT);
     crap_cmd()
         .arg(&src)
         .arg("--coverage")
-        .arg(lcov_path)
+        .arg(&lcov_path)
         .assert()
         .success()
         .stdout(predicate::str::contains("Functions analyzed"));
 
-    std::fs::remove_file(lcov_path).ok();
+    std::fs::remove_file(&lcov_path).ok();
 }
 
 #[test]

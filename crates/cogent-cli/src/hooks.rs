@@ -74,13 +74,23 @@ pub(crate) fn install_hooks_impl(repo: &str, fast: bool, profile: &ProjectProfil
 
 #[cfg(windows)]
 fn build_hook_script_windows(fast: bool, profile: &ProjectProfile) -> String {
-    build_hook_template_windows(fast, &profile.test_cmd.join(" "), profile.is_coverage_available(), &profile.ecosystem.to_string())
+    build_hook_template_windows(
+        fast,
+        &profile.test_cmd.join(" "),
+        profile.is_coverage_available(),
+        &profile.ecosystem.to_string(),
+    )
 }
 
 /// Build the Windows pre-commit hook script content.
 /// Extracted from `build_hook_script_windows` so it can be tested on all platforms.
 #[cfg(any(windows, test))]
-fn build_hook_template_windows(fast: bool, test_cmd: &str, has_coverage: bool, ecosystem: &str) -> String {
+fn build_hook_template_windows(
+    fast: bool,
+    test_cmd: &str,
+    has_coverage: bool,
+    ecosystem: &str,
+) -> String {
     let check_cmd = r#"@echo off
 REM Cogent pre-commit hook (Windows) — installed by `cogent install-hooks`
 REM Remove with: cogent uninstall-hooks

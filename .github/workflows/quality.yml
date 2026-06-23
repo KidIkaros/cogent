@@ -88,6 +88,34 @@ jobs:
             target/${{ matrix.target }}/release/vulnscan
             target/${{ matrix.target }}/release/cogent
             target/${{ matrix.target }}/release/cogent-server
+            target/${{ matrix.target }}/release/access-control.exe
+            target/${{ matrix.target }}/release/cohesion.exe
+            target/${{ matrix.target }}/release/comments.exe
+            target/${{ matrix.target }}/release/coupling.exe
+            target/${{ matrix.target }}/release/crap.exe
+            target/${{ matrix.target }}/release/cryptocheck.exe
+            target/${{ matrix.target }}/release/deadcode.exe
+            target/${{ matrix.target }}/release/debt.exe
+            target/${{ matrix.target }}/release/doccov.exe
+            target/${{ matrix.target }}/release/dupfind.exe
+            target/${{ matrix.target }}/release/errhandle.exe
+            target/${{ matrix.target }}/release/fuzz.exe
+            target/${{ matrix.target }}/release/halstead.exe
+            target/${{ matrix.target }}/release/licenses.exe
+            target/${{ matrix.target }}/release/linelen.exe
+            target/${{ matrix.target }}/release/mutate.exe
+            target/${{ matrix.target }}/release/propcov.exe
+            target/${{ matrix.target }}/release/riskmap.exe
+            target/${{ matrix.target }}/release/sast.exe
+            target/${{ matrix.target }}/release/sbom.exe
+            target/${{ matrix.target }}/release/secrets.exe
+            target/${{ matrix.target }}/release/supply-chain.exe
+            target/${{ matrix.target }}/release/taint.exe
+            target/${{ matrix.target }}/release/typecov.exe
+            target/${{ matrix.target }}/release/vulnscan.exe
+            target/${{ matrix.target }}/release/cogent.exe
+            target/${{ matrix.target }}/release/cogent-server.exe
+          if-no-files-found: ignore
           retention-days: 1
 
   test:
@@ -123,6 +151,7 @@ jobs:
           name: ${{ matrix.artifact }}
           path: target/${{ matrix.target }}/release/
       - name: Mark binaries executable
+        shell: bash
         run: |
           if [[ "${{ runner.os }}" != "Windows" ]]; then
             chmod +x target/${{ matrix.target }}/release/*
@@ -148,16 +177,24 @@ jobs:
         run: chmod +x target/release/*
       - name: Add tools to PATH
         run: echo "$(pwd)/target/release" >> $GITHUB_PATH
-      - name: Check for technical debt (zero tolerance)
+      - name: Install cargo-audit (vulnscan dependency)
+        run: cargo install cargo-audit --locked
+      - name: Check for technical debt
         run: |
-          debt_markers=$(grep -rn "TODO\|FIXME\|HACK\|XXX" --include="*.rs" --include="*.py" --include="*.js" --include="*.ts" . 2>/dev/null | grep -v "tests/" | grep -v "debt-scan/src" | grep -v "docs/" || true)
-          if [ -n "$debt_markers" ]; then
-            echo "::error::Technical debt markers found (zero tolerance policy):"
-            echo "$debt_markers"
-            exit 1
-          else
-            echo "✓ No technical debt markers found."
-          fi
+          # Use Cogent's own debt detector (respects .quality.toml and excludes
+          # the tools' own marker-detection strings + generated fixtures). The
+          # previous raw grep counted those false positives.
+          ./target/release/cogent check . --no-cache --format json > debt-check.json || true
+          python3 - <<'PY'
+          import json, sys
+          data = json.load(open("debt-check.json"))
+          debt = next((c for c in data.get("checks", []) if c.get("name") == "debt"), None)
+          if debt is None:
+              print("::error::debt check not found in cogent output")
+              sys.exit(1)
+          print(f"debt: {debt.get('message')}")
+          sys.exit(0 if debt.get("passed") else 1)
+          PY
       - name: Run quality self-audit
         run: |
           ./target/release/cogent run . --format sarif \
@@ -214,6 +251,7 @@ jobs:
     permissions:
       security-events: write
       contents: write
+      pull-requests: write
 
   benchmark:
     runs-on: ubuntu-latest

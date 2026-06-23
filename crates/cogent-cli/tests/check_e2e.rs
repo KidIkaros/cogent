@@ -31,8 +31,12 @@ fn run_check_json(args: &[&str]) -> (Value, Option<i32>, String) {
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-    let json: Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("cogent check --format json produced invalid JSON: {}\nstdout:\n{}\nstderr:\n{}", e, stdout, stderr));
+    let json: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "cogent check --format json produced invalid JSON: {}\nstdout:\n{}\nstderr:\n{}",
+            e, stdout, stderr
+        )
+    });
 
     (json, output.status.code(), stderr)
 }
@@ -45,7 +49,9 @@ fn run_check_json(args: &[&str]) -> (Value, Option<i32>, String) {
 fn test_e2e_check_json_has_required_top_level_fields() {
     let (json, _exit, _stderr) = run_check_json(&[]);
 
-    let obj = json.as_object().expect("check output should be a JSON object");
+    let obj = json
+        .as_object()
+        .expect("check output should be a JSON object");
     for field in &["passed", "path", "checks", "summary"] {
         assert!(
             obj.contains_key(*field),
@@ -160,7 +166,10 @@ fn test_e2e_check_json_summary_matches_checks() {
     );
 
     // Verify passed/failed counts match actual check results
-    let actual_passed = checks.iter().filter(|c| c["passed"].as_bool().unwrap_or(false)).count();
+    let actual_passed = checks
+        .iter()
+        .filter(|c| c["passed"].as_bool().unwrap_or(false))
+        .count();
     let actual_failed = checks.len() - actual_passed;
     assert_eq!(
         passed_checks, actual_passed,
@@ -185,7 +194,9 @@ fn test_e2e_check_json_passed_is_consistent() {
         .as_array()
         .expect("'checks' should be an array");
 
-    let all_passed = checks.iter().all(|c| c["passed"].as_bool().unwrap_or(false));
+    let all_passed = checks
+        .iter()
+        .all(|c| c["passed"].as_bool().unwrap_or(false));
     assert_eq!(
         passed, all_passed,
         "top-level 'passed' ({}) should be true iff ALL checks passed ({})",
@@ -236,10 +247,7 @@ fn test_e2e_check_no_duplicate_names() {
         .as_array()
         .expect("'checks' should be an array");
 
-    let names: Vec<&str> = checks
-        .iter()
-        .filter_map(|c| c["name"].as_str())
-        .collect();
+    let names: Vec<&str> = checks.iter().filter_map(|c| c["name"].as_str()).collect();
 
     let mut sorted_names = names.clone();
     sorted_names.sort();
@@ -288,10 +296,7 @@ fn test_e2e_check_only_specific_checks() {
         .as_array()
         .expect("'checks' should be an array");
 
-    let names: Vec<&str> = checks
-        .iter()
-        .filter_map(|c| c["name"].as_str())
-        .collect();
+    let names: Vec<&str> = checks.iter().filter_map(|c| c["name"].as_str()).collect();
 
     for name in &names {
         assert!(
@@ -328,10 +333,7 @@ fn test_e2e_check_skip_specific_checks() {
         !skipped_names.contains(&"secrets"),
         "secrets should be skipped"
     );
-    assert!(
-        !skipped_names.contains(&"debt"),
-        "debt should be skipped"
-    );
+    assert!(!skipped_names.contains(&"debt"), "debt should be skipped");
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -354,8 +356,12 @@ fn test_e2e_check_respects_concurrency_env_var() {
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-    let json: Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("invalid JSON with COGENT_MAX_CONCURRENT=2: {}\nstderr:\n{}", e, stderr));
+    let json: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "invalid JSON with COGENT_MAX_CONCURRENT=2: {}\nstderr:\n{}",
+            e, stderr
+        )
+    });
 
     let checks = json["checks"]
         .as_array()
@@ -491,9 +497,7 @@ fn test_e2e_check_path_matches_input() {
 
     let json: Value = serde_json::from_str(&stdout).expect("invalid JSON");
 
-    let path = json["path"]
-        .as_str()
-        .expect("'path' should be a string");
+    let path = json["path"].as_str().expect("'path' should be a string");
 
     assert_eq!(
         path, expected_path,
@@ -514,16 +518,17 @@ const VALID_OPINIONS: &[&str] = &[
 ];
 
 /// Valid category names per the compute_audit category definitions.
-const EXPECTED_CATEGORIES: &[&str] = &["Security", "Compliance", "Quality", "Hygiene", "Operations"];
+const EXPECTED_CATEGORIES: &[&str] =
+    &["Security", "Compliance", "Quality", "Hygiene", "Operations"];
 
 #[test]
 fn test_e2e_audit_opinion_present() {
     let (json, _exit, _stderr) = run_check_json(&[]);
 
-    let audit = json.get("audit").expect("JSON output should contain 'audit' field");
-    let obj = audit
-        .as_object()
-        .expect("'audit' should be a JSON object");
+    let audit = json
+        .get("audit")
+        .expect("JSON output should contain 'audit' field");
+    let obj = audit.as_object().expect("'audit' should be a JSON object");
 
     // Required fields
     for field in &[
@@ -619,14 +624,18 @@ fn test_e2e_audit_gate_killers_structure() {
 
     // Should have exactly 4 gate killers
     assert_eq!(
-        gk_names.len(), 4,
+        gk_names.len(),
+        4,
         "should have 4 gate killer names, got {}",
         gk_names.len()
     );
 
     // All names should be strings
     for name in gk_names {
-        assert!(name.is_string(), "gate_killer_names entries should be strings");
+        assert!(
+            name.is_string(),
+            "gate_killer_names entries should be strings"
+        );
     }
 
     // gate_killers_passed should be consistent with passed_names count
@@ -663,22 +672,28 @@ fn test_e2e_audit_categories_structure() {
             assert!(
                 obj.contains_key(*field),
                 "categories[{}] missing '{}'. Keys: {:?}",
-                i, field, obj.keys().collect::<Vec<_>>()
+                i,
+                field,
+                obj.keys().collect::<Vec<_>>()
             );
         }
 
-        let name = obj["name"].as_str().expect("category name should be string");
+        let name = obj["name"]
+            .as_str()
+            .expect("category name should be string");
         assert!(
             EXPECTED_CATEGORIES.contains(&name),
             "category name '{}' not in {:?}",
-            name, EXPECTED_CATEGORIES
+            name,
+            EXPECTED_CATEGORIES
         );
 
         // No duplicate category names
         assert!(
             !seen_names.contains(&name),
             "duplicate category name '{}' at index {}",
-            name, i
+            name,
+            i
         );
         seen_names.push(name);
 
@@ -687,7 +702,8 @@ fn test_e2e_audit_categories_structure() {
         assert!(
             (1..=5).contains(&weight),
             "category '{}' weight {} should be 1-5",
-            name, weight
+            name,
+            weight
         );
 
         // Score should be 0-100
@@ -695,16 +711,23 @@ fn test_e2e_audit_categories_structure() {
         assert!(
             (0.0..=100.0).contains(&score),
             "category '{}' score {} should be 0-100",
-            name, score
+            name,
+            score
         );
 
         // checks_passed <= checks_total
-        let passed = obj["checks_passed"].as_u64().expect("checks_passed should be number");
-        let total = obj["checks_total"].as_u64().expect("checks_total should be number");
+        let passed = obj["checks_passed"]
+            .as_u64()
+            .expect("checks_passed should be number");
+        let total = obj["checks_total"]
+            .as_u64()
+            .expect("checks_total should be number");
         assert!(
             passed <= total,
             "category '{}': checks_passed ({}) > checks_total ({})",
-            name, passed, total
+            name,
+            passed,
+            total
         );
 
         // checks_total should be > 0 (empty categories are filtered out)
@@ -728,15 +751,30 @@ fn test_e2e_audit_margin_risks_structure() {
         let arr = entry
             .as_array()
             .expect("margin_risks entries should be arrays (tuples)");
-        assert_eq!(arr.len(), 2, "margin_risks[{}] should have 2 elements, got {}", i, arr.len());
-        assert!(arr[0].is_string(), "margin_risks[{}] name should be string", i);
-        assert!(arr[1].is_number(), "margin_risks[{}] margin should be number", i);
+        assert_eq!(
+            arr.len(),
+            2,
+            "margin_risks[{}] should have 2 elements, got {}",
+            i,
+            arr.len()
+        );
+        assert!(
+            arr[0].is_string(),
+            "margin_risks[{}] name should be string",
+            i
+        );
+        assert!(
+            arr[1].is_number(),
+            "margin_risks[{}] margin should be number",
+            i
+        );
 
         let margin = arr[1].as_f64().unwrap();
         assert!(
             (0.0..=100.0).contains(&margin),
             "margin_risks[{}] margin {} should be 0-100",
-            i, margin
+            i,
+            margin
         );
     }
 }
@@ -746,7 +784,9 @@ fn test_e2e_audit_health_score_fields_present() {
     let (json, _exit, _stderr) = run_check_json(&[]);
 
     // health_score and grade should be at the top level
-    let health = json.get("health_score").expect("JSON should contain 'health_score'");
+    let health = json
+        .get("health_score")
+        .expect("JSON should contain 'health_score'");
     let hs = health.as_u64().expect("health_score should be a number");
     assert!(hs <= 100, "health_score {} should be 0-100", hs);
 
@@ -787,7 +827,12 @@ fn test_e2e_audit_opinion_adverse_when_gate_killer_fails() {
 fn project_root() -> std::path::PathBuf {
     let manifest = env!("CARGO_MANIFEST_DIR");
     // CARGO_MANIFEST_DIR = crates/cogent-cli, so grandparent = project root
-    Path::new(manifest).parent().unwrap().parent().unwrap().to_path_buf()
+    Path::new(manifest)
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf()
 }
 
 /// Verify that `cogent <subcommand> --format <fmt> | head -1` does not

@@ -12,16 +12,25 @@ use clap::{Parser, Subcommand};
 
 pub fn hqse_phase_for(rule_id: &str) -> &'static str {
     let r = rule_id.to_lowercase();
-    if r.contains("observability") { return "§7 Support / §4.5 Tracing"; }
-    if r.contains("debuggability") || r.contains("contextless-unwrap") { return "§6.6 Debug / §4.5 Tracing"; }
-    if r.contains("test-quality") || r.contains("test_quality") || r.contains("nondeterminism") { return "§6 Test"; }
-    if r.contains("design-docs") || r.contains("design_docs") { return "§3 Design"; }
-    if r.contains("doccov") { return "§3 Design / §4 Code"; }
-    if r.contains("errhandle") || r.contains("unwrap") { return "§7 Support / §4 Code"; }
-    if r.contains("secrets") || r.contains("sast") || r.contains("crypto") || r.contains("taint") { return "§4 Code"; }
-    if r.contains("crap") || r.contains("complexity") || r.contains("debt") || r.contains("cohesion") || r.contains("coupling") { return "§4 Code"; }
-    if r.contains("deadcode") || r.contains("linelen") || r.contains("halstead") { return "§4 Code"; }
-    if r.contains("vulnscan") || r.contains("license") || r.contains("supply") || r.contains("outdated") { return "§4 Code"; }
+    if r.contains("observability") {
+        return "§7 Support / §4.5 Tracing";
+    }
+    if r.contains("debuggability") || r.contains("contextless-unwrap") {
+        return "§6.6 Debug / §4.5 Tracing";
+    }
+    if r.contains("test-quality") || r.contains("test_quality") || r.contains("nondeterminism") {
+        return "§6 Test";
+    }
+    if r.contains("design-docs") || r.contains("design_docs") {
+        return "§3 Design";
+    }
+    if r.contains("doccov") {
+        return "§3 Design / §4 Code";
+    }
+    if r.contains("errhandle") || r.contains("unwrap") {
+        return "§7 Support / §4 Code";
+    }
+    // All remaining rule categories map to the same "§4 Code" phase.
     "§4 Code"
 }
 
@@ -73,13 +82,9 @@ pub enum ExceptionAction {
         status: Option<String>,
     },
     /// Approve a pending exception
-    Approve {
-        id: String,
-    },
+    Approve { id: String },
     /// Revoke an approved exception
-    Revoke {
-        id: String,
-    },
+    Revoke { id: String },
 }
 
 // ═══════════════════════════════════════════
@@ -98,6 +103,10 @@ pub struct Cli {
 }
 
 #[derive(Subcommand)]
+// Clap subcommand variants own all their parsed fields by value, so a few large
+// variants (e.g. `Check`) are unavoidable; boxing them would break the derive and
+// the perf cost is irrelevant for a one-shot CLI parse.
+#[allow(clippy::large_enum_variant)]
 pub enum Commands {
     /// Run all Cogent checks, compute a 0-100 health score, and report pass/fail
     #[command(
@@ -269,9 +278,7 @@ pub enum Commands {
     Setup,
 
     /// Collect diagnostic info: versions, config, PATH, available binaries, OS info
-    #[command(
-        after_help = "Example: cogent doctor --format json → machine-readable diagnostics."
-    )]
+    #[command(after_help = "Example: cogent doctor --format json → machine-readable diagnostics.")]
     Doctor {
         /// Output format: json or text
         #[arg(short, long, default_value = "text")]
@@ -892,14 +899,23 @@ mod tests {
     #[test]
     fn test_hqse_phase_observability() {
         assert_eq!(hqse_phase_for("observability"), "§7 Support / §4.5 Tracing");
-        assert_eq!(hqse_phase_for("check-observability"), "§7 Support / §4.5 Tracing");
+        assert_eq!(
+            hqse_phase_for("check-observability"),
+            "§7 Support / §4.5 Tracing"
+        );
     }
 
     #[test]
     fn test_hqse_phase_debuggability() {
         assert_eq!(hqse_phase_for("debuggability"), "§6.6 Debug / §4.5 Tracing");
-        assert_eq!(hqse_phase_for("contextless-unwrap"), "§6.6 Debug / §4.5 Tracing");
-        assert_eq!(hqse_phase_for("check-debuggability"), "§6.6 Debug / §4.5 Tracing");
+        assert_eq!(
+            hqse_phase_for("contextless-unwrap"),
+            "§6.6 Debug / §4.5 Tracing"
+        );
+        assert_eq!(
+            hqse_phase_for("check-debuggability"),
+            "§6.6 Debug / §4.5 Tracing"
+        );
     }
 
     #[test]

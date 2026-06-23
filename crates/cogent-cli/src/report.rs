@@ -2,10 +2,10 @@
 
 #![deny(clippy::all)]
 
-use colored::Colorize;
-use crate::types::{CheckReport, CheckResult};
 use crate::progress::health_score;
 use crate::serve::open_in_browser;
+use crate::types::{CheckReport, CheckResult};
+use colored::Colorize;
 
 pub(crate) fn report_command(
     path: &str,
@@ -314,7 +314,9 @@ pub(crate) fn severity_badge(sev: &str) -> String {
     };
     format!(
         r#"<span style="background:{bg};color:{c};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em">{s}</span>"#,
-        bg = bg, c = color, s = sev
+        bg = bg,
+        c = color,
+        s = sev
     )
 }
 
@@ -394,9 +396,21 @@ pub(crate) fn offender_rows_html(c: &CheckResult) -> String {
 
 pub(crate) fn check_row_html(c: &CheckResult) -> String {
     let icon = if c.passed { "&#10003;" } else { "&#10007;" };
-    let icon_color = if c.passed { "var(--icon-pass)" } else { "var(--icon-fail)" };
-    let row_bg = if c.passed { "var(--surface)" } else { "var(--red-bg)" };
-    let name_color = if c.passed { "var(--text)" } else { "var(--red)" };
+    let icon_color = if c.passed {
+        "var(--icon-pass)"
+    } else {
+        "var(--icon-fail)"
+    };
+    let row_bg = if c.passed {
+        "var(--surface)"
+    } else {
+        "var(--red-bg)"
+    };
+    let name_color = if c.passed {
+        "var(--text)"
+    } else {
+        "var(--red)"
+    };
     let sev = c.severity.as_deref().unwrap_or("info");
     let help = c.help.as_deref().unwrap_or("");
     let score_str = match (c.score, c.threshold) {
@@ -623,7 +637,11 @@ pub(crate) fn render_html_report(
     compliance_tools: &[&str],
 ) -> String {
     let (health, grade) = health_score(&report.checks);
-    let overall_color = if report.passed { "var(--green)" } else { "var(--red)" };
+    let overall_color = if report.passed {
+        "var(--green)"
+    } else {
+        "var(--red)"
+    };
     let overall_label = if report.passed { "PASSED" } else { "FAILED" };
     let pct = if report.summary.total_checks == 0 {
         100.0
@@ -659,9 +677,21 @@ pub(crate) fn render_html_report(
     let sec_pass = sec_checks.iter().filter(|c| c.passed).count();
     let qual_pass = qual_checks.iter().filter(|c| c.passed).count();
     let comp_pass = comp_checks.iter().filter(|c| c.passed).count();
-    let sec_col = if sec_pass == sec_checks.len() { "var(--green)" } else { "var(--red)" };
-    let qual_col = if qual_pass == qual_checks.len() { "var(--green)" } else { "var(--red)" };
-    let comp_col = if comp_pass == comp_checks.len() { "var(--green)" } else { "var(--red)" };
+    let sec_col = if sec_pass == sec_checks.len() {
+        "var(--green)"
+    } else {
+        "var(--red)"
+    };
+    let qual_col = if qual_pass == qual_checks.len() {
+        "var(--green)"
+    } else {
+        "var(--red)"
+    };
+    let comp_col = if comp_pass == comp_checks.len() {
+        "var(--green)"
+    } else {
+        "var(--red)"
+    };
 
     let failed_checks: Vec<&CheckResult> = report.checks.iter().filter(|c| !c.passed).collect();
 
@@ -790,7 +820,11 @@ pub(crate) fn render_html_report(
         let rows: String = checks.iter().map(|c| check_row_html(c)).collect();
         let pass_c = checks.iter().filter(|c| c.passed).count();
         let fail_c = checks.len() - pass_c;
-        let status_color = if fail_c == 0 { "var(--green)" } else { "var(--red)" };
+        let status_color = if fail_c == 0 {
+            "var(--green)"
+        } else {
+            "var(--red)"
+        };
         let status_pill = if fail_c == 0 {
             r#"<span style="background:var(--green-bg);color:var(--green);padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600">ALL PASSED</span>"#.to_string()
         } else {
@@ -1224,11 +1258,33 @@ pub(crate) fn render_markdown_report(
         let hqse_phases: &[(&str, &[&str])] = &[
             ("§2 Requirements", &[]),
             ("§3 Design", &["design-docs", "doccov"]),
-            ("§4 Code", &["complexity", "crap", "debt", "secrets", "sast", "crypto", "taint", "deadcode", "linelen", "halstead", "cohesion", "coupling"]),
+            (
+                "§4 Code",
+                &[
+                    "complexity",
+                    "crap",
+                    "debt",
+                    "secrets",
+                    "sast",
+                    "crypto",
+                    "taint",
+                    "deadcode",
+                    "linelen",
+                    "halstead",
+                    "cohesion",
+                    "coupling",
+                ],
+            ),
             ("§4.5 Tracing", &["observability", "debuggability"]),
             ("§5 Code Review", &[]),
-            ("§6 Test", &["test-quality", "propcov", "errhandle", "typecov"]),
-            ("§7 Support", &["errhandle", "debuggability", "observability"]),
+            (
+                "§6 Test",
+                &["test-quality", "propcov", "errhandle", "typecov"],
+            ),
+            (
+                "§7 Support",
+                &["errhandle", "debuggability", "observability"],
+            ),
             ("§8–9 Planning", &[]),
         ];
         for (phase, tools) in hqse_phases {
@@ -1236,17 +1292,28 @@ pub(crate) fn render_markdown_report(
                 md.push_str(&format!("| {} | — | ⬜ not automatable |\n", phase));
                 continue;
             }
-            let phase_checks: Vec<&CheckResult> = report.checks.iter()
+            let phase_checks: Vec<&CheckResult> = report
+                .checks
+                .iter()
                 .filter(|c| tools.contains(&c.name.as_str()))
                 .collect();
             if phase_checks.is_empty() {
-                md.push_str(&format!("| {} | {} | ⬜ not run |\n", phase, tools.join(", ")));
+                md.push_str(&format!(
+                    "| {} | {} | ⬜ not run |\n",
+                    phase,
+                    tools.join(", ")
+                ));
                 continue;
             }
             let all_pass = phase_checks.iter().all(|c| c.passed);
             let status = if all_pass { "✅" } else { "❌" };
             let names: Vec<&str> = phase_checks.iter().map(|c| c.name.as_str()).collect();
-            md.push_str(&format!("| {} | {} | {} |\n", phase, names.join(", "), status));
+            md.push_str(&format!(
+                "| {} | {} | {} |\n",
+                phase,
+                names.join(", "),
+                status
+            ));
         }
         md.push('\n');
     }
@@ -1534,7 +1601,7 @@ mod tests {
     #[test]
     fn test_mini_bar_all_passed() {
         let bar = mini_bar(5, 5, "var(--green)");
-        assert!(bar.contains("████████████"));  // 12 filled
+        assert!(bar.contains("████████████")); // 12 filled
         assert!(bar.contains("5/5"));
         assert!(bar.contains("100%"));
         assert!(bar.contains("var(--green)"));
@@ -1543,8 +1610,8 @@ mod tests {
     #[test]
     fn test_mini_bar_half_passed() {
         let bar = mini_bar(3, 6, "var(--amber)");
-        assert!(bar.contains("██████"));  // 6 filled
-        assert!(bar.contains("░░░░░░"));  // 6 empty
+        assert!(bar.contains("██████")); // 6 filled
+        assert!(bar.contains("░░░░░░")); // 6 empty
         assert!(bar.contains("3/6"));
         assert!(bar.contains("50%"));
         assert!(bar.contains("var(--amber)"));
@@ -1553,7 +1620,7 @@ mod tests {
     #[test]
     fn test_mini_bar_none_passed() {
         let bar = mini_bar(0, 4, "var(--red)");
-        assert!(bar.contains("░░░░░░░░░░░░"));  // 12 empty
+        assert!(bar.contains("░░░░░░░░░░░░")); // 12 empty
         assert!(bar.contains("0/4"));
         assert!(bar.contains("0%"));
     }
@@ -1596,7 +1663,7 @@ mod tests {
     fn test_gauge_svg_contains_path_elements() {
         let svg = gauge_svg(50, "var(--amber)");
         assert!(svg.contains("<path"));
-        assert!(svg.contains("M"));  // SVG path command
+        assert!(svg.contains("M")); // SVG path command
     }
 
     // ── sparkline_svg ──

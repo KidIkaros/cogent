@@ -2,12 +2,12 @@
 
 #![deny(clippy::all)]
 
-use colored::Colorize;
-use std::time::Instant;
 use crate::config::{build_gha_workflow, generate_config, ProjectProfile};
 use crate::hooks::install_hooks_impl;
 use crate::progress::{format_elapsed, run_with_spinner, visible_len};
 use crate::types::ToolInfo;
+use colored::Colorize;
+use std::time::Instant;
 
 pub(crate) fn init_ci(config_path: &str, profile: &ProjectProfile) -> i32 {
     let mut ok = true;
@@ -971,4 +971,3 @@ pub(crate) fn discover_command(format: &str) {
         }
     }
 }
-

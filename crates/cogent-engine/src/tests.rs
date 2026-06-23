@@ -30,34 +30,62 @@ fn test_extract_findings_from_details_items() {
 fn test_aggregate_file_summary() {
     let checks = vec![
         CheckResult {
-            name: "debt".into(), passed: false, score: None, threshold: None,
-            message: "".into(), details: serde_json::Value::Null,
-            severity: Some("medium".into()), help: None, rule_id: None,
-            findings: vec![
-                cogent_common::Finding {
-                    file: "src/main.rs".into(), line: Some(10), column: None,
-                    severity: "high".into(), message: "todo".into(),
-                    rule_id: "debt-todo".into(), fix_hint: "".into(),
-                    evidence: None, suggested_fix: None, controls: None,
-                },
-            ],
+            name: "debt".into(),
+            passed: false,
+            score: None,
+            threshold: None,
+            message: "".into(),
+            details: serde_json::Value::Null,
+            severity: Some("medium".into()),
+            help: None,
+            rule_id: None,
+            findings: vec![cogent_common::Finding {
+                file: "src/main.rs".into(),
+                line: Some(10),
+                column: None,
+                severity: "high".into(),
+                message: "todo".into(),
+                rule_id: "debt-todo".into(),
+                fix_hint: "".into(),
+                evidence: None,
+                suggested_fix: None,
+                controls: None,
+            }],
         },
         CheckResult {
-            name: "secrets".into(), passed: false, score: None, threshold: None,
-            message: "".into(), details: serde_json::Value::Null,
-            severity: Some("high".into()), help: None, rule_id: None,
+            name: "secrets".into(),
+            passed: false,
+            score: None,
+            threshold: None,
+            message: "".into(),
+            details: serde_json::Value::Null,
+            severity: Some("high".into()),
+            help: None,
+            rule_id: None,
             findings: vec![
                 cogent_common::Finding {
-                    file: "src/main.rs".into(), line: Some(20), column: None,
-                    severity: "critical".into(), message: "key".into(),
-                    rule_id: "secret-key".into(), fix_hint: "".into(),
-                    evidence: None, suggested_fix: None, controls: None,
+                    file: "src/main.rs".into(),
+                    line: Some(20),
+                    column: None,
+                    severity: "critical".into(),
+                    message: "key".into(),
+                    rule_id: "secret-key".into(),
+                    fix_hint: "".into(),
+                    evidence: None,
+                    suggested_fix: None,
+                    controls: None,
                 },
                 cogent_common::Finding {
-                    file: "src/lib.rs".into(), line: Some(5), column: None,
-                    severity: "medium".into(), message: "token".into(),
-                    rule_id: "secret-token".into(), fix_hint: "".into(),
-                    evidence: None, suggested_fix: None, controls: None,
+                    file: "src/lib.rs".into(),
+                    line: Some(5),
+                    column: None,
+                    severity: "medium".into(),
+                    message: "token".into(),
+                    rule_id: "secret-token".into(),
+                    fix_hint: "".into(),
+                    evidence: None,
+                    suggested_fix: None,
+                    controls: None,
                 },
             ],
         },
@@ -84,7 +112,7 @@ fn test_check_access_control_passes_with_mock() {
             "summary": { "total_findings": 2, "critical": 0 }
         }),
     );
-    let result = crate::checks::check_access_control_with_runner(".", false, 5, &runner);
+    let result = crate::checks::check_access_control(".", false, 5, &[], &runner);
     assert!(result.passed);
     assert_eq!(result.score, Some(2.0));
 }
@@ -97,7 +125,7 @@ fn test_check_access_control_fails_with_mock() {
             "summary": { "total_findings": 5, "critical": 1 }
         }),
     );
-    let result = crate::checks::check_access_control_with_runner(".", false, 3, &runner);
+    let result = crate::checks::check_access_control(".", false, 3, &[], &runner);
     assert!(!result.passed);
     assert_eq!(result.score, Some(5.0));
 }
@@ -170,9 +198,7 @@ fn test_check_secrets_excludes_passes_arg_to_binary() {
         }),
     );
     let excludes = vec!["crates/engine".to_string(), "tests/fixtures".to_string()];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &excludes, &runner);
     assert!(result.passed, "2 findings <= 10");
     assert_eq!(result.score, Some(2.0));
 }
@@ -186,9 +212,7 @@ fn test_check_secrets_no_excludes_omits_flag() {
             "summary": { "findings_count": 0 }
         }),
     );
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &[], &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &[], &runner);
     assert!(result.passed, "0 findings <= 10");
     assert_eq!(result.score, Some(0.0));
 }
@@ -203,9 +227,7 @@ fn test_check_secrets_excludes_with_recursive() {
         }),
     );
     let excludes = vec!["vendor".to_string()];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", true, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", true, 10, &excludes, &runner);
     assert!(result.passed, "0 findings <= 10");
 }
 
@@ -224,7 +246,11 @@ fn test_check_secrets_excludes_forwards_thresholds_exclude_paths() {
     thresholds.max_secrets = 5;
     thresholds.secrets_exclude_paths = vec!["crates/engine".to_string()];
     let result = crate::checks::check_secrets_with_excludes(
-        ".", false, thresholds.max_secrets, &thresholds.secrets_exclude_paths, &runner,
+        ".",
+        false,
+        thresholds.max_secrets,
+        &thresholds.secrets_exclude_paths,
+        &runner,
     );
     assert!(result.passed, "3 findings <= 5");
     assert_eq!(result.score, Some(3.0));
@@ -241,9 +267,8 @@ fn test_exclude_paths_changes_finding_count() {
             "summary": { "findings_count": 10 }
         }),
     );
-    let result_no_exclude = crate::checks::check_secrets_with_excludes(
-        ".", false, 20, &[], &runner_no_exclude,
-    );
+    let result_no_exclude =
+        crate::checks::check_secrets_with_excludes(".", false, 20, &[], &runner_no_exclude);
     assert_eq!(result_no_exclude.score, Some(10.0));
 
     // With excludes, the binary reports only 3 findings (excluded path suppressed)
@@ -254,9 +279,8 @@ fn test_exclude_paths_changes_finding_count() {
         }),
     );
     let excludes = vec!["crates/engine".to_string()];
-    let result_with_exclude = crate::checks::check_secrets_with_excludes(
-        ".", false, 20, &excludes, &runner_with_exclude,
-    );
+    let result_with_exclude =
+        crate::checks::check_secrets_with_excludes(".", false, 20, &excludes, &runner_with_exclude);
     assert_eq!(result_with_exclude.score, Some(3.0));
     assert!(result_with_exclude.passed, "3 findings <= 20");
 
@@ -400,10 +424,8 @@ fn test_check_riskmap_fails_with_mock() {
 
 #[test]
 fn test_check_riskmap_no_files() {
-    let runner = MockToolRunner::new().with_response(
-        "riskmap:.:--format:json",
-        serde_json::json!({"files": []}),
-    );
+    let runner = MockToolRunner::new()
+        .with_response("riskmap:.:--format:json", serde_json::json!({"files": []}));
     let result = crate::checks::check_riskmap_with_runner(".", false, 50.0, &runner);
     assert!(result.passed, "no files → no risk");
     assert_eq!(result.score, Some(0.0));
@@ -571,7 +593,10 @@ fn test_check_sast_skipped_with_null_data() {
     );
     let result = crate::checks::check_sast_with_runner(".", false, 10, &runner);
     assert!(result.passed, "skipped tools should report passed");
-    assert!(result.message.contains("Skipped"), "message should indicate skipped");
+    assert!(
+        result.message.contains("Skipped"),
+        "message should indicate skipped"
+    );
 }
 
 // ── crypto ──
@@ -768,7 +793,10 @@ fn test_check_errhandle_fails_with_mock() {
 #[test]
 fn test_default_thresholds_secrets_exclude_empty() {
     let t = crate::CheckThresholds::default();
-    assert!(t.secrets_exclude_paths.is_empty(), "default secrets_exclude_paths should be empty");
+    assert!(
+        t.secrets_exclude_paths.is_empty(),
+        "default secrets_exclude_paths should be empty"
+    );
     assert_eq!(t.max_crap, 30.0);
     assert_eq!(t.max_secrets, 0);
     assert_eq!(t.max_vuln_critical, 0);
@@ -777,13 +805,19 @@ fn test_default_thresholds_secrets_exclude_empty() {
 #[test]
 fn test_default_thresholds_debuggability_nonzero() {
     let t = crate::CheckThresholds::default();
-    assert!(t.max_debuggability > 0, "default max_debuggability should be > 0");
+    assert!(
+        t.max_debuggability > 0,
+        "default max_debuggability should be > 0"
+    );
 }
 
 #[test]
 fn test_default_thresholds_coverage_path_is_none() {
     let t = crate::CheckThresholds::default();
-    assert!(t.coverage_path.is_none(), "default coverage_path should be None");
+    assert!(
+        t.coverage_path.is_none(),
+        "default coverage_path should be None"
+    );
 }
 
 #[test]
@@ -810,20 +844,26 @@ fn test_default_thresholds_known_values() {
 #[test]
 fn test_load_from_config_missing_file() {
     let t = crate::CheckThresholds::load_from_config("/nonexistent/path/to/config.toml");
-    assert_eq!(t.max_crap, 30.0, "missing file should return default max_crap");
-    assert!(t.secrets_exclude_paths.is_empty(), "missing file should return empty excludes");
-    assert!(t.coverage_path.is_none(), "missing file should return None coverage_path");
+    assert_eq!(
+        t.max_crap, 30.0,
+        "missing file should return default max_crap"
+    );
+    assert!(
+        t.secrets_exclude_paths.is_empty(),
+        "missing file should return empty excludes"
+    );
+    assert!(
+        t.coverage_path.is_none(),
+        "missing file should return None coverage_path"
+    );
 }
 
 /// Empty file should return all defaults.
 #[test]
 fn test_load_from_config_empty_file() {
-    use std::io::Write;
     let path = std::env::temp_dir().join("cogent_engine_test_empty_config.toml");
-    {
-        let mut f = std::fs::File::create(&path).unwrap();
-        // write nothing
-    }
+    // Create an empty config file.
+    std::fs::File::create(&path).unwrap();
     let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
     assert_eq!(t.max_crap, 30.0);
     assert!(t.secrets_exclude_paths.is_empty());
@@ -862,7 +902,10 @@ fn test_load_from_config_mixed_keys() {
     let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
     assert_eq!(t.max_crap, 42.0);
     assert_eq!(t.max_secrets, 7);
-    assert_eq!(t.secrets_exclude_paths, vec!["a".to_string(), "b".to_string()]);
+    assert_eq!(
+        t.secrets_exclude_paths,
+        vec!["a".to_string(), "b".to_string()]
+    );
     assert_eq!(t.min_doc, 80.0);
     let _ = std::fs::remove_file(&path);
 }
@@ -897,7 +940,10 @@ fn test_load_from_config_duplicate_keys_last_wins() {
     }
     let t = crate::CheckThresholds::load_from_config(path.to_str().unwrap());
     assert_eq!(t.max_crap, 50.0, "last value should win");
-    assert_eq!(t.secrets_exclude_paths, vec!["second".to_string(), "third".to_string()]);
+    assert_eq!(
+        t.secrets_exclude_paths,
+        vec!["second".to_string(), "third".to_string()]
+    );
     let _ = std::fs::remove_file(&path);
 }
 
@@ -915,7 +961,10 @@ fn test_load_from_config_only_exclude_preserves_defaults() {
     assert_eq!(t.min_doc, 50.0);
     assert_eq!(t.max_debt, 1000);
     assert_eq!(t.max_secrets, 0);
-    assert_eq!(t.secrets_exclude_paths, vec!["vendor".to_string(), "test".to_string()]);
+    assert_eq!(
+        t.secrets_exclude_paths,
+        vec!["vendor".to_string(), "test".to_string()]
+    );
     let _ = std::fs::remove_file(&path);
 }
 
@@ -938,7 +987,11 @@ fn test_load_from_config_populates_secrets_exclude_paths() {
     assert_eq!(thresholds.max_secrets, 5);
     assert_eq!(
         thresholds.secrets_exclude_paths,
-        vec!["vendor".to_string(), "tests".to_string(), "docs".to_string()]
+        vec![
+            "vendor".to_string(),
+            "tests".to_string(),
+            "docs".to_string()
+        ]
     );
     let _ = std::fs::remove_file(&path);
 }
@@ -1001,9 +1054,7 @@ fn test_check_secrets_excludes_with_empty_string_in_list() {
         }),
     );
     let excludes = vec!["valid-path".to_string(), String::new()];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &excludes, &runner);
     assert!(result.passed, "1 finding <= 10");
     assert_eq!(result.score, Some(1.0));
 }
@@ -1020,9 +1071,7 @@ fn test_check_secrets_excludes_with_comma_in_path() {
     );
     // A single path that contains a comma — this is an edge case
     let excludes = vec![r"path\with\,comma".to_string()];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &excludes, &runner);
     assert!(result.passed);
     assert_eq!(result.score, Some(0.0));
 }
@@ -1037,9 +1086,7 @@ fn test_check_secrets_excludes_with_colon_in_path() {
         }),
     );
     let excludes = vec![r"C:\Users\test".to_string()];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &excludes, &runner);
     assert!(result.passed);
 }
 
@@ -1055,9 +1102,7 @@ fn test_check_secrets_excludes_with_long_path() {
         }),
     );
     let excludes = vec![long_path];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &excludes, &runner);
     assert!(result.passed);
 }
 
@@ -1071,9 +1116,7 @@ fn test_check_secrets_excludes_with_unicode_path() {
         }),
     );
     let excludes = vec!["src/日本語テスト".to_string()];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &excludes, &runner);
     assert!(result.passed);
 }
 
@@ -1087,9 +1130,7 @@ fn test_check_secrets_excludes_single_path_no_trailing_comma() {
         }),
     );
     let excludes = vec!["vendor".to_string()];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &excludes, &runner);
     assert!(result.passed, "2 findings <= 10");
 }
 
@@ -1103,9 +1144,7 @@ fn test_check_secrets_excludes_multiple_paths_joined() {
         }),
     );
     let excludes = vec!["vendor".to_string(), "test".to_string(), "docs".to_string()];
-    let result = crate::checks::check_secrets_with_excludes(
-        ".", false, 10, &excludes, &runner,
-    );
+    let result = crate::checks::check_secrets_with_excludes(".", false, 10, &excludes, &runner);
     assert!(result.passed);
 }
 
@@ -1137,7 +1176,8 @@ fn test_config_to_check_secrets_pipeline() {
         serde_json::json!({"summary": {"findings_count": 1}}),
     );
     let result = crate::checks::check_secrets_with_excludes(
-        ".", false,
+        ".",
+        false,
         thresholds.max_secrets,
         &thresholds.secrets_exclude_paths,
         &runner,
@@ -1166,7 +1206,8 @@ fn test_config_empty_exclude_to_check_pipeline() {
         serde_json::json!({"summary": {"findings_count": 0}}),
     );
     let result = crate::checks::check_secrets_with_excludes(
-        ".", false,
+        ".",
+        false,
         thresholds.max_secrets,
         &thresholds.secrets_exclude_paths,
         &runner,

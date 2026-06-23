@@ -81,8 +81,10 @@ pub struct AuditResult {
 /// Tier 3 — Margin-to-threshold (closest to failing)
 pub fn compute_audit(checks: &[CheckResult]) -> AuditResult {
     // ── Gate Killers ──
-    let gate_killer_names: Vec<String> =
-        ["secrets", "vulnscan", "sast", "taint"].iter().map(|s| s.to_string()).collect();
+    let gate_killer_names: Vec<String> = ["secrets", "vulnscan", "sast", "taint"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
     let mut gate_killer_passed_names = Vec::new();
     let mut missing_gate_killers = Vec::new();
     for gk in &gate_killer_names {
@@ -103,15 +105,42 @@ pub fn compute_audit(checks: &[CheckResult]) -> AuditResult {
 
     // ── Category definitions ──
     let security_tools = [
-        "secrets", "sast", "crypto", "taint", "vulnscan", "access-control", "errhandle",
+        "secrets",
+        "sast",
+        "crypto",
+        "taint",
+        "vulnscan",
+        "access-control",
+        "errhandle",
     ];
     let compliance_tools = ["licenses", "sbom", "supply-chain", "outdated"];
     let quality_tools = [
-        "crap", "complexity", "deadcode", "coupling", "dupfind", "duplication",
-        "riskmap", "halstead", "cohesion", "fuzz", "propcov",
+        "crap",
+        "complexity",
+        "deadcode",
+        "coupling",
+        "dupfind",
+        "duplication",
+        "riskmap",
+        "halstead",
+        "cohesion",
+        "fuzz",
+        "propcov",
     ];
-    let hygiene_tools = ["debt", "comments", "linelen", "doccov", "doc_coverage", "typecov"];
-    let operations_tools = ["observability", "test-quality", "design-docs", "debuggability"];
+    let hygiene_tools = [
+        "debt",
+        "comments",
+        "linelen",
+        "doccov",
+        "doc_coverage",
+        "typecov",
+    ];
+    let operations_tools = [
+        "observability",
+        "test-quality",
+        "design-docs",
+        "debuggability",
+    ];
 
     let cat_defs: &[(&str, u32, &[&str])] = &[
         ("Security", 5, &security_tools),
@@ -133,7 +162,11 @@ pub fn compute_audit(checks: &[CheckResult]) -> AuditResult {
         }
         let passed = cat_checks.iter().filter(|c| c.passed).count();
         let total = cat_checks.len();
-        let score = if total > 0 { passed as f64 / total as f64 * 100.0 } else { 100.0 };
+        let score = if total > 0 {
+            passed as f64 / total as f64 * 100.0
+        } else {
+            100.0
+        };
         categories.push(CategoryScore {
             name: name.to_string(),
             weight,
@@ -192,7 +225,9 @@ pub fn compute_audit(checks: &[CheckResult]) -> AuditResult {
         .filter_map(|c| {
             let score = c.score?;
             let threshold = c.threshold?;
-            if threshold == 0.0 { return None; }
+            if threshold == 0.0 {
+                return None;
+            }
             let inverted = matches!(
                 c.name.as_str(),
                 "doc_coverage" | "doccov" | "propcov" | "typecov"
@@ -235,7 +270,12 @@ pub fn compute_audit(checks: &[CheckResult]) -> AuditResult {
 /// backward compatibility and lightweight summary displays.
 pub fn health_score(checks: &[CheckResult]) -> (u32, char) {
     let security = [
-        "secrets", "vulnscan", "taint", "errhandle", "sast", "crypto",
+        "secrets",
+        "vulnscan",
+        "taint",
+        "errhandle",
+        "sast",
+        "crypto",
     ];
     let compliance = ["licenses", "sbom"];
     if checks.is_empty() {
@@ -329,6 +369,43 @@ pub fn new_unified_report(started_at: String) -> UnifiedReport {
 // COGENT INFRASTRUCTURE SKIP LIST
 // ═══════════════════════════════════════════
 
+/// Tool crates whose names are distinctive enough to avoid false positives in
+/// real user projects. Each pattern is surrounded by `/` to avoid substring
+/// collisions.
+const DISTINCTIVE_INFRA_PATTERNS: &[&str] = &[
+    "/sast/",
+    "/crypto-check/",
+    "/mutation-test/",
+    "/risk-map/",
+    "/fuzz-surface/",
+    "/access-control/",
+    "/taint-scan/",
+    "/vuln-scan/",
+    "/debt-scan/",
+    "/ast-parse-ts/",
+];
+
+/// Generic tool-crate names that could collide with user directories — scoped to
+/// `/crates/<name>/` so only workspace crate paths match.
+const GENERIC_INFRA_CRATE_PATTERNS: &[&str] = &[
+    "/crates/secrets/",
+    "/crates/dead-code/",
+    "/crates/duplication/",
+    "/crates/comment-ratio/",
+    "/crates/coupling/",
+    "/crates/cohesion/",
+    "/crates/halstead/",
+    "/crates/prop-cov/",
+    "/crates/error-handling/",
+    "/crates/type-coverage/",
+    "/crates/line-length/",
+    "/crates/doc-coverage/",
+    "/crates/crap-metric/",
+    "/crates/licenses/",
+    "/crates/supply-chain/",
+    "/crates/sbom/",
+];
+
 /// Returns `true` if `path` belongs to Cogent tool infrastructure and should be
 /// excluded from self-scanning to avoid false positives.
 ///
@@ -339,44 +416,10 @@ pub fn is_cogent_infra_path(path: &str) -> bool {
     if path.contains("/cogent-") {
         return true;
     }
-    // Tool crates whose names are distinctive enough to avoid false positives
-    // in real user projects.  Each pattern is surrounded by `/` to avoid
-    // substring collisions.
-    // Distinctive names (unlikely in user projects):
-    const DISTINCTIVE_PATTERNS: &[&str] = &[
-        "/sast/",
-        "/crypto-check/",
-        "/mutation-test/",
-        "/risk-map/",
-        "/fuzz-surface/",
-        "/access-control/",
-        "/taint-scan/",
-        "/vuln-scan/",
-        "/debt-scan/",
-        "/ast-parse-ts/",
-    ];
-    // Generic names that could collide with user directories — scoped to
-    // `/crates/<name>/` so only workspace crate paths match.
-    const GENERIC_CRATE_PATTERNS: &[&str] = &[
-        "/crates/secrets/",
-        "/crates/dead-code/",
-        "/crates/duplication/",
-        "/crates/comment-ratio/",
-        "/crates/coupling/",
-        "/crates/cohesion/",
-        "/crates/halstead/",
-        "/crates/prop-cov/",
-        "/crates/error-handling/",
-        "/crates/type-coverage/",
-        "/crates/line-length/",
-        "/crates/doc-coverage/",
-        "/crates/crap-metric/",
-        "/crates/licenses/",
-        "/crates/supply-chain/",
-        "/crates/sbom/",
-    ];
-    DISTINCTIVE_PATTERNS.iter().any(|p| path.contains(p))
-        || GENERIC_CRATE_PATTERNS.iter().any(|p| path.contains(p))
+    DISTINCTIVE_INFRA_PATTERNS.iter().any(|p| path.contains(p))
+        || GENERIC_INFRA_CRATE_PATTERNS
+            .iter()
+            .any(|p| path.contains(p))
 }
 
 // ═══════════════════════════════════════════
@@ -561,7 +604,11 @@ pub fn parse_string_list(line: &str, key: &str) -> Option<Vec<String>> {
         .map(|s| s.trim().trim_matches(|c| c == '"' || c == '\'').to_string())
         .filter(|s| !s.is_empty())
         .collect();
-    if items.is_empty() { None } else { Some(items) }
+    if items.is_empty() {
+        None
+    } else {
+        Some(items)
+    }
 }
 
 // ═══════════════════════════════════════════
@@ -1005,7 +1052,10 @@ mod tests {
 
     #[test]
     fn test_parse_toml_f64_integer() {
-        assert_eq!(parse_toml_f64("max_secrets = 30", "max_secrets"), Some(30.0));
+        assert_eq!(
+            parse_toml_f64("max_secrets = 30", "max_secrets"),
+            Some(30.0)
+        );
     }
 
     #[test]
@@ -1025,7 +1075,10 @@ mod tests {
 
     #[test]
     fn test_parse_toml_f64_trailing_comment() {
-        assert_eq!(parse_toml_f64("max_avg = 15.0 # threshold", "max_avg"), Some(15.0));
+        assert_eq!(
+            parse_toml_f64("max_avg = 15.0 # threshold", "max_avg"),
+            Some(15.0)
+        );
     }
 
     #[test]
@@ -1090,7 +1143,11 @@ max_secrets = 9999"#;
         let audit = compute_audit(&checks);
         assert!(audit.gate_killers_passed);
         assert_eq!(audit.opinion, AuditOpinion::UnqualifiedPass);
-        assert!(audit.overall_score >= 80, "score should be >= 80, got {}", audit.overall_score);
+        assert!(
+            audit.overall_score >= 80,
+            "score should be >= 80, got {}",
+            audit.overall_score
+        );
     }
 
     #[test]
@@ -1118,7 +1175,11 @@ max_secrets = 9999"#;
         }
         let audit = compute_audit(&checks);
         assert_eq!(audit.opinion, AuditOpinion::Disclaimer);
-        assert!(audit.unavailable_count >= 5, "should detect 5+ unavailable, got {}", audit.unavailable_count);
+        assert!(
+            audit.unavailable_count >= 5,
+            "should detect 5+ unavailable, got {}",
+            audit.unavailable_count
+        );
     }
 
     #[test]
@@ -1141,8 +1202,12 @@ max_secrets = 9999"#;
         ];
         let audit = compute_audit(&checks);
         assert!(audit.gate_killers_passed);
-        assert_eq!(audit.opinion, AuditOpinion::QualifiedPass,
-            "score {} should trigger QualifiedPass", audit.overall_score);
+        assert_eq!(
+            audit.opinion,
+            AuditOpinion::QualifiedPass,
+            "score {} should trigger QualifiedPass",
+            audit.overall_score
+        );
     }
 
     #[test]
@@ -1183,9 +1248,20 @@ max_secrets = 9999"#;
         let audit = compute_audit(&checks);
         // Only secrets is present and passed; vulnscan, sast, taint are missing
         // Missing gate killers cause gate_killers_passed=false because not ALL 4 passed
-        assert!(!audit.gate_killers_passed, "missing gate killers should not pass");
-        assert_eq!(audit.gate_killer_passed_names.len(), 1, "only secrets is present and passed");
-        assert_eq!(audit.missing_gate_killers.len(), 3, "3 gate killers not run: vulnscan, sast, taint");
+        assert!(
+            !audit.gate_killers_passed,
+            "missing gate killers should not pass"
+        );
+        assert_eq!(
+            audit.gate_killer_passed_names.len(),
+            1,
+            "only secrets is present and passed"
+        );
+        assert_eq!(
+            audit.missing_gate_killers.len(),
+            3,
+            "3 gate killers not run: vulnscan, sast, taint"
+        );
         assert!(audit.missing_gate_killers.contains(&"vulnscan".to_string()));
         assert!(audit.missing_gate_killers.contains(&"sast".to_string()));
         assert!(audit.missing_gate_killers.contains(&"taint".to_string()));
@@ -1197,14 +1273,28 @@ max_secrets = 9999"#;
     fn test_health_score_all_pass() {
         let checks = vec![
             CheckResult {
-                name: "crap".into(), passed: true, score: None, threshold: None,
-                message: "".into(), details: serde_json::Value::Null,
-                severity: None, help: None, rule_id: None, findings: vec![],
+                name: "crap".into(),
+                passed: true,
+                score: None,
+                threshold: None,
+                message: "".into(),
+                details: serde_json::Value::Null,
+                severity: None,
+                help: None,
+                rule_id: None,
+                findings: vec![],
             },
             CheckResult {
-                name: "secrets".into(), passed: true, score: None, threshold: None,
-                message: "".into(), details: serde_json::Value::Null,
-                severity: None, help: None, rule_id: None, findings: vec![],
+                name: "secrets".into(),
+                passed: true,
+                score: None,
+                threshold: None,
+                message: "".into(),
+                details: serde_json::Value::Null,
+                severity: None,
+                help: None,
+                rule_id: None,
+                findings: vec![],
             },
         ];
         let (score, grade) = health_score(&checks);
@@ -1216,14 +1306,28 @@ max_secrets = 9999"#;
     fn test_health_score_security_fail_weights_heavier() {
         let checks = vec![
             CheckResult {
-                name: "crap".into(), passed: true, score: None, threshold: None,
-                message: "".into(), details: serde_json::Value::Null,
-                severity: None, help: None, rule_id: None, findings: vec![],
+                name: "crap".into(),
+                passed: true,
+                score: None,
+                threshold: None,
+                message: "".into(),
+                details: serde_json::Value::Null,
+                severity: None,
+                help: None,
+                rule_id: None,
+                findings: vec![],
             },
             CheckResult {
-                name: "secrets".into(), passed: false, score: None, threshold: None,
-                message: "".into(), details: serde_json::Value::Null,
-                severity: None, help: None, rule_id: None, findings: vec![],
+                name: "secrets".into(),
+                passed: false,
+                score: None,
+                threshold: None,
+                message: "".into(),
+                details: serde_json::Value::Null,
+                severity: None,
+                help: None,
+                rule_id: None,
+                findings: vec![],
             },
         ];
         // security weights 3, quality weights 1 → pass=1, total=4 → 25%
@@ -1298,7 +1402,15 @@ max_secrets = 9999"#;
 
     #[test]
     fn test_wrap_tool_response_basic() {
-        let resp = wrap_tool_response("test-tool", "1.0", true, 42, serde_json::json!({"key": "val"}), None, None);
+        let resp = wrap_tool_response(
+            "test-tool",
+            "1.0",
+            true,
+            42,
+            serde_json::json!({"key": "val"}),
+            None,
+            None,
+        );
         assert_eq!(resp.tool, "test-tool");
         assert_eq!(resp.version, "1.0");
         assert!(resp.success);
@@ -1311,7 +1423,15 @@ max_secrets = 9999"#;
 
     #[test]
     fn test_wrap_tool_response_with_summary_and_error() {
-        let resp = wrap_tool_response("x", "2.0", false, 100, serde_json::Value::Null, Some(serde_json::json!({})), Some("error msg".into()));
+        let resp = wrap_tool_response(
+            "x",
+            "2.0",
+            false,
+            100,
+            serde_json::Value::Null,
+            Some(serde_json::json!({})),
+            Some("error msg".into()),
+        );
         assert!(!resp.success);
         assert_eq!(resp.error, Some("error msg".into()));
         assert_eq!(resp.summary, Some(serde_json::json!({})));
@@ -1334,25 +1454,37 @@ max_secrets = 9999"#;
     #[test]
     fn test_function_coverage_found_with_hits() {
         let records = vec![
-            CoverageRecord { function: "foo".into(), line: 10, hits: 5 },
-            CoverageRecord { function: "bar".into(), line: 20, hits: 0 },
+            CoverageRecord {
+                function: "foo".into(),
+                line: 10,
+                hits: 5,
+            },
+            CoverageRecord {
+                function: "bar".into(),
+                line: 20,
+                hits: 0,
+            },
         ];
         assert_eq!(function_coverage(&records, "foo"), 1.0);
     }
 
     #[test]
     fn test_function_coverage_found_no_hits() {
-        let records = vec![
-            CoverageRecord { function: "foo".into(), line: 10, hits: 0 },
-        ];
+        let records = vec![CoverageRecord {
+            function: "foo".into(),
+            line: 10,
+            hits: 0,
+        }];
         assert_eq!(function_coverage(&records, "foo"), 0.0);
     }
 
     #[test]
     fn test_function_coverage_not_found() {
-        let records = vec![
-            CoverageRecord { function: "foo".into(), line: 10, hits: 5 },
-        ];
+        let records = vec![CoverageRecord {
+            function: "foo".into(),
+            line: 10,
+            hits: 5,
+        }];
         assert_eq!(function_coverage(&records, "nonexistent"), 0.0);
     }
 
@@ -1548,10 +1680,14 @@ max_secrets = 9999"#;
             rule_id: rule_id.to_string(),
             rule_index: None,
             level: "warning".to_string(),
-            message: SarifMessage { text: "msg".to_string() },
+            message: SarifMessage {
+                text: "msg".to_string(),
+            },
             locations: vec![SarifLocation {
                 physical_location: SarifPhysicalLocation {
-                    artifact_location: Some(SarifArtifactLocation { uri: uri.to_string() }),
+                    artifact_location: Some(SarifArtifactLocation {
+                        uri: uri.to_string(),
+                    }),
                     region: Some(SarifRegion {
                         start_line: Some(line),
                         start_column: None,
@@ -1644,61 +1780,103 @@ max_secrets = 9999"#;
 
     #[test]
     fn test_parse_string_list_toml_array() {
-        assert_eq!(parse_string_list("secrets_exclude = [\"a\", \"b\"]", "secrets_exclude"), Some(vec!["a".to_string(), "b".to_string()]));
+        assert_eq!(
+            parse_string_list("secrets_exclude = [\"a\", \"b\"]", "secrets_exclude"),
+            Some(vec!["a".to_string(), "b".to_string()])
+        );
     }
 
     #[test]
     fn test_parse_string_list_bare_comma() {
-        assert_eq!(parse_string_list("secrets_exclude = a, b", "secrets_exclude"), Some(vec!["a".to_string(), "b".to_string()]));
+        assert_eq!(
+            parse_string_list("secrets_exclude = a, b", "secrets_exclude"),
+            Some(vec!["a".to_string(), "b".to_string()])
+        );
     }
 
     #[test]
     fn test_parse_string_list_single_quoted() {
-        assert_eq!(parse_string_list("secrets_exclude = ['vendor', 'test']", "secrets_exclude"), Some(vec!["vendor".to_string(), "test".to_string()]));
+        assert_eq!(
+            parse_string_list("secrets_exclude = ['vendor', 'test']", "secrets_exclude"),
+            Some(vec!["vendor".to_string(), "test".to_string()])
+        );
     }
 
     #[test]
     fn test_parse_string_list_empty_array() {
-        assert_eq!(parse_string_list("secrets_exclude = []", "secrets_exclude"), None);
+        assert_eq!(
+            parse_string_list("secrets_exclude = []", "secrets_exclude"),
+            None
+        );
     }
 
     #[test]
     fn test_parse_string_list_filters_empty_strings() {
-        assert_eq!(parse_string_list("secrets_exclude = [\"valid\", \"\", \"also_valid\"]", "secrets_exclude"), Some(vec!["valid".to_string(), "also_valid".to_string()]));
+        assert_eq!(
+            parse_string_list(
+                "secrets_exclude = [\"valid\", \"\", \"also_valid\"]",
+                "secrets_exclude"
+            ),
+            Some(vec!["valid".to_string(), "also_valid".to_string()])
+        );
     }
 
     #[test]
     fn test_parse_string_list_no_key() {
-        assert_eq!(parse_string_list("other = [\"a\"]", "secrets_exclude"), None);
+        assert_eq!(
+            parse_string_list("other = [\"a\"]", "secrets_exclude"),
+            None
+        );
     }
 
     #[test]
     fn test_parse_string_list_no_space_after_eq() {
-        assert_eq!(parse_string_list("secrets_exclude=[\"x\"]", "secrets_exclude"), Some(vec!["x".to_string()]));
+        assert_eq!(
+            parse_string_list("secrets_exclude=[\"x\"]", "secrets_exclude"),
+            Some(vec!["x".to_string()])
+        );
     }
 
     #[test]
     fn test_parse_string_list_trailing_comma() {
-        assert_eq!(parse_string_list("secrets_exclude = [\"a\", \"b\", ]", "secrets_exclude"), Some(vec!["a".to_string(), "b".to_string()]));
+        assert_eq!(
+            parse_string_list("secrets_exclude = [\"a\", \"b\", ]", "secrets_exclude"),
+            Some(vec!["a".to_string(), "b".to_string()])
+        );
     }
 
     #[test]
     fn test_parse_string_list_paths_with_slashes() {
-        assert_eq!(parse_string_list("secrets_exclude = [\"crates/engine\", \"tests/fixtures\"]", "secrets_exclude"), Some(vec!["crates/engine".to_string(), "tests/fixtures".to_string()]));
+        assert_eq!(
+            parse_string_list(
+                "secrets_exclude = [\"crates/engine\", \"tests/fixtures\"]",
+                "secrets_exclude"
+            ),
+            Some(vec![
+                "crates/engine".to_string(),
+                "tests/fixtures".to_string()
+            ])
+        );
     }
 
     #[test]
     fn test_parse_string_list_opening_bracket_only() {
         // Regression: `secrets_exclude = [` used to return Some(vec!["["])
         // due to chained unwrap_or(rest) fallback. Should return None.
-        assert_eq!(parse_string_list("secrets_exclude = [", "secrets_exclude"), None);
+        assert_eq!(
+            parse_string_list("secrets_exclude = [", "secrets_exclude"),
+            None
+        );
     }
 
     #[test]
     fn test_parse_string_list_inline_comment_stripped() {
         // Inline comments after # should be stripped
         assert_eq!(
-            parse_string_list("secrets_exclude = [\"vendor\", \"tests\"]  # excluded paths", "secrets_exclude"),
+            parse_string_list(
+                "secrets_exclude = [\"vendor\", \"tests\"]  # excluded paths",
+                "secrets_exclude"
+            ),
             Some(vec!["vendor".to_string(), "tests".to_string()])
         );
     }
@@ -1708,7 +1886,10 @@ max_secrets = 9999"#;
         // Comment inside array brackets strips everything after #
         // (including subsequent values — this is expected TOML-like behavior)
         assert_eq!(
-            parse_string_list("secrets_exclude = [\"a\" # first, \"b\"]", "secrets_exclude"),
+            parse_string_list(
+                "secrets_exclude = [\"a\" # first, \"b\"]",
+                "secrets_exclude"
+            ),
             Some(vec!["a".to_string()])
         );
     }
@@ -1827,6 +2008,7 @@ pub struct SarifMessage {
 
 /// Metadata about a single tool invocation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SarifInvocation {
     pub execution_successful: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1942,6 +2124,25 @@ pub fn get_rule_details(rule_id: &str) -> (String, String, String) {
     }
 }
 
+fn build_sarif_rules(rule_ids: Vec<String>) -> Vec<SarifRule> {
+    rule_ids
+        .into_iter()
+        .map(|id| {
+            let (short_desc, full_desc, help_text) = get_rule_details(&id);
+            SarifRule {
+                id: id.clone(),
+                name: Some(id.clone()),
+                short_description: Some(SarifMessage { text: short_desc }),
+                full_description: Some(SarifMessage { text: full_desc }),
+                help: Some(SarifMessage { text: help_text }),
+                default_configuration: Some(SarifRuleConfig {
+                    level: "warning".to_string(),
+                }),
+            }
+        })
+        .collect()
+}
+
 /// Create a SARIF run structure for tool results.
 ///
 /// Generates a complete SARIF run with tool information, rules, and results.
@@ -1965,22 +2166,7 @@ pub fn sarif_run(
     rule_ids.sort();
     rule_ids.dedup();
 
-    let rules: Vec<SarifRule> = rule_ids
-        .into_iter()
-        .map(|id| {
-            let (short_desc, full_desc, help_text) = get_rule_details(&id);
-            SarifRule {
-                id: id.clone(),
-                name: Some(id.clone()),
-                short_description: Some(SarifMessage { text: short_desc }),
-                full_description: Some(SarifMessage { text: full_desc }),
-                help: Some(SarifMessage { text: help_text }),
-                default_configuration: Some(SarifRuleConfig {
-                    level: "warning".to_string(),
-                }),
-            }
-        })
-        .collect();
+    let rules = build_sarif_rules(rule_ids);
 
     SarifRun {
         tool: SarifTool {
@@ -1993,7 +2179,9 @@ pub fn sarif_run(
         invocations: Some(vec![SarifInvocation {
             execution_successful: exit_code == 0,
             exit_code: Some(exit_code),
-            end_time_utc: Some(chrono::Utc::now().to_rfc3339()),
+            end_time_utc: Some(
+                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            ),
         }]),
         results,
     }

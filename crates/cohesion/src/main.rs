@@ -230,7 +230,11 @@ fn compute_lcom4(methods: &[(String, Vec<String>)]) -> usize {
         }
     }
 
-    // Count connected components via BFS
+    count_components(&adj, n)
+}
+
+/// Count connected components in an undirected graph via BFS.
+fn count_components(adj: &[HashSet<usize>], n: usize) -> usize {
     let mut visited = vec![false; n];
     let mut components = 0;
     for start in 0..n {

@@ -640,9 +640,13 @@ fn quadruple(x: i32) -> i32 { double(double(x)) }
         affected.insert("test.rs".to_string(), vec!["foo".to_string()]);
         let files = vec![("test.rs".to_string(), source.to_string())];
         // Line 1 is fn signature, should be inside foo's range (1,3)
-        assert!(is_line_in_affected_function("test.rs", 1, &affected, &files));
+        assert!(is_line_in_affected_function(
+            "test.rs", 1, &affected, &files
+        ));
         // Line 2 is inside foo body
-        assert!(is_line_in_affected_function("test.rs", 2, &affected, &files));
+        assert!(is_line_in_affected_function(
+            "test.rs", 2, &affected, &files
+        ));
     }
 
     #[test]
@@ -660,7 +664,9 @@ fn bar() {
         affected.insert("test.rs".to_string(), vec!["foo".to_string()]);
         let files = vec![("test.rs".to_string(), source.to_string())];
         // Line 6 is inside bar, not foo
-        assert!(!is_line_in_affected_function("test.rs", 6, &affected, &files));
+        assert!(!is_line_in_affected_function(
+            "test.rs", 6, &affected, &files
+        ));
     }
 
     #[test]
@@ -668,7 +674,12 @@ fn bar() {
         let mut affected = HashMap::new();
         affected.insert("test.rs".to_string(), vec!["foo".to_string()]);
         // No source file found → falls back to true (allow)
-        assert!(is_line_in_affected_function("unknown.rs", 1, &affected, &[]));
+        assert!(is_line_in_affected_function(
+            "unknown.rs",
+            1,
+            &affected,
+            &[]
+        ));
     }
 
     #[test]
@@ -677,6 +688,8 @@ fn bar() {
         let affected: HashMap<String, Vec<String>> = HashMap::new();
         let files = vec![("test.rs".to_string(), source.to_string())];
         // No affected functions for this file → line not in affected
-        assert!(!is_line_in_affected_function("test.rs", 1, &affected, &files));
+        assert!(!is_line_in_affected_function(
+            "test.rs", 1, &affected, &files
+        ));
     }
 }

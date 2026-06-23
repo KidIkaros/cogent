@@ -552,10 +552,7 @@ pub fn load_config_with_overrides(
             let sec = &trimmed[1..trimmed.len() - 1];
             if let Some(after_prefix) = sec.strip_prefix("override.") {
                 flush_override(&mut current_override);
-                let pat = after_prefix
-                    .trim()
-                    .trim_matches('"')
-                    .to_string();
+                let pat = after_prefix.trim().trim_matches('"').to_string();
                 current_override = Some((pat, ConfigSection::default()));
             } else {
                 flush_override(&mut current_override);
@@ -665,11 +662,7 @@ fn segment_matches(pat: &str, tgt: &str) -> bool {
 
 /// Resolve the effective threshold for `check_name` on `file_path`.
 /// Checks per-path overrides first (via glob match), falls back to global.
-pub fn resolve_threshold(
-    global: Thresholds,
-    overrides: &PathOverrides,
-    file: &str,
-) -> Thresholds {
+pub fn resolve_threshold(global: Thresholds, overrides: &PathOverrides, file: &str) -> Thresholds {
     let mut effective = global;
     for (pat, vals) in overrides {
         if glob_matches(pat, file) {
@@ -764,7 +757,9 @@ mod tests {
     #[test]
     fn test_config_section_to_thresholds_uses_defaults() {
         let section = ConfigSection::default();
-        let defaults: Thresholds = (10.0, 50.0, 5, 2, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let defaults: Thresholds = (
+            10.0, 50.0, 5, 2, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
         let th = section.to_thresholds(defaults);
         assert_eq!(th.0, 10.0);
         assert_eq!(th.1, 50.0);
@@ -773,9 +768,13 @@ mod tests {
 
     #[test]
     fn test_config_section_roundtrip() {
-        let defaults: Thresholds = (10.0, 50.0, 5, 2, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let defaults: Thresholds = (
+            10.0, 50.0, 5, 2, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
         let section = ConfigSection::from_thresholds(defaults);
-        let result = section.to_thresholds((0.0, 0.0, 0, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0));
+        let result = section.to_thresholds((
+            0.0, 0.0, 0, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        ));
         assert_eq!(result.0, defaults.0);
         assert_eq!(result.1, defaults.1);
         assert_eq!(result.2, defaults.2);
@@ -825,7 +824,10 @@ mod tests {
 
     #[test]
     fn test_glob_matches_directory_override() {
-        assert!(glob_matches("crates/*/tests/**", "crates/foo/tests/test_bar.rs"));
+        assert!(glob_matches(
+            "crates/*/tests/**",
+            "crates/foo/tests/test_bar.rs"
+        ));
     }
 
     #[test]
@@ -847,7 +849,9 @@ mod tests {
 
     #[test]
     fn test_resolve_uses_global_when_no_overrides() {
-        let global: Thresholds = (10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let global: Thresholds = (
+            10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
         let overrides = PathOverrides::new();
         let result = resolve_threshold(global, &overrides, "src/main.rs");
         assert_eq!(result.0, 10.0);
@@ -855,32 +859,39 @@ mod tests {
 
     #[test]
     fn test_resolve_applies_override_when_glob_matches() {
-        let global: Thresholds = (10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let global: Thresholds = (
+            10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
         let mut overrides = PathOverrides::new();
         let mut vals = std::collections::HashMap::new();
         vals.insert("max_avg".to_string(), 25.0);
         overrides.insert("src/**".to_string(), vals);
         let result = resolve_threshold(global, &overrides, "src/main.rs");
-        assert_eq!(result.0, 25.0);  // overridden
+        assert_eq!(result.0, 25.0); // overridden
     }
 
     #[test]
     fn test_resolve_does_not_apply_override_when_no_match() {
-        let global: Thresholds = (10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let global: Thresholds = (
+            10.0, 50.0, 5, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
         let mut overrides = PathOverrides::new();
         let mut vals = std::collections::HashMap::new();
         vals.insert("max_avg".to_string(), 25.0);
         overrides.insert("tests/**".to_string(), vals);
         let result = resolve_threshold(global, &overrides, "src/main.rs");
-        assert_eq!(result.0, 10.0);  // not overridden
+        assert_eq!(result.0, 10.0); // not overridden
     }
 
     // ── Load Config ─────────────────────────────────────────────────
 
     #[test]
     fn test_load_config_with_overrides_missing_file() {
-        let defaults: Thresholds = (15.0, 70.0, 0, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
-        let (th, overrides) = load_config_with_overrides("/nonexistent/path/quality.toml", defaults);
+        let defaults: Thresholds = (
+            15.0, 70.0, 0, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
+        let (th, overrides) =
+            load_config_with_overrides("/nonexistent/path/quality.toml", defaults);
         assert_eq!(th.0, 15.0);
         assert!(overrides.is_empty());
     }
@@ -893,11 +904,13 @@ mod tests {
         writeln!(f, "max_avg = 12.5").unwrap();
         writeln!(f, "[debt]").unwrap();
         writeln!(f, "max_markers = 5").unwrap();
-        let defaults: Thresholds = (15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let defaults: Thresholds = (
+            15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
         let (th, _) = load_config_with_overrides(f.path().to_str().unwrap(), defaults);
-        assert_eq!(th.0, 12.5);  // from config
-        assert_eq!(th.2, 5);     // from config
-        assert_eq!(th.1, 70.0);  // from default (not in config)
+        assert_eq!(th.0, 12.5); // from config
+        assert_eq!(th.2, 5); // from config
+        assert_eq!(th.1, 70.0); // from default (not in config)
     }
 
     #[test]
@@ -910,11 +923,13 @@ mod tests {
         writeln!(f, "max_avg = 18.0").unwrap();
         writeln!(f, "[doc_coverage]").unwrap();
         writeln!(f, "min_pct = 85.0").unwrap();
-        let defaults: Thresholds = (15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let defaults: Thresholds = (
+            15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
         let (th, _) = load_config_with_overrides(f.path().to_str().unwrap(), defaults);
-        assert_eq!(th.0, 18.0);  // overridden
-        assert_eq!(th.1, 85.0);  // overridden
-        assert_eq!(th.2, 10);    // default preserved
+        assert_eq!(th.0, 18.0); // overridden
+        assert_eq!(th.1, 85.0); // overridden
+        assert_eq!(th.2, 10); // default preserved
     }
 
     #[test]
@@ -925,9 +940,11 @@ mod tests {
         writeln!(f, "max_avg = 10.0").unwrap();
         writeln!(f, "[override.\"crates/*/tests/**\"]").unwrap();
         writeln!(f, "max_avg = 25.0").unwrap();
-        let defaults: Thresholds = (15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0);
+        let defaults: Thresholds = (
+            15.0, 70.0, 10, 0, 0.0, 0, 0.0, 0, 0.0, 0, 0, 0.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0, 0,
+        );
         let (th, overrides) = load_config_with_overrides(f.path().to_str().unwrap(), defaults);
-        assert_eq!(th.0, 10.0);  // global from config
+        assert_eq!(th.0, 10.0); // global from config
         assert!(!overrides.is_empty());
         let entry = overrides.get("crates/*/tests/**").unwrap();
         assert_eq!(entry.get("max_avg"), Some(&25.0));
@@ -938,7 +955,11 @@ mod tests {
     #[test]
     fn test_detect_project_rust() {
         let dir = tempfile::TempDir::new().unwrap();
-        std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname = \"test\"\n").unwrap();
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            "[package]\nname = \"test\"\n",
+        )
+        .unwrap();
         let profile = detect_project(dir.path().to_str().unwrap());
         assert_eq!(profile.ecosystem, ProjectEcosystem::Rust);
         assert_eq!(profile.test_cmd, vec!["cargo", "test"]);
@@ -947,7 +968,11 @@ mod tests {
     #[test]
     fn test_detect_project_python() {
         let dir = tempfile::TempDir::new().unwrap();
-        std::fs::write(dir.path().join("setup.py"), "from setuptools import setup\n").unwrap();
+        std::fs::write(
+            dir.path().join("setup.py"),
+            "from setuptools import setup\n",
+        )
+        .unwrap();
         let profile = detect_project(dir.path().to_str().unwrap());
         assert_eq!(profile.ecosystem, ProjectEcosystem::Python);
     }

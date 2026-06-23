@@ -61,20 +61,10 @@ fn iso_timestamp() -> String {
     )
 }
 
-fn parse_cargo_lock(root: &Path) -> Vec<Component> {
-    let lock = root.join("Cargo.lock");
-    let Ok(content) = std::fs::read_to_string(&lock) else {
-        return vec![];
-    };
-
-    // Read workspace Cargo.toml files for license info
-    let mut license_map: HashMap<String, String> = HashMap::new();
-    collect_toml_licenses(root, &mut license_map);
-
+fn parse_lock_components(content: &str, license_map: &HashMap<String, String>) -> Vec<Component> {
     let mut components = Vec::new();
     let mut name = String::new();
     let mut version = String::new();
-
     for line in content.lines() {
         let t = line.trim();
         if t == "[[package]]" {
@@ -101,6 +91,19 @@ fn parse_cargo_lock(root: &Path) -> Vec<Component> {
         }
     }
     components
+}
+
+fn parse_cargo_lock(root: &Path) -> Vec<Component> {
+    let lock = root.join("Cargo.lock");
+    let Ok(content) = std::fs::read_to_string(&lock) else {
+        return vec![];
+    };
+
+    // Read workspace Cargo.toml files for license info
+    let mut license_map: HashMap<String, String> = HashMap::new();
+    collect_toml_licenses(root, &mut license_map);
+
+    parse_lock_components(&content, &license_map)
 }
 
 fn collect_toml_licenses(root: &Path, map: &mut HashMap<String, String>) {
@@ -240,32 +243,38 @@ fn parse_requirements(root: &Path) -> Vec<Component> {
         .collect()
 }
 
+fn name_version_from_cargo(root: &Path) -> Option<(String, String)> {
+    let c = std::fs::read_to_string(root.join("Cargo.toml")).ok()?;
+    let mut in_pkg = false;
+    let mut name = String::new();
+    let mut ver = String::new();
+    for line in c.lines() {
+        let t = line.trim();
+        if t == "[package]" {
+            in_pkg = true;
+        } else if t.starts_with('[') && t != "[package]" {
+            in_pkg = false;
+        }
+        if !in_pkg {
+            continue;
+        }
+        if let Some(v) = t.strip_prefix("name = \"") {
+            name = v.trim_end_matches('"').to_string();
+        }
+        if let Some(v) = t.strip_prefix("version = \"") {
+            ver = v.trim_end_matches('"').to_string();
+        }
+    }
+    if name.is_empty() {
+        None
+    } else {
+        Some((name, ver))
+    }
+}
+
 fn detect_project_name_version(root: &Path) -> (String, String) {
-    // Try Cargo.toml
-    if let Ok(c) = std::fs::read_to_string(root.join("Cargo.toml")) {
-        let mut in_pkg = false;
-        let mut name = String::new();
-        let mut ver = String::new();
-        for line in c.lines() {
-            let t = line.trim();
-            if t == "[package]" {
-                in_pkg = true;
-            } else if t.starts_with('[') && t != "[package]" {
-                in_pkg = false;
-            }
-            if !in_pkg {
-                continue;
-            }
-            if let Some(v) = t.strip_prefix("name = \"") {
-                name = v.trim_end_matches('"').to_string();
-            }
-            if let Some(v) = t.strip_prefix("version = \"") {
-                ver = v.trim_end_matches('"').to_string();
-            }
-        }
-        if !name.is_empty() {
-            return (name, ver);
-        }
+    if let Some(nv) = name_version_from_cargo(root) {
+        return nv;
     }
     // Try package.json
     if let Ok(c) = std::fs::read_to_string(root.join("package.json")) {
@@ -464,7 +473,9 @@ mod tests {
     #[test]
     fn test_parse_cargo_lock_with_packages() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.lock"), r#"
+        std::fs::write(
+            dir.path().join("Cargo.lock"),
+            r#"
 [[package]]
 name = "serde"
 version = "1.0.0"
@@ -472,7 +483,9 @@ version = "1.0.0"
 [[package]]
 name = "tokio"
 version = "0.2.0"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let comps = parse_cargo_lock(dir.path());
         assert_eq!(comps.len(), 2);
         assert_eq!(comps[0].name, "serde");
@@ -492,7 +505,11 @@ version = "0.2.0"
     #[test]
     fn test_parse_requirements_with_packages() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("requirements.txt"), "requests==2.28.0\nflask>=1.0\n").unwrap();
+        std::fs::write(
+            dir.path().join("requirements.txt"),
+            "requests==2.28.0\nflask>=1.0\n",
+        )
+        .unwrap();
         let comps = parse_requirements(dir.path());
         assert_eq!(comps.len(), 2);
         assert_eq!(comps[0].name, "requests");
@@ -505,11 +522,15 @@ version = "0.2.0"
     #[test]
     fn test_detect_project_name_version_from_cargo_toml() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.toml"), r#"
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"
 [package]
 name = "myapp"
 version = "1.2.3"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let (name, ver) = detect_project_name_version(dir.path());
         assert_eq!(name, "myapp");
         assert_eq!(ver, "1.2.3");
@@ -518,7 +539,11 @@ version = "1.2.3"
     #[test]
     fn test_detect_project_name_version_from_package_json() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("package.json"), r#"{"name": "my-app", "version": "2.0.0"}"#).unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"name": "my-app", "version": "2.0.0"}"#,
+        )
+        .unwrap();
         let (name, ver) = detect_project_name_version(dir.path());
         assert_eq!(name, "my-app");
         assert_eq!(ver, "2.0.0");
@@ -544,10 +569,14 @@ version = "1.2.3"
     #[test]
     fn test_parse_npm_lock_with_package_json() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("package.json"), r#"{
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{
   "dependencies": {"lodash": "^4.17.0"},
   "devDependencies": {"mocha": "^9.0.0"}
-}"#).unwrap();
+}"#,
+        )
+        .unwrap();
         let comps = parse_npm_lock(dir.path());
         assert_eq!(comps.len(), 2);
         assert!(comps.iter().any(|c| c.name == "lodash"));
@@ -557,12 +586,16 @@ version = "1.2.3"
     #[test]
     fn test_parse_npm_lock_with_lock_file() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("package-lock.json"), r#"{
+        std::fs::write(
+            dir.path().join("package-lock.json"),
+            r#"{
   "packages": {
     "node_modules/lodash": {"version": "4.17.21", "license": "MIT"},
     "node_modules/express": {"version": "4.18.0", "license": "MIT"}
   }
-}"#).unwrap();
+}"#,
+        )
+        .unwrap();
         let comps = parse_npm_lock(dir.path());
         assert_eq!(comps.len(), 2);
         let lodash = comps.iter().find(|c| c.name == "lodash").unwrap();

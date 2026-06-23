@@ -35,10 +35,7 @@ const LANGUAGE_CONFIGS: &[(&[&str], MutationLangConfig)] = &[
             operators: &["==", "!=", "&&", "||"],
             keywords: &["if ", "for ", "while "],
             display_name: "Ruby",
-            tool_instructions: &[
-                "  $ gem install mutant-rs",
-                "  $ mutant path/to/file.rb",
-            ],
+            tool_instructions: &["  $ gem install mutant-rs", "  $ mutant path/to/file.rb"],
         },
     ),
     (
@@ -295,15 +292,27 @@ fn analyze_non_rust_file(path: &str, _cli: &Cli) -> Result<(), String> {
     Ok(())
 }
 
-fn format_mutation_analysis(path: &str, source: &str, config: Option<&MutationLangConfig>) -> String {
+fn format_mutation_analysis(
+    path: &str,
+    source: &str,
+    config: Option<&MutationLangConfig>,
+) -> String {
     use std::fmt::Write;
     let mut out = String::new();
 
     let lang_name = config.map(|c| c.display_name).unwrap_or("Unknown");
 
     writeln!(out, "MUTATION ANALYSIS (analysis mode - no test execution)").unwrap();
-    writeln!(out, "Note: Full mutation testing with test execution is Rust-only.").unwrap();
-    writeln!(out, "For non-Rust languages: Use language-specific mutation frameworks.").unwrap();
+    writeln!(
+        out,
+        "Note: Full mutation testing with test execution is Rust-only."
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "For non-Rust languages: Use language-specific mutation frameworks."
+    )
+    .unwrap();
     writeln!(out).unwrap();
     writeln!(out, "To run full mutation tests:").unwrap();
     for instr in config.map_or(&[] as &[&str], |c| c.tool_instructions) {
@@ -326,14 +335,11 @@ fn format_mutation_analysis(path: &str, source: &str, config: Option<&MutationLa
         "  Estimated test coverage needed: {}-{}%",
         potential_mutations * 2,
         potential_mutations * 3
-    ).unwrap();
+    )
+    .unwrap();
 
     out
 }
-
-
-
-
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
@@ -380,7 +386,10 @@ fn compute_delta_analysis(
     analysis
 }
 
-fn auto_detect_package_name(crate_root: &Path, cli_package: &Option<String>) -> Result<String, String> {
+fn auto_detect_package_name(
+    crate_root: &Path,
+    cli_package: &Option<String>,
+) -> Result<String, String> {
     if let Some(ref pkg) = cli_package {
         Ok(pkg.clone())
     } else {
@@ -433,7 +442,8 @@ fn run_mutation_loop(
         };
 
         let remaining = max_mutants.saturating_sub(total_mutants);
-        let mut file_mutants = generate_mutants_for_file(&source, &file_path.to_string_lossy(), strategy, remaining);
+        let mut file_mutants =
+            generate_mutants_for_file(&source, &file_path.to_string_lossy(), strategy, remaining);
 
         // In delta mode, filter mutants to only those in affected functions
         if let Some(ref delta) = delta_analysis {
@@ -458,10 +468,20 @@ fn run_mutation_loop(
         }
 
         let file_count = file_mutants.len();
-        println!("\nTesting {} mutants from {}...", file_count, file_path.display());
+        println!(
+            "\nTesting {} mutants from {}...",
+            file_count,
+            file_path.display()
+        );
 
         for (i, mutant) in file_mutants.iter().enumerate() {
-            print!("  [{}/{}] mutant {} (line {})... ", i + 1, file_count, mutant.id, mutant.line);
+            print!(
+                "  [{}/{}] mutant {} (line {})... ",
+                i + 1,
+                file_count,
+                mutant.id,
+                mutant.line
+            );
             use std::io::Write;
             let _ = std::io::stdout().flush();
 
@@ -549,7 +569,11 @@ fn run(cli: Cli) -> Result<(), String> {
             "Computing delta mutation analysis against {}...",
             cli.base_ref
         );
-        Some(compute_delta_analysis(&crate_root, &cli.base_ref, &source_files))
+        Some(compute_delta_analysis(
+            &crate_root,
+            &cli.base_ref,
+            &source_files,
+        ))
     } else {
         println!("Found {} source files to mutate.\n", source_files.len());
         None
@@ -584,7 +608,16 @@ fn run(cli: Cli) -> Result<(), String> {
         return Ok(());
     }
 
-    output_mutation_results(&all_results, total_mutants, killed, survived, timeouts, errors, &cli.format, start);
+    output_mutation_results(
+        &all_results,
+        total_mutants,
+        killed,
+        survived,
+        timeouts,
+        errors,
+        &cli.format,
+        start,
+    );
 
     Ok(())
 }
@@ -658,9 +691,10 @@ impl Drop for ScratchCrate {
 /// Walk up from `crate_root` to find the workspace Cargo.toml (the one with [workspace]).
 /// Falls back to crate_root itself if none found.
 fn find_workspace_root(crate_root: &Path) -> PathBuf {
-    let mut dir = crate_root
+    let canonical = crate_root
         .canonicalize()
         .unwrap_or_else(|_| crate_root.to_path_buf());
+    let mut dir = canonical.clone();
     loop {
         let cargo_toml = dir.join("Cargo.toml");
         if cargo_toml.exists() {
@@ -672,7 +706,7 @@ fn find_workspace_root(crate_root: &Path) -> PathBuf {
         }
         match dir.parent() {
             Some(p) => dir = p.to_path_buf(),
-            None => return crate_root.to_path_buf(),
+            None => return canonical,
         }
     }
 }
@@ -1471,7 +1505,10 @@ fn output_table_streaming(
     timeouts: usize,
     errors: usize,
 ) {
-    println!("{}", format_mutation_table(results, total, killed, survived, timeouts, errors));
+    println!(
+        "{}",
+        format_mutation_table(results, total, killed, survived, timeouts, errors)
+    );
 }
 
 fn output_json_streaming(
@@ -1483,7 +1520,15 @@ fn output_json_streaming(
     errors: usize,
     duration_ms: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let value = build_mutation_report_json(results, total, killed, survived, timeouts, errors, duration_ms);
+    let value = build_mutation_report_json(
+        results,
+        total,
+        killed,
+        survived,
+        timeouts,
+        errors,
+        duration_ms,
+    );
     println!("{}", format_mutation_report_json(&value));
     Ok(())
 }
@@ -1529,7 +1574,8 @@ fn build_mutation_report_json(
             "passed": survived == 0 && errors == 0,
         })),
         None,
-    )).unwrap()
+    ))
+    .unwrap()
 }
 
 fn format_mutation_report_json(report: &serde_json::Value) -> String {
@@ -1550,7 +1596,15 @@ fn output_mutation_results(
     match format {
         "json" => {
             let duration_ms = start.elapsed().as_millis() as u64;
-            let _ = output_json_streaming(results, total, killed, survived, timeouts, errors, duration_ms);
+            let _ = output_json_streaming(
+                results,
+                total,
+                killed,
+                survived,
+                timeouts,
+                errors,
+                duration_ms,
+            );
         }
         _ => output_table_streaming(results, total, killed, survived, timeouts, errors),
     }
@@ -1587,7 +1641,12 @@ fn format_mutation_table(
         for r in results.iter().filter(|r| r.status == "survived") {
             let id_str = format!("[{}]", r.id);
             let line_str = r.line.to_string();
-            writeln!(out, "{}", format_table_row(&columns, &[&id_str, &r.file, &line_str, &r.description])).unwrap();
+            writeln!(
+                out,
+                "{}",
+                format_table_row(&columns, &[&id_str, &r.file, &line_str, &r.description])
+            )
+            .unwrap();
         }
     }
 
@@ -1617,7 +1676,11 @@ fn format_mutation_table(
         ),
         (
             "Survived:",
-            format!("{} ({:.0}%)", survived, survived as f64 / total as f64 * 100.0),
+            format!(
+                "{} ({:.0}%)",
+                survived,
+                survived as f64 / total as f64 * 100.0
+            ),
         ),
         ("Mutation Score:", format!("{:.0}%", score)),
         ("Verdict:", verdict.to_string()),
@@ -1776,7 +1839,10 @@ fn test() {
         let source = "// if x < 5 {\nlet y = 1;\n";
         let mut id = 0;
         let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
-        assert!(mutants.is_empty(), "Commented lines should not produce mutants");
+        assert!(
+            mutants.is_empty(),
+            "Commented lines should not produce mutants"
+        );
     }
 
     #[test]
@@ -1784,7 +1850,10 @@ fn test() {
         let source = "let x = 1 + 2;\n";
         let mut id = 0;
         let mutants = generate_mutants(source, "test.rs", &mut id, "boundary", 1000);
-        assert!(mutants.is_empty(), "No boundary ops should yield no mutants");
+        assert!(
+            mutants.is_empty(),
+            "No boundary ops should yield no mutants"
+        );
     }
 
     #[test]
@@ -1812,8 +1881,7 @@ fn test() {
         );
         // .wrapping_add( is replaced with ., consuming the opening paren
         assert_eq!(
-            mutants[0].mutated,
-            "let a = 1u32.2);",
+            mutants[0].mutated, "let a = 1u32.2);",
             ".wrapping_add( -> ., consuming the ("
         );
         assert_eq!(mutants[0].category, "arithmetic");
@@ -1876,7 +1944,10 @@ fn test() {
         let source = "// let a = 1u32.wrapping_add(2);\nlet b = 5;\n";
         let mut id = 0;
         let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
-        assert!(mutants.is_empty(), "Commented lines should not produce mutants");
+        assert!(
+            mutants.is_empty(),
+            "Commented lines should not produce mutants"
+        );
     }
 
     #[test]
@@ -1884,7 +1955,10 @@ fn test() {
         let source = "let x = 1 + 2;\n";
         let mut id = 0;
         let mutants = generate_mutants(source, "test.rs", &mut id, "arithmetic", 1000);
-        assert!(mutants.is_empty(), "No arithmetic ops should yield no mutants");
+        assert!(
+            mutants.is_empty(),
+            "No arithmetic ops should yield no mutants"
+        );
     }
 
     #[test]
@@ -2109,11 +2183,15 @@ fn test() {
     #[test]
     fn test_find_package_name_found() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.toml"), r#"
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"
 [package]
 name = "my-crate"
 version = "0.1.0"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let name = find_package_name(dir.path()).unwrap();
         assert_eq!(name, "my-crate");
     }
@@ -2127,9 +2205,13 @@ version = "0.1.0"
     #[test]
     fn test_find_package_name_no_package_section() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.toml"), r#"[workspace]
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"[workspace]
 members = ["crates/*"]
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         assert!(find_package_name(dir.path()).is_err());
     }
 
@@ -2138,8 +2220,12 @@ members = ["crates/*"]
     #[test]
     fn test_find_workspace_root_self() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.toml"), r#"[workspace]
-"#).unwrap();
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"[workspace]
+"#,
+        )
+        .unwrap();
         let root = find_workspace_root(dir.path());
         assert_eq!(root, dir.path().canonicalize().unwrap());
     }
@@ -2147,9 +2233,13 @@ members = ["crates/*"]
     #[test]
     fn test_find_workspace_root_no_workspace_falls_back() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.toml"), r#"[package]
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"[package]
 name = "x"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let root = find_workspace_root(dir.path());
         assert_eq!(root, dir.path().canonicalize().unwrap());
     }
@@ -2160,7 +2250,10 @@ name = "x"
         let root = find_workspace_root(dir.path());
         // Falls back to crate_root itself
         #[allow(deprecated)]
-        let expected = dir.path().canonicalize().unwrap_or_else(|_| dir.path().to_path_buf());
+        let expected = dir
+            .path()
+            .canonicalize()
+            .unwrap_or_else(|_| dir.path().to_path_buf());
         assert_eq!(root, expected);
     }
 
@@ -2173,9 +2266,13 @@ name = "x"
         std::fs::create_dir_all(&crates_dir).unwrap();
         let sub_crate = crates_dir.join("util");
         std::fs::create_dir_all(&sub_crate).unwrap();
-        std::fs::write(sub_crate.join("Cargo.toml"), r#"[package]
+        std::fs::write(
+            sub_crate.join("Cargo.toml"),
+            r#"[package]
 name = "util-crate"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let name = find_first_workspace_member(dir.path()).unwrap();
         assert_eq!(name, "util-crate");
     }
@@ -2273,7 +2370,10 @@ name = "util-crate"
 
         assert!(dst.join("file.txt").exists());
         assert!(dst.join("sub").join("nested.txt").exists());
-        assert_eq!(std::fs::read_to_string(dst.join("file.txt")).unwrap(), "hello");
+        assert_eq!(
+            std::fs::read_to_string(dst.join("file.txt")).unwrap(),
+            "hello"
+        );
     }
 
     #[test]
@@ -2404,16 +2504,19 @@ name = "util-crate"
 
     #[test]
     fn test_build_mutation_report_json_all_passed() {
-        let results = vec![
-            MutantResult {
-                id: 1, file: "a.rs".to_string(), line: 1,
-                description: "test".to_string(), status: "killed".to_string(),
-                test_output: "".to_string(),
-            },
-        ];
+        let results = vec![MutantResult {
+            id: 1,
+            file: "a.rs".to_string(),
+            line: 1,
+            description: "test".to_string(),
+            status: "killed".to_string(),
+            test_output: "".to_string(),
+        }];
         let value = build_mutation_report_json(&results, 1, 1, 0, 0, 0, 50);
         assert_eq!(value["summary"]["passed"], true);
-        assert!((value["data"]["summary"]["mutation_score"].as_f64().unwrap() - 100.0).abs() < 1e-9);
+        assert!(
+            (value["data"]["summary"]["mutation_score"].as_f64().unwrap() - 100.0).abs() < 1e-9
+        );
     }
 
     #[test]
@@ -2446,13 +2549,14 @@ name = "util-crate"
 
     #[test]
     fn test_format_mutation_table_all_killed() {
-        let results = vec![
-            MutantResult {
-                id: 1, file: "a.rs".to_string(), line: 1,
-                description: "test".to_string(), status: "killed".to_string(),
-                test_output: "".to_string(),
-            },
-        ];
+        let results = vec![MutantResult {
+            id: 1,
+            file: "a.rs".to_string(),
+            line: 1,
+            description: "test".to_string(),
+            status: "killed".to_string(),
+            test_output: "".to_string(),
+        }];
         let table = format_mutation_table(&results, 1, 1, 0, 0, 0);
 
         assert!(table.contains("MUTATION TESTING RESULTS"));
@@ -2502,9 +2606,13 @@ name = "util-crate"
     #[test]
     fn test_auto_detect_package_name_falls_back_to_find_package_name() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.toml"), r#"[package]
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"[package]
 name = "detected-crate"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let result = auto_detect_package_name(dir.path(), &None);
         assert_eq!(result.unwrap(), "detected-crate");
     }
@@ -2513,16 +2621,24 @@ name = "detected-crate"
     fn test_auto_detect_package_name_falls_back_to_workspace_member() {
         let dir = tempfile::tempdir().unwrap();
         // No [package] in root Cargo.toml, but crates/ has one
-        std::fs::write(dir.path().join("Cargo.toml"), r#"[workspace]
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"[workspace]
 members = ["crates/*"]
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let crates_dir = dir.path().join("crates");
         std::fs::create_dir_all(&crates_dir).unwrap();
         let sub_crate = crates_dir.join("util");
         std::fs::create_dir_all(&sub_crate).unwrap();
-        std::fs::write(sub_crate.join("Cargo.toml"), r#"[package]
+        std::fs::write(
+            sub_crate.join("Cargo.toml"),
+            r#"[package]
 name = "util-crate"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let result = auto_detect_package_name(dir.path(), &None);
         assert_eq!(result.unwrap(), "util-crate");
     }

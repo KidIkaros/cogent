@@ -4,6 +4,7 @@ use clap::Parser;
 use tracing_subscriber::prelude::*;
 
 mod audit;
+mod bench;
 mod cache;
 mod check_runners;
 mod checks_cmd;
@@ -20,7 +21,6 @@ mod report;
 mod report_formatters;
 mod serve;
 mod types;
-mod bench;
 mod watch;
 
 use cli::Cli;
@@ -93,12 +93,18 @@ fn init_tracing() -> OtelGuard {
                             return OtelGuard { _runtime: Some(rt) };
                         }
                         Err(e) => {
-                            eprintln!("Warning: OpenTelemetry init failed ({}), falling back to fmt-only", e);
+                            eprintln!(
+                                "Warning: OpenTelemetry init failed ({}), falling back to fmt-only",
+                                e
+                            );
                         }
                     }
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to create Tokio runtime ({}), falling back to fmt-only", e);
+                    eprintln!(
+                        "Warning: Failed to create Tokio runtime ({}), falling back to fmt-only",
+                        e
+                    );
                 }
             }
         }
@@ -129,7 +135,9 @@ fn init_tracing() -> OtelGuard {
 /// See: <https://github.com/rust-lang/rust/issues/62569>
 #[cfg(unix)]
 fn reset_sigpipe() {
-    unsafe { libc::signal(libc::SIGPIPE, libc::SIG_DFL); }
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
 }
 
 #[cfg(not(unix))]
@@ -137,11 +145,33 @@ fn reset_sigpipe() {
     // No-op on Windows — SIGPIPE does not exist there.
 }
 
-fn main() {
-    reset_sigpipe();
+/// Stack size for the worker thread that runs the CLI.
+///
+/// The OS-provided main-thread stack defaults to 8 MiB on Linux/macOS but only
+/// 1 MiB on Windows, which is too small for both clap's derive-generated command
+/// builder (a single very large stack frame for this large subcommand tree) and
+/// the orchestration work — especially in unoptimized debug builds with large
+/// stack frames, where it overflows. Running the whole CLI on an explicitly
+/// sized thread makes stack behaviour identical across platforms.
+const CLI_STACK_SIZE: usize = 16 * 1024 * 1024;
+
+fn run() -> i32 {
     let _otel_guard = init_tracing();
     let cli = Cli::parse();
-    let exit_code = dispatcher::dispatch(cli.command);
+    dispatcher::dispatch(cli.command)
+}
+
+fn main() {
+    reset_sigpipe();
+
+    let exit_code = std::thread::Builder::new()
+        .name("cogent-main".into())
+        .stack_size(CLI_STACK_SIZE)
+        .spawn(run)
+        .expect("failed to spawn main worker thread")
+        .join()
+        .expect("worker thread panicked");
+
     std::process::exit(exit_code);
 }
 

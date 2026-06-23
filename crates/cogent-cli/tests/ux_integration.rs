@@ -139,7 +139,9 @@ fn test_cogent_doctor_json() {
     let json: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("doctor JSON not valid: {}\nstdout:\n{}", e, stdout));
 
-    let obj = json.as_object().expect("doctor output should be a JSON object");
+    let obj = json
+        .as_object()
+        .expect("doctor output should be a JSON object");
 
     // Verify expected diagnostic fields
     assert!(
@@ -147,63 +149,27 @@ fn test_cogent_doctor_json() {
         "missing 'cogent_version'. keys: {:?}",
         obj.keys().collect::<Vec<_>>()
     );
-    assert!(
-        obj.contains_key("rust_version"),
-        "missing 'rust_version'"
-    );
-    assert!(
-        obj.contains_key("cargo_version"),
-        "missing 'cargo_version'"
-    );
-    assert!(
-        obj.contains_key("platform"),
-        "missing 'platform'"
-    );
-    assert!(
-        obj.contains_key("arch"),
-        "missing 'arch'"
-    );
-    assert!(
-        obj.contains_key("path"),
-        "missing 'path'"
-    );
-    assert!(
-        obj.contains_key("cwd"),
-        "missing 'cwd'"
-    );
-    assert!(
-        obj.contains_key("config"),
-        "missing 'config'"
-    );
-    assert!(
-        obj.contains_key("binaries"),
-        "missing 'binaries'"
-    );
+    assert!(obj.contains_key("rust_version"), "missing 'rust_version'");
+    assert!(obj.contains_key("cargo_version"), "missing 'cargo_version'");
+    assert!(obj.contains_key("platform"), "missing 'platform'");
+    assert!(obj.contains_key("arch"), "missing 'arch'");
+    assert!(obj.contains_key("path"), "missing 'path'");
+    assert!(obj.contains_key("cwd"), "missing 'cwd'");
+    assert!(obj.contains_key("config"), "missing 'config'");
+    assert!(obj.contains_key("binaries"), "missing 'binaries'");
 
     // Verify types
     assert!(
         obj["cogent_version"].is_string(),
         "cogent_version should be a string"
     );
-    assert!(
-        obj["platform"].is_string(),
-        "platform should be a string"
-    );
-    assert!(
-        obj["arch"].is_string(),
-        "arch should be a string"
-    );
-    assert!(
-        obj["binaries"].is_object(),
-        "binaries should be an object"
-    );
+    assert!(obj["platform"].is_string(), "platform should be a string");
+    assert!(obj["arch"].is_string(), "arch should be a string");
+    assert!(obj["binaries"].is_object(), "binaries should be an object");
 
     // cogent_version should not be empty
     let version = obj["cogent_version"].as_str().unwrap_or("");
-    assert!(
-        !version.is_empty(),
-        "cogent_version should not be empty"
-    );
+    assert!(!version.is_empty(), "cogent_version should not be empty");
 
     // Verify combined output is correct (no unexpected errors on stderr)
     assert!(
@@ -228,14 +194,23 @@ fn test_help_output() {
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(output.status.success(), "cogent --help should exit 0");
-    assert!(combined.contains("Usage:"), "expected 'Usage:' in help output");
+    assert!(
+        combined.contains("Usage:"),
+        "expected 'Usage:' in help output"
+    );
     assert!(combined.contains("cogent"), "expected 'cogent' in help");
     // Verify several key subcommands are listed
     assert!(combined.contains("check"), "expected 'check' subcommand");
     assert!(combined.contains("doctor"), "expected 'doctor' subcommand");
-    assert!(combined.contains("explain"), "expected 'explain' subcommand");
+    assert!(
+        combined.contains("explain"),
+        "expected 'explain' subcommand"
+    );
     assert!(combined.contains("init"), "expected 'init' subcommand");
-    assert!(combined.contains("discover"), "expected 'discover' subcommand");
+    assert!(
+        combined.contains("discover"),
+        "expected 'discover' subcommand"
+    );
 }
 
 #[test]
@@ -249,8 +224,14 @@ fn test_help_check() {
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(output.status.success(), "cogent check --help should exit 0");
-    assert!(combined.contains("--format"), "expected '--format' flag in check help");
-    assert!(combined.contains("--recursive"), "expected '--recursive' flag");
+    assert!(
+        combined.contains("--format"),
+        "expected '--format' flag in check help"
+    );
+    assert!(
+        combined.contains("--recursive"),
+        "expected '--recursive' flag"
+    );
     assert!(combined.contains("--force"), "expected '--force' flag");
 }
 
@@ -321,7 +302,9 @@ fn test_explain_secrets() {
         combined
     );
     assert!(
-        combined.contains("API key") || combined.contains("tokens") || combined.contains("passwords"),
+        combined.contains("API key")
+            || combined.contains("tokens")
+            || combined.contains("passwords"),
         "expected secret type mentions. got:\n{}",
         combined
     );
@@ -365,7 +348,9 @@ fn test_discover_json() {
     let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
     cmd.arg("discover").arg("--format").arg("json");
 
-    let output = cmd.output().expect("failed to run cogent discover --format json");
+    let output = cmd
+        .output()
+        .expect("failed to run cogent discover --format json");
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert!(output.status.success(), "cogent discover should exit 0");
@@ -377,24 +362,55 @@ fn test_discover_json() {
     assert!(!tools.is_empty(), "should have at least one tool entry");
 
     // Verify common tool entries exist
-    let names: Vec<&str> = tools.iter()
-        .filter_map(|t| t["name"].as_str())
-        .collect();
+    let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
 
-    assert!(names.contains(&"crap"), "expected 'crap' in discovered tools");
-    assert!(names.contains(&"debt"), "expected 'debt' in discovered tools");
-    assert!(names.contains(&"check"), "expected 'check' in discovered tools");
-    assert!(names.contains(&"init"), "expected 'init' in discovered tools");
+    assert!(
+        names.contains(&"crap"),
+        "expected 'crap' in discovered tools"
+    );
+    assert!(
+        names.contains(&"debt"),
+        "expected 'debt' in discovered tools"
+    );
+    assert!(
+        names.contains(&"check"),
+        "expected 'check' in discovered tools"
+    );
+    assert!(
+        names.contains(&"init"),
+        "expected 'init' in discovered tools"
+    );
 
     // Each tool should have required fields
     for tool in &tools {
-        let obj = tool.as_object()
+        let obj = tool
+            .as_object()
             .unwrap_or_else(|| panic!("each tool should be an object, got: {:?}", tool));
-        assert!(obj.contains_key("name"), "tool missing 'name': {:?}", obj.keys().collect::<Vec<_>>());
-        assert!(obj.contains_key("binary"), "tool '{}' missing 'binary'", obj["name"]);
-        assert!(obj.contains_key("description"), "tool '{}' missing 'description'", obj["name"]);
-        assert!(obj.contains_key("supported_formats"), "tool '{}' missing 'supported_formats'", obj["name"]);
-        assert!(obj.contains_key("output_fields"), "tool '{}' missing 'output_fields'", obj["name"]);
+        assert!(
+            obj.contains_key("name"),
+            "tool missing 'name': {:?}",
+            obj.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            obj.contains_key("binary"),
+            "tool '{}' missing 'binary'",
+            obj["name"]
+        );
+        assert!(
+            obj.contains_key("description"),
+            "tool '{}' missing 'description'",
+            obj["name"]
+        );
+        assert!(
+            obj.contains_key("supported_formats"),
+            "tool '{}' missing 'supported_formats'",
+            obj["name"]
+        );
+        assert!(
+            obj.contains_key("output_fields"),
+            "tool '{}' missing 'output_fields'",
+            obj["name"]
+        );
     }
 }
 
@@ -403,16 +419,27 @@ fn test_discover_text() {
     let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
     cmd.arg("discover").arg("--format").arg("text");
 
-    let output = cmd.output().expect("failed to run cogent discover --format text");
+    let output = cmd
+        .output()
+        .expect("failed to run cogent discover --format text");
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert!(output.status.success(), "cogent discover should exit 0");
 
     // Text output should contain tool names and descriptions
     assert!(stdout.contains("crap"), "expected 'crap' in text output");
-    assert!(stdout.contains("Description:"), "expected 'Description:' field");
-    assert!(stdout.contains("Supported Formats:"), "expected 'Supported Formats:' field");
-    assert!(stdout.contains("Output Fields:"), "expected 'Output Fields:' field");
+    assert!(
+        stdout.contains("Description:"),
+        "expected 'Description:' field"
+    );
+    assert!(
+        stdout.contains("Supported Formats:"),
+        "expected 'Supported Formats:' field"
+    );
+    assert!(
+        stdout.contains("Output Fields:"),
+        "expected 'Output Fields:' field"
+    );
     assert!(stdout.contains("Rule IDs:"), "expected 'Rule IDs:' field");
 }
 
@@ -425,7 +452,9 @@ fn test_cogent_doctor_text() {
     let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
     cmd.arg("doctor").arg("--format").arg("text");
 
-    let output = cmd.output().expect("failed to run cogent doctor --format text");
+    let output = cmd
+        .output()
+        .expect("failed to run cogent doctor --format text");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     let combined = format!("{}{}", stderr, stdout);
@@ -454,7 +483,10 @@ fn test_cogent_doctor_text() {
         combined
     );
     assert!(
-        combined.contains("platform") || combined.contains("Platform") || combined.contains("arch") || combined.contains("Arch"),
+        combined.contains("platform")
+            || combined.contains("Platform")
+            || combined.contains("arch")
+            || combined.contains("Arch"),
         "expected platform info. got:\n{}",
         combined
     );
@@ -473,8 +505,9 @@ fn test_init_ci_creates_workflow() {
     // Create a minimal Cargo.toml so ecosystem detection finds Rust
     std::fs::write(
         temp_path.join("Cargo.toml"),
-        "[package]\nname = \"test-project\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
-    ).expect("failed to write Cargo.toml");
+        "[package]\nname = \"test-project\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .expect("failed to write Cargo.toml");
 
     let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
     cmd.arg("init")
@@ -550,7 +583,10 @@ fn test_completions_bash() {
     let output = cmd.output().expect("failed to run cogent completions bash");
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    assert!(output.status.success(), "cogent completions bash should exit 0");
+    assert!(
+        output.status.success(),
+        "cogent completions bash should exit 0"
+    );
     assert!(
         stdout.contains("_cogent") || stdout.contains("complete") || stdout.contains("bash-"),
         "expected bash completion output. got:\n{}",
@@ -566,7 +602,10 @@ fn test_completions_zsh() {
     let output = cmd.output().expect("failed to run cogent completions zsh");
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    assert!(output.status.success(), "cogent completions zsh should exit 0");
+    assert!(
+        output.status.success(),
+        "cogent completions zsh should exit 0"
+    );
     assert!(
         stdout.contains("_cogent") || stdout.contains("#compdef") || stdout.contains("compdef"),
         "expected zsh completion output. got:\n{}",
@@ -582,7 +621,10 @@ fn test_completions_fish() {
     let output = cmd.output().expect("failed to run cogent completions fish");
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    assert!(output.status.success(), "cogent completions fish should exit 0");
+    assert!(
+        output.status.success(),
+        "cogent completions fish should exit 0"
+    );
     assert!(
         stdout.contains("complete") || stdout.contains("cogent"),
         "expected fish completion output. got:\n{}",

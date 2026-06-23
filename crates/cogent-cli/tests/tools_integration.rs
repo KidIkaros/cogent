@@ -370,8 +370,12 @@ fn test_cogent_check_ci_forces_json_over_markdown() {
     );
 
     // CI forces JSON, so output should be valid JSON, not markdown
-    let json: Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify CheckReport structure
     let obj = json.as_object().expect("check output should be an object");
@@ -381,8 +385,13 @@ fn test_cogent_check_ci_forces_json_over_markdown() {
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -424,8 +433,12 @@ fn test_cogent_check_ci_forces_json_over_text() {
     );
 
     // CI forces JSON, so output should be valid JSON, not text
-    let json: Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format text. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format text. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify CheckReport structure
     let obj = json.as_object().expect("check output should be an object");
@@ -435,8 +448,13 @@ fn test_cogent_check_ci_forces_json_over_text() {
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -479,19 +497,30 @@ fn test_cogent_check_ci_forces_json_over_sarif() {
     );
 
     // CI forces JSON, so output should be valid JSON (CheckReport, not SARIF)
-    let json: Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format sarif. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format sarif. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify CheckReport structure (SARIF output has "$schema", "version", "runs" instead)
-    let obj = json.as_object().expect("check output should be a JSON object");
+    let obj = json
+        .as_object()
+        .expect("check output should be a JSON object");
     assert!(obj.contains_key("passed"), "missing 'passed'");
     assert!(obj.contains_key("path"), "missing 'path'");
     assert!(obj.contains_key("checks"), "missing 'checks'");
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -539,19 +568,30 @@ fn test_cogent_check_ci_forces_json_over_ndjson() {
 
     // CI forces JSON -- parsing the entire stdout as a single JSON value should succeed.
     // (NDJSON output of multiple JSON objects per line would fail `from_str`.)
-    let json: Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format ndjson. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format ndjson. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify CheckReport structure
-    let obj = json.as_object().expect("check output should be a JSON object");
+    let obj = json
+        .as_object()
+        .expect("check output should be a JSON object");
     assert!(obj.contains_key("passed"), "missing 'passed'");
     assert!(obj.contains_key("path"), "missing 'path'");
     assert!(obj.contains_key("checks"), "missing 'checks'");
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -588,19 +628,30 @@ fn test_cogent_check_ci_forces_json_over_findings() {
 
     // CI forces JSON -- parsing the entire stdout as a single JSON value should succeed.
     // (Findings NDJSON with multiple objects per line would fail `from_str`.)
-    let json: Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format findings. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format findings. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify CheckReport structure
-    let obj = json.as_object().expect("check output should be a JSON object");
+    let obj = json
+        .as_object()
+        .expect("check output should be a JSON object");
     assert!(obj.contains_key("passed"), "missing 'passed'");
     assert!(obj.contains_key("path"), "missing 'path'");
     assert!(obj.contains_key("checks"), "missing 'checks'");
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -636,19 +687,30 @@ fn test_cogent_check_ci_forces_json_over_junit() {
     );
 
     // CI forces JSON -- parsing as JSON should succeed (JUnit XML would fail `from_str`.)
-    let json: Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format junit. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format junit. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify CheckReport structure
-    let obj = json.as_object().expect("check output should be a JSON object");
+    let obj = json
+        .as_object()
+        .expect("check output should be a JSON object");
     assert!(obj.contains_key("passed"), "missing 'passed'");
     assert!(obj.contains_key("path"), "missing 'path'");
     assert!(obj.contains_key("checks"), "missing 'checks'");
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -734,13 +796,38 @@ fn test_cogent_version() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Names of security-category checks (actual CheckResult.name values from check_runners.rs).
-const SECURITY_CHECKS: [&str; 6] = ["secrets", "sast", "crypto", "taint", "vulnscan", "access-control"];
+const SECURITY_CHECKS: [&str; 7] = [
+    "secrets",
+    "sast",
+    "crypto",
+    "taint",
+    "vulnscan",
+    "access-control",
+    "errhandle",
+];
 /// Names of quality-category checks (actual CheckResult.name values from check_runners.rs).
 /// Note: "doc_coverage" not "doccov"; "duplication" not "dupfind".
-const QUALITY_CHECKS: [&str; 20] = ["crap", "debt", "doc_coverage", "complexity", "duplication",
-    "riskmap", "coupling", "propcov", "fuzz", "linelen", "halstead", "deadcode",
-    "cohesion", "comments", "errhandle", "typecov", "observability",
-    "test-quality", "design-docs", "debuggability"];
+const QUALITY_CHECKS: [&str; 19] = [
+    "crap",
+    "debt",
+    "doc_coverage",
+    "complexity",
+    "duplication",
+    "riskmap",
+    "coupling",
+    "propcov",
+    "fuzz",
+    "linelen",
+    "halstead",
+    "deadcode",
+    "cohesion",
+    "comments",
+    "typecov",
+    "observability",
+    "test-quality",
+    "design-docs",
+    "debuggability",
+];
 /// Names of compliance-category checks that have run_audit_check! calls.
 /// "outdated" and "sbom" are listed in compliance_checks but have no audit runner.
 const COMPLIANCE_CHECKS: [&str; 2] = ["licenses", "supply-chain"];
@@ -749,9 +836,7 @@ const COMPLIANCE_CHECKS: [&str; 2] = ["licenses", "supply-chain"];
 fn run_audit(args: &[&str]) -> (Option<i32>, String, String) {
     let fixture = fixture_path();
     let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
-    cmd.arg("audit")
-        .arg(fixture.to_str().unwrap())
-        .args(args);
+    cmd.arg("audit").arg(fixture.to_str().unwrap()).args(args);
 
     let output = cmd.output().expect("failed to run cogent audit");
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -772,18 +857,29 @@ fn test_audit_json_format() {
         combined
     );
 
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("audit --format json output is not valid JSON: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "audit --format json output is not valid JSON: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
-    let obj = json.as_object().expect("audit json output should be a JSON object");
+    let obj = json
+        .as_object()
+        .expect("audit json output should be a JSON object");
     assert!(obj.contains_key("passed"), "missing 'passed'");
     assert!(obj.contains_key("path"), "missing 'path'");
     assert!(obj.contains_key("checks"), "missing 'checks'");
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -813,10 +909,19 @@ fn test_audit_agent_format() {
     // Every line should be valid JSON
     for (i, line) in lines.iter().enumerate() {
         let value: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|e| {
-            panic!("line {} of agent output is not valid JSON: {}\nline: {}", i + 1, e, line)
+            panic!(
+                "line {} of agent output is not valid JSON: {}\nline: {}",
+                i + 1,
+                e,
+                line
+            )
         });
         let obj = value.as_object().unwrap_or_else(|| {
-            panic!("line {} of agent output should be a JSON object, got: {}", i + 1, value)
+            panic!(
+                "line {} of agent output should be a JSON object, got: {}",
+                i + 1,
+                value
+            )
         });
 
         // Each line should have a "type" field: "finding" or "summary"
@@ -885,10 +990,7 @@ fn test_audit_markdown_format() {
 #[test]
 fn test_audit_skip_filter() {
     // Skip a check and verify it still runs (just reports findings)
-    let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--skip", "secrets",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--format", "json", "--skip", "secrets"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -899,10 +1001,16 @@ fn test_audit_skip_filter() {
     );
 
     // Output should still be valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("audit --skip output is not valid JSON: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "audit --skip output is not valid JSON: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     // The skip filter excludes "secrets" from the check list
     let check_names: Vec<&str> = checks
         .iter()
@@ -919,10 +1027,7 @@ fn test_audit_skip_filter() {
 fn test_audit_checks_filter() {
     // The --checks flag maps to the `only_set` in audit_should_run.
     // Only named checks should appear in the output.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--checks", "secrets,sast",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--format", "json", "--checks", "secrets,sast"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -932,10 +1037,16 @@ fn test_audit_checks_filter() {
         combined
     );
 
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("audit --checks output is not valid JSON: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "audit --checks output is not valid JSON: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -958,10 +1069,7 @@ fn test_audit_checks_filter() {
 #[test]
 fn test_audit_ci_mode() {
     // CI mode sets COGENT_NO_PROGRESS and should produce valid JSON output
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "json",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "json"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -977,7 +1085,10 @@ fn test_audit_ci_mode() {
         if stdout.trim().is_empty() {
             return serde_json::Value::Null;
         }
-        panic!("audit --ci output is not valid JSON (when non-empty): {}\nstdout:\n{}", e, stdout)
+        panic!(
+            "audit --ci output is not valid JSON (when non-empty): {}\nstdout:\n{}",
+            e, stdout
+        )
     });
 
     if json.is_object() {
@@ -991,10 +1102,7 @@ fn test_audit_ci_mode() {
 #[test]
 fn test_audit_only_security() {
     // --only security should limit checks to the security category
-    let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--only", "security",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--format", "json", "--only", "security"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1004,10 +1112,16 @@ fn test_audit_only_security() {
         combined
     );
 
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("audit --only security output is not valid JSON: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "audit --only security output is not valid JSON: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -1036,10 +1150,7 @@ fn test_audit_only_security() {
 #[test]
 fn test_audit_only_quality() {
     // --only quality should limit checks to the quality category
-    let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--only", "quality",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--format", "json", "--only", "quality"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1049,10 +1160,16 @@ fn test_audit_only_quality() {
         combined
     );
 
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("audit --only quality output is not valid JSON: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "audit --only quality output is not valid JSON: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -1081,10 +1198,7 @@ fn test_audit_only_quality() {
 #[test]
 fn test_audit_only_compliance() {
     // --only compliance should limit checks to licenses and supply-chain
-    let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--only", "compliance",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--format", "json", "--only", "compliance"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1094,10 +1208,16 @@ fn test_audit_only_compliance() {
         combined
     );
 
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("audit --only compliance output is not valid JSON: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "audit --only compliance output is not valid JSON: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -1133,9 +1253,12 @@ fn test_audit_checks_overrides_only_category() {
     // --checks (only_set) takes precedence over --only (active_categories).
     // Even with --only security, only secrets and sast should run.
     let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--only", "security",
-        "--checks", "secrets,sast",
+        "--format",
+        "json",
+        "--only",
+        "security",
+        "--checks",
+        "secrets,sast",
     ]);
     let combined = format!("{}{}", stderr, stdout);
 
@@ -1149,7 +1272,9 @@ fn test_audit_checks_overrides_only_category() {
     let json: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("output is not valid JSON: {}\nstdout:\n{}", e, stdout));
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -1175,9 +1300,12 @@ fn test_audit_skip_ignored_when_checks_active() {
     // --checks (only_set) takes highest priority in audit_should_run.
     // Even if a check is in --skip, it should still run if listed in --checks.
     let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--skip", "secrets",
-        "--checks", "secrets,sast",
+        "--format",
+        "json",
+        "--skip",
+        "secrets",
+        "--checks",
+        "secrets,sast",
     ]);
     let combined = format!("{}{}", stderr, stdout);
 
@@ -1191,7 +1319,9 @@ fn test_audit_skip_ignored_when_checks_active() {
     let json: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("output is not valid JSON: {}\nstdout:\n{}", e, stdout));
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -1229,9 +1359,12 @@ fn test_audit_skip_excludes_from_category() {
     // With --only security and --skip secrets,sast, all security checks except
     // secrets and sast should appear.
     let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--only", "security",
-        "--skip", "secrets,sast",
+        "--format",
+        "json",
+        "--only",
+        "security",
+        "--skip",
+        "secrets,sast",
     ]);
     let combined = format!("{}{}", stderr, stdout);
 
@@ -1245,7 +1378,9 @@ fn test_audit_skip_excludes_from_category() {
     let json: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("output is not valid JSON: {}\nstdout:\n{}", e, stdout));
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -1289,10 +1424,7 @@ fn test_audit_skip_only_interaction_all_flags() {
     // With --only security --skip secrets --checks secrets, only secrets should run
     // because --checks takes priority over both --skip and --only.
     let (exit, stdout, stderr) = run_audit(&[
-        "--format", "json",
-        "--only", "security",
-        "--skip", "secrets",
-        "--checks", "secrets",
+        "--format", "json", "--only", "security", "--skip", "secrets", "--checks", "secrets",
     ]);
     let combined = format!("{}{}", stderr, stdout);
 
@@ -1306,7 +1438,9 @@ fn test_audit_skip_only_interaction_all_flags() {
     let json: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("output is not valid JSON: {}\nstdout:\n{}", e, stdout));
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -1332,11 +1466,7 @@ fn test_audit_ci_with_skip() {
     // --ci sets COGENT_NO_PROGRESS and the CI exit code logic.
     // Combined with --skip, the skip filter should still work correctly,
     // and the CI exit code logic applies to the filtered results.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "json",
-        "--skip", "secrets",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "json", "--skip", "secrets"]);
     let combined = format!("{}{}", stderr, stdout);
 
     // CI mode: exit 0 if passed, 1 if failed (or if ci+findings)
@@ -1371,12 +1501,16 @@ fn test_audit_ci_with_skip() {
     );
 
     // total_checks in summary should match the checks array length
-    let summary = obj["summary"].as_object().expect("summary should be an object");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
     let total_checks = summary["total_checks"].as_u64().unwrap_or(0) as usize;
     assert_eq!(
-        total_checks, checks.len(),
+        total_checks,
+        checks.len(),
         "total_checks {} should match checks array length {}",
-        total_checks, checks.len()
+        total_checks,
+        checks.len()
     );
 
     // Verify the CI exit code logic:
@@ -1398,9 +1532,12 @@ fn test_audit_ci_with_skip_and_only() {
     // with only non-skipped security checks.
     let (exit, stdout, stderr) = run_audit(&[
         "--ci",
-        "--format", "json",
-        "--only", "security",
-        "--skip", "secrets,sast",
+        "--format",
+        "json",
+        "--only",
+        "security",
+        "--skip",
+        "secrets,sast",
     ]);
     let combined = format!("{}{}", stderr, stdout);
 
@@ -1414,7 +1551,9 @@ fn test_audit_ci_with_skip_and_only() {
     let json: serde_json::Value = serde_json::from_str(&stdout)
         .unwrap_or_else(|e| panic!("output is not valid JSON: {}\nstdout:\n{}", e, stdout));
 
-    let checks = json["checks"].as_array().expect("checks should be an array");
+    let checks = json["checks"]
+        .as_array()
+        .expect("checks should be an array");
     let check_names: Vec<&str> = checks
         .iter()
         .filter_map(|c| c.get("name").and_then(|n| n.as_str()))
@@ -1447,7 +1586,9 @@ fn test_audit_ci_with_skip_and_only() {
     }
 
     // Verify summary matches actual checks
-    let summary = json["summary"].as_object().expect("summary should be an object");
+    let summary = json["summary"]
+        .as_object()
+        .expect("summary should be an object");
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -1459,10 +1600,7 @@ fn test_audit_ci_with_skip_and_only() {
 fn test_audit_ci_forces_json_over_markdown() {
     // --ci should force JSON output even when --format markdown is specified,
     // consistent with the check subcommand's behavior.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "markdown",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "markdown"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1473,8 +1611,12 @@ fn test_audit_ci_forces_json_over_markdown() {
     );
 
     // CI forces JSON, so output should be valid JSON, not markdown
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format markdown. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format markdown. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify JSON structure
     let obj = json.as_object().expect("output should be a JSON object");
@@ -1484,7 +1626,9 @@ fn test_audit_ci_forces_json_over_markdown() {
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -1504,10 +1648,7 @@ fn test_audit_ci_forces_json_over_text() {
     // --ci should force JSON output even when --format text is specified.
     // Without --ci, "text" is not a recognized audit format and would exit 2;
     // with --ci, it's overridden to "json" and should produce valid JSON.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "text",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "text"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1518,8 +1659,12 @@ fn test_audit_ci_forces_json_over_text() {
     );
 
     // CI forces JSON, so output should be valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format text. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format text. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify JSON structure
     let obj = json.as_object().expect("output should be a JSON object");
@@ -1529,8 +1674,13 @@ fn test_audit_ci_forces_json_over_text() {
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -1539,10 +1689,7 @@ fn test_audit_ci_forces_json_over_text() {
 
     // Without --ci, --format text would hit the unknown-format arm and exit 2.
     // Verify that CI override prevented that (text output would have no valid JSON).
-    assert!(
-        !stdout.trim().is_empty(),
-        "CI output should not be empty"
-    );
+    assert!(!stdout.trim().is_empty(), "CI output should not be empty");
 }
 
 #[test]
@@ -1550,10 +1697,7 @@ fn test_audit_ci_forces_json_over_agent() {
     // --ci should force JSON output even when --format agent is specified.
     // Without --ci, "agent" produces NDJSON (one finding per line + summary).
     // With --ci, it's overridden to "json" and produces a single JSON CheckReport.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "agent",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "agent"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1564,19 +1708,30 @@ fn test_audit_ci_forces_json_over_agent() {
     );
 
     // CI forces JSON, so output should be a single JSON object, not NDJSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format agent. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format agent. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify JSON structure (CheckReport, not a finding line)
-    let obj = json.as_object().expect("output should be a JSON object (CheckReport), not NDJSON");
+    let obj = json
+        .as_object()
+        .expect("output should be a JSON object (CheckReport), not NDJSON");
     assert!(obj.contains_key("passed"), "missing 'passed'");
     assert!(obj.contains_key("path"), "missing 'path'");
     assert!(obj.contains_key("checks"), "missing 'checks'");
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -1592,10 +1747,7 @@ fn test_audit_ci_forces_json_over_agent() {
 
     // Ensure it's not NDJSON: agent output has multiple non-empty lines
     let non_empty_lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert!(
-        !non_empty_lines.is_empty(),
-        "output should not be empty"
-    );
+    assert!(!non_empty_lines.is_empty(), "output should not be empty");
 }
 
 #[test]
@@ -1603,10 +1755,7 @@ fn test_audit_ci_forces_json_over_sarif() {
     // --ci should force JSON output even when --format sarif is specified.
     // Without --ci, "sarif" is not a recognized audit format and would exit 2;
     // with --ci, it's overridden to "json" and should produce valid JSON.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "sarif",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "sarif"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1617,8 +1766,12 @@ fn test_audit_ci_forces_json_over_sarif() {
     );
 
     // CI forces JSON, so output should be valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format sarif. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format sarif. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify JSON structure
     let obj = json.as_object().expect("output should be a JSON object");
@@ -1628,8 +1781,13 @@ fn test_audit_ci_forces_json_over_sarif() {
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -1638,10 +1796,7 @@ fn test_audit_ci_forces_json_over_sarif() {
 
     // Without --ci, --format sarif would hit the unknown-format arm and exit 2.
     // Verify that CI override prevented that.
-    assert!(
-        !stdout.trim().is_empty(),
-        "CI output should not be empty"
-    );
+    assert!(!stdout.trim().is_empty(), "CI output should not be empty");
 }
 
 #[test]
@@ -1649,10 +1804,7 @@ fn test_audit_ci_forces_json_over_ndjson() {
     // --ci should force JSON output even when --format ndjson is specified.
     // Without --ci, "ndjson" is not a recognized audit format and would exit 2;
     // with --ci, it's overridden to "json" and should produce valid JSON.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "ndjson",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "ndjson"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1663,8 +1815,12 @@ fn test_audit_ci_forces_json_over_ndjson() {
     );
 
     // CI forces JSON, so output should be valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format ndjson. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format ndjson. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify JSON structure
     let obj = json.as_object().expect("output should be a JSON object");
@@ -1674,8 +1830,13 @@ fn test_audit_ci_forces_json_over_ndjson() {
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
@@ -1684,10 +1845,7 @@ fn test_audit_ci_forces_json_over_ndjson() {
 
     // Without --ci, --format ndjson would hit the unknown-format arm and exit 2.
     // Verify that CI override prevented that.
-    assert!(
-        !stdout.trim().is_empty(),
-        "CI output should not be empty"
-    );
+    assert!(!stdout.trim().is_empty(), "CI output should not be empty");
 }
 
 #[test]
@@ -1695,10 +1853,7 @@ fn test_audit_ci_forces_json_over_findings() {
     // --ci should force JSON output even when --format findings is specified.
     // Without --ci, "findings" is not a recognized audit format and would exit 2;
     // with --ci, it's overridden to "json" and should produce valid JSON.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "findings",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "findings"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1709,8 +1864,12 @@ fn test_audit_ci_forces_json_over_findings() {
     );
 
     // CI forces JSON, so output should be valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format findings. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format findings. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify JSON structure
     let obj = json.as_object().expect("output should be a JSON object");
@@ -1720,18 +1879,20 @@ fn test_audit_ci_forces_json_over_findings() {
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
         "total_checks should match checks array length"
     );
 
-    assert!(
-        !stdout.trim().is_empty(),
-        "CI output should not be empty"
-    );
+    assert!(!stdout.trim().is_empty(), "CI output should not be empty");
 }
 
 #[test]
@@ -1739,10 +1900,7 @@ fn test_audit_ci_forces_json_over_junit() {
     // --ci should force JSON output even when --format junit is specified.
     // Without --ci, "junit" is not a recognized audit format and would exit 2;
     // with --ci, it's overridden to "json" and should produce valid JSON.
-    let (exit, stdout, stderr) = run_audit(&[
-        "--ci",
-        "--format", "junit",
-    ]);
+    let (exit, stdout, stderr) = run_audit(&["--ci", "--format", "junit"]);
     let combined = format!("{}{}", stderr, stdout);
 
     assert!(
@@ -1753,8 +1911,12 @@ fn test_audit_ci_forces_json_over_junit() {
     );
 
     // CI forces JSON, so output should be valid JSON
-    let json: serde_json::Value = serde_json::from_str(&stdout)
-        .unwrap_or_else(|e| panic!("CI should force JSON output even with --format junit. Parse error: {}\nstdout:\n{}", e, stdout));
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap_or_else(|e| {
+        panic!(
+            "CI should force JSON output even with --format junit. Parse error: {}\nstdout:\n{}",
+            e, stdout
+        )
+    });
 
     // Verify JSON structure
     let obj = json.as_object().expect("output should be a JSON object");
@@ -1764,16 +1926,18 @@ fn test_audit_ci_forces_json_over_junit() {
     assert!(obj.contains_key("summary"), "missing 'summary'");
 
     let checks = obj["checks"].as_array().expect("checks should be an array");
-    let summary = obj["summary"].as_object().expect("summary should be an object");
-    assert!(summary.contains_key("total_checks"), "summary missing 'total_checks'");
+    let summary = obj["summary"]
+        .as_object()
+        .expect("summary should be an object");
+    assert!(
+        summary.contains_key("total_checks"),
+        "summary missing 'total_checks'"
+    );
     assert_eq!(
         summary["total_checks"].as_u64().unwrap_or(0) as usize,
         checks.len(),
         "total_checks should match checks array length"
     );
 
-    assert!(
-        !stdout.trim().is_empty(),
-        "CI output should not be empty"
-    );
+    assert!(!stdout.trim().is_empty(), "CI output should not be empty");
 }

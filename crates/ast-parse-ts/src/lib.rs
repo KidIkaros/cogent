@@ -1088,7 +1088,11 @@ fn extract_keyword_import(text: &str, keyword: &str) -> Option<String> {
         .trim_end_matches(';')
         .trim()
         .to_string();
-    if result.is_empty() { None } else { Some(result) }
+    if result.is_empty() {
+        None
+    } else {
+        Some(result)
+    }
 }
 
 /// Extract content of the first quoted string "..." in text.
@@ -1175,11 +1179,13 @@ fn extract_import_target(node: Node<'_>, source_bytes: &[u8], lang: Language) ->
         Language::C | Language::Cpp => {
             // `#include "header.h"` or `#include <header.h>`
             let text = node_text(node, source_bytes).trim().to_string();
-            extract_quoted(&text)
-                .or_else(|| {
-                    text.find('<')
-                        .and_then(|start| text[start + 1..].find('>').map(|end| text[start + 1..start + 1 + end].to_string()))
+            extract_quoted(&text).or_else(|| {
+                text.find('<').and_then(|start| {
+                    text[start + 1..]
+                        .find('>')
+                        .map(|end| text[start + 1..start + 1 + end].to_string())
                 })
+            })
         }
         Language::Solidity => {
             let text = node_text(node, source_bytes).trim().to_string();
@@ -1189,14 +1195,13 @@ fn extract_import_target(node: Node<'_>, source_bytes: &[u8], lang: Language) ->
         Language::Php => {
             // `use Foo\Bar;` or `include/require "file.php";`
             let text = node_text(node, source_bytes).trim().to_string();
-            extract_keyword_import(&text, "use ")
-                .or_else(|| {
-                    if text.starts_with("include") || text.starts_with("require") {
-                        extract_quoted(&text)
-                    } else {
-                        None
-                    }
-                })
+            extract_keyword_import(&text, "use ").or_else(|| {
+                if text.starts_with("include") || text.starts_with("require") {
+                    extract_quoted(&text)
+                } else {
+                    None
+                }
+            })
         }
         Language::Ruby => {
             // `require "gem"`, `require_relative "./file"`, `load "file.rb"`, `include Module`
@@ -1207,8 +1212,7 @@ fn extract_import_target(node: Node<'_>, source_bytes: &[u8], lang: Language) ->
             {
                 extract_quoted(&text)
             } else if text.starts_with("include ") {
-                text.strip_prefix("include ")
-                    .map(|s| s.trim().to_string())
+                text.strip_prefix("include ").map(|s| s.trim().to_string())
             } else {
                 None
             }
@@ -1223,7 +1227,11 @@ fn extract_import_target(node: Node<'_>, source_bytes: &[u8], lang: Language) ->
                 .trim_end_matches(".*")
                 .trim()
                 .to_string();
-            if !text.is_empty() { Some(text) } else { None }
+            if !text.is_empty() {
+                Some(text)
+            } else {
+                None
+            }
         }
         Language::Unknown => None,
     }

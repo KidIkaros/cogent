@@ -11,8 +11,7 @@ use serde::Serialize;
 
 // Re-export all shared types from cogent-common (the single source of truth).
 pub use cogent_common::{
-    CheckResult, CheckReport, CheckSummary,
-    Finding, Evidence, SuggestedFix, FileSummary,
+    CheckReport, CheckResult, CheckSummary, Evidence, FileSummary, Finding, SuggestedFix,
 };
 
 #[derive(Serialize)]
@@ -31,32 +30,65 @@ pub(crate) fn extract_findings_from_details(
     default_severity: &str,
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
-    let arrays = ["findings", "violations", "items", "functions", "files", "results", "matches"];
+    let arrays = [
+        "findings",
+        "violations",
+        "items",
+        "functions",
+        "files",
+        "results",
+        "matches",
+    ];
     for key in &arrays {
         if let Some(arr) = details.get(key).and_then(|v| v.as_array()) {
             for item in arr {
-                let file = item.get("file").and_then(|v| v.as_str())
+                let file = item
+                    .get("file")
+                    .and_then(|v| v.as_str())
                     .or_else(|| item.get("path").and_then(|v| v.as_str()))
                     .or_else(|| item.get("filename").and_then(|v| v.as_str()))
-                    .unwrap_or("").to_string();
+                    .unwrap_or("")
+                    .to_string();
                 let line = item.get("line").and_then(|v| v.as_u64());
                 let column = item.get("column").and_then(|v| v.as_u64());
-                let severity = item.get("severity").and_then(|v| v.as_str())
-                    .unwrap_or(default_severity).to_string();
-                let message = item.get("message").and_then(|v| v.as_str())
+                let severity = item
+                    .get("severity")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(default_severity)
+                    .to_string();
+                let message = item
+                    .get("message")
+                    .and_then(|v| v.as_str())
                     .or_else(|| item.get("description").and_then(|v| v.as_str()))
                     .or_else(|| item.get("name").and_then(|v| v.as_str()))
                     .or_else(|| item.get("type").and_then(|v| v.as_str()))
-                    .unwrap_or("").to_string();
-                let rule_id = item.get("rule_id").and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let rule_id = item
+                    .get("rule_id")
+                    .and_then(|v| v.as_str())
                     .or_else(|| item.get("rule").and_then(|v| v.as_str()))
-                    .unwrap_or(default_rule_id).to_string();
-                let fix_hint = item.get("fix_hint").and_then(|v| v.as_str())
-                    .unwrap_or("").to_string();
-                if file.is_empty() && message.is_empty() { continue; }
+                    .unwrap_or(default_rule_id)
+                    .to_string();
+                let fix_hint = item
+                    .get("fix_hint")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if file.is_empty() && message.is_empty() {
+                    continue;
+                }
                 findings.push(Finding {
-                    file, line, column, severity, message, rule_id, fix_hint,
-                    evidence: None, suggested_fix: None, controls: None,
+                    file,
+                    line,
+                    column,
+                    severity,
+                    message,
+                    rule_id,
+                    fix_hint,
+                    evidence: None,
+                    suggested_fix: None,
+                    controls: None,
                 });
             }
         }
@@ -64,31 +96,47 @@ pub(crate) fn extract_findings_from_details(
     findings
 }
 
+fn severity_weight(severity: &str) -> usize {
+    match severity {
+        "critical" => 4,
+        "high" | "error" => 3,
+        "medium" | "warning" => 2,
+        "low" => 1,
+        _ => 0,
+    }
+}
+
 pub(crate) fn aggregate_file_summary(checks: &[CheckResult]) -> Vec<FileSummary> {
-    let mut map: std::collections::HashMap<String, (usize, usize, std::collections::HashMap<String, usize>)> =
-        std::collections::HashMap::new();
+    let mut map: std::collections::HashMap<
+        String,
+        (usize, usize, std::collections::HashMap<String, usize>),
+    > = std::collections::HashMap::new();
     for check in checks {
         for finding in &check.findings {
-            let sev_score = match finding.severity.as_str() {
-                "critical" => 4,
-                "high" | "error" => 3,
-                "medium" | "warning" => 2,
-                "low" => 1,
-                _ => 0,
-            };
-            let entry = map.entry(finding.file.clone()).or_insert_with(|| (0, 0, std::collections::HashMap::new()));
+            let sev_score = severity_weight(finding.severity.as_str());
+            let entry = map
+                .entry(finding.file.clone())
+                .or_insert_with(|| (0, 0, std::collections::HashMap::new()));
             entry.0 += 1;
             entry.1 += sev_score;
             *entry.2.entry(finding.severity.clone()).or_insert(0) += 1;
         }
     }
-    let mut summaries: Vec<FileSummary> = map.into_iter()
-        .map(|(file, (issue_count, severity_score, findings_by_severity))| FileSummary {
-            file, issue_count, severity_score, findings_by_severity,
-        })
+    let mut summaries: Vec<FileSummary> = map
+        .into_iter()
+        .map(
+            |(file, (issue_count, severity_score, findings_by_severity))| FileSummary {
+                file,
+                issue_count,
+                severity_score,
+                findings_by_severity,
+            },
+        )
         .collect();
     summaries.sort_by(|a, b| {
-        b.severity_score.cmp(&a.severity_score).then_with(|| b.issue_count.cmp(&a.issue_count))
+        b.severity_score
+            .cmp(&a.severity_score)
+            .then_with(|| b.issue_count.cmp(&a.issue_count))
     });
     summaries.truncate(20);
     summaries
@@ -96,7 +144,7 @@ pub(crate) fn aggregate_file_summary(checks: &[CheckResult]) -> Vec<FileSummary>
 
 #[cfg(test)]
 mod tests {
-    use super::{extract_findings_from_details, aggregate_file_summary, CheckResult, Finding};
+    use super::{aggregate_file_summary, extract_findings_from_details, CheckResult, Finding};
     use serde_json::json;
 
     fn make_finding(file: &str, severity: &str) -> Finding {
@@ -139,15 +187,13 @@ mod tests {
 
     #[test]
     fn test_extract_no_matching_array() {
-        let findings =
-            extract_findings_from_details(&json!({"other": []}), "rule-x", "medium");
+        let findings = extract_findings_from_details(&json!({"other": []}), "rule-x", "medium");
         assert!(findings.is_empty());
     }
 
     #[test]
     fn test_extract_empty_array() {
-        let findings =
-            extract_findings_from_details(&json!({"findings": []}), "rule-x", "medium");
+        let findings = extract_findings_from_details(&json!({"findings": []}), "rule-x", "medium");
         assert!(findings.is_empty());
     }
 
@@ -236,7 +282,7 @@ mod tests {
         });
         let findings = extract_findings_from_details(&details, "r1", "medium");
         assert_eq!(findings.len(), 1);
-        assert_eq!(findings[0].file, "g.rs");   // `filename` fallback for file
+        assert_eq!(findings[0].file, "g.rs"); // `filename` fallback for file
         assert_eq!(findings[0].message, "match found"); // `type` fallback for message
     }
 
@@ -528,12 +574,12 @@ mod tests {
     fn test_aggregate_severity_scoring() {
         let checks = vec![make_check(vec![
             make_finding("f.rs", "critical"), // 4
-            make_finding("f.rs", "high"),      // 3
-            make_finding("f.rs", "error"),      // 3 (alias for high)
-            make_finding("f.rs", "medium"),    // 2
-            make_finding("f.rs", "warning"),    // 2 (alias for medium)
-            make_finding("f.rs", "low"),       // 1
-            make_finding("f.rs", "info"),       // 0 (unknown)
+            make_finding("f.rs", "high"),     // 3
+            make_finding("f.rs", "error"),    // 3 (alias for high)
+            make_finding("f.rs", "medium"),   // 2
+            make_finding("f.rs", "warning"),  // 2 (alias for medium)
+            make_finding("f.rs", "low"),      // 1
+            make_finding("f.rs", "info"),     // 0 (unknown)
         ])];
         let result = aggregate_file_summary(&checks);
         assert_eq!(result.len(), 1);

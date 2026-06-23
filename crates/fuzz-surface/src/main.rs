@@ -131,8 +131,17 @@ fn fn_detector(lang: Language) -> Option<FnDetector> {
         // C/C++: return_type func_name(
         Language::C | Language::Cpp => Some(FnDetector {
             keywords: &[
-                "int ", "void ", "char ", "float ", "double ", "bool ", "size_t ",
-                "unsigned ", "signed ", "long ", "short ",
+                "int ",
+                "void ",
+                "char ",
+                "float ",
+                "double ",
+                "bool ",
+                "size_t ",
+                "unsigned ",
+                "signed ",
+                "long ",
+                "short ",
             ],
             parse_sig: None,
             extra_check: None,
@@ -142,27 +151,39 @@ fn fn_detector(lang: Language) -> Option<FnDetector> {
         // C#: access_modifier return_type MethodName(
         Language::CSharp => Some(FnDetector {
             keywords: &[
-                "public ", "private ", "protected ", "internal ",
-                "static ", "void ", "int ", "string ", "bool ", "var ",
+                "public ",
+                "private ",
+                "protected ",
+                "internal ",
+                "static ",
+                "void ",
+                "int ",
+                "string ",
+                "bool ",
+                "var ",
             ],
             parse_sig: None,
             extra_check: None,
-            is_public: |trimmed| {
-                trimmed.starts_with("public ") || !trimmed.starts_with("private ")
-            },
+            is_public: |trimmed| trimmed.starts_with("public ") || !trimmed.starts_with("private "),
         }),
 
         // Java: access_modifier return_type methodName(
         Language::Java => Some(FnDetector {
             keywords: &[
-                "public ", "private ", "protected ", "static ",
-                "void ", "int ", "String ", "boolean ", "long ", "double ",
+                "public ",
+                "private ",
+                "protected ",
+                "static ",
+                "void ",
+                "int ",
+                "String ",
+                "boolean ",
+                "long ",
+                "double ",
             ],
             parse_sig: None,
             extra_check: None,
-            is_public: |trimmed| {
-                trimmed.starts_with("public ") || !trimmed.starts_with("private ")
-            },
+            is_public: |trimmed| trimmed.starts_with("public ") || !trimmed.starts_with("private "),
         }),
 
         // PHP: function name(
@@ -186,9 +207,7 @@ fn fn_detector(lang: Language) -> Option<FnDetector> {
             keywords: &["func "],
             parse_sig: None,
             extra_check: None,
-            is_public: |trimmed| {
-                trimmed.starts_with("public ") || trimmed.starts_with("open ")
-            },
+            is_public: |trimmed| trimmed.starts_with("public ") || trimmed.starts_with("open "),
         }),
 
         // Kotlin: fun name(
@@ -197,7 +216,8 @@ fn fn_detector(lang: Language) -> Option<FnDetector> {
             parse_sig: None,
             extra_check: None,
             is_public: |trimmed| {
-                trimmed.starts_with("public ") || trimmed.starts_with("internal ")
+                trimmed.starts_with("public ")
+                    || trimmed.starts_with("internal ")
                     || !trimmed.starts_with("private ")
             },
         }),
@@ -208,7 +228,8 @@ fn fn_detector(lang: Language) -> Option<FnDetector> {
             parse_sig: None,
             extra_check: None,
             is_public: |trimmed| {
-                trimmed.starts_with("public ") || trimmed.starts_with("external ")
+                trimmed.starts_with("public ")
+                    || trimmed.starts_with("external ")
                     || !trimmed.starts_with("private ")
             },
         }),
@@ -259,18 +280,24 @@ fn detect_functions(source: &str, file: &str, lang: Language) -> Vec<FuzzableFun
                     .into_iter()
                     .find(|func| func.name == f.name)
                     .map_or(f.complexity, |func| func.complexity);
-                functions.push(FuzzableFunction { complexity: actual, ..f });
+                functions.push(FuzzableFunction {
+                    complexity: actual,
+                    ..f
+                });
             }
         } else {
             // Basic name extraction for languages without parameter analysis
-            let name = detector.keywords.iter().find_map(|kw| {
-                if trimmed.starts_with(kw) {
-                    extract_name_after_keyword(trimmed, kw)
-                } else {
-                    None
-                }
-            })
-            .or_else(|| extract_c_name(trimmed)); // Fallback for C-style
+            let name = detector
+                .keywords
+                .iter()
+                .find_map(|kw| {
+                    if trimmed.starts_with(kw) {
+                        extract_name_after_keyword(trimmed, kw)
+                    } else {
+                        None
+                    }
+                })
+                .or_else(|| extract_c_name(trimmed)); // Fallback for C-style
 
             if let Some(name) = name {
                 functions.push(FuzzableFunction {
@@ -832,37 +859,69 @@ fn parse_go_fn_sig(sig: &str, file: &str, line: usize) -> Option<FuzzableFunctio
 
 fn estimate_rust_complexity(sig: &str) -> u32 {
     let mut complexity = 1;
-    if sig.contains("if ") { complexity += 1; }
-    if sig.contains("match ") { complexity += 1; }
-    if sig.contains("for ") { complexity += 1; }
-    if sig.contains("while ") { complexity += 1; }
+    if sig.contains("if ") {
+        complexity += 1;
+    }
+    if sig.contains("match ") {
+        complexity += 1;
+    }
+    if sig.contains("for ") {
+        complexity += 1;
+    }
+    if sig.contains("while ") {
+        complexity += 1;
+    }
     complexity
 }
 
 fn estimate_python_complexity(sig: &str) -> u32 {
     let mut complexity = 1;
-    if sig.contains("if ") { complexity += 1; }
-    if sig.contains("for ") { complexity += 1; }
-    if sig.contains("while ") { complexity += 1; }
-    if sig.contains("except ") { complexity += 1; }
+    if sig.contains("if ") {
+        complexity += 1;
+    }
+    if sig.contains("for ") {
+        complexity += 1;
+    }
+    if sig.contains("while ") {
+        complexity += 1;
+    }
+    if sig.contains("except ") {
+        complexity += 1;
+    }
     complexity
 }
 
 fn estimate_js_complexity(sig: &str) -> u32 {
     let mut complexity = 1;
-    if sig.contains("if") { complexity += 1; }
-    if sig.contains("for") { complexity += 1; }
-    if sig.contains("while") { complexity += 1; }
-    if sig.contains("switch") { complexity += 1; }
+    if sig.contains("if") {
+        complexity += 1;
+    }
+    if sig.contains("for") {
+        complexity += 1;
+    }
+    if sig.contains("while") {
+        complexity += 1;
+    }
+    if sig.contains("switch") {
+        complexity += 1;
+    }
     complexity
 }
 
 fn estimate_go_complexity(sig: &str) -> u32 {
     let mut complexity = 1;
-    if sig.contains("if ") { complexity += 1; }
-    if sig.contains("for ") { complexity += 1; }
-    if sig.contains("switch ") { complexity += 1; }
-    if sig.contains("select ") { complexity += 1; }
+    if sig.contains("if ") {
+        complexity += 1;
+    }
+    if sig.contains("for ") {
+        complexity += 1;
+    }
+    if sig.contains("switch ") {
+        complexity += 1;
+    }
+    if sig.contains("select ") {
+        complexity += 1;
+    }
     complexity
 }
 
@@ -1081,7 +1140,8 @@ mod tests {
 
     #[test]
     fn test_detect_functions_c() {
-        let src = "int process_data(char *data, int len) {\n    return 0;\n}\nvoid helper(void) {}\n";
+        let src =
+            "int process_data(char *data, int len) {\n    return 0;\n}\nvoid helper(void) {}\n";
         let funcs = detect_functions(src, "test.c", Language::C);
         assert_eq!(funcs.len(), 2, "C should detect both functions");
         assert_eq!(funcs[0].name, "process_data");
@@ -1246,7 +1306,8 @@ mod tests {
 
     #[test]
     fn test_detect_functions_solidity() {
-        let src = "function processData(bytes memory data) public { }\nfunction helper() private { }\n";
+        let src =
+            "function processData(bytes memory data) public { }\nfunction helper() private { }\n";
         let funcs = detect_functions(src, "test.sol", Language::Solidity);
         assert_eq!(funcs.len(), 2);
         assert_eq!(funcs[0].name, "processData");

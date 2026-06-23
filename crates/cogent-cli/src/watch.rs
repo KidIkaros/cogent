@@ -2,15 +2,21 @@
 
 #![deny(clippy::all)]
 
-use colored::Colorize;
-use cogent_engine::{CheckThresholds, registry};
 use crate::config::{detect_project, ProjectProfile};
 use crate::progress::{format_elapsed, run_with_spinner};
+use cogent_engine::{registry, CheckThresholds};
+use colored::Colorize;
 
 // WATCH MODE
 // ═══════════════════════════════════════════
 
-pub(crate) fn watch_mode(path: &str, checks: &str, debounce_ms: u64, no_tests: bool, full: bool) -> i32 {
+pub(crate) fn watch_mode(
+    path: &str,
+    checks: &str,
+    debounce_ms: u64,
+    no_tests: bool,
+    full: bool,
+) -> i32 {
     use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
     use std::sync::mpsc;
     use std::time::{Duration, Instant};
@@ -238,43 +244,173 @@ pub(crate) fn run_watch_checks(
 
     if full {
         let cov = coverage_opt.map(|s| s.to_string());
-        wreg!("debt", "debt", CheckThresholds { max_debt: profile.max_debt, ..Default::default() });
-        wreg!("doc", "doccov", CheckThresholds { min_doc: profile.min_doc, ..Default::default() });
-        wreg!("crap", "crap", CheckThresholds { max_crap: profile.max_crap, coverage_path: cov.clone(), ..Default::default() });
-        wreg!("complexity", "complexity", CheckThresholds { min_complexity: 10, max_complexity_violations: profile.max_complexity_violations, ..Default::default() });
-        wreg!("taint", "taint", CheckThresholds { max_taint: 0, ..Default::default() });
-        wreg!("errhandle", "errhandle", CheckThresholds { max_errhandle: 50, ..Default::default() });
-        wreg!("secrets", "secrets", CheckThresholds { max_secrets: 0, ..Default::default() });
-        wreg!("deadcode", "deadcode", CheckThresholds { max_deadcode: 10, ..Default::default() });
-        wreg!("linelen", "linelen", CheckThresholds { max_linelen: 0, ..Default::default() });
+        wreg!(
+            "debt",
+            "debt",
+            CheckThresholds {
+                max_debt: profile.max_debt,
+                ..Default::default()
+            }
+        );
+        wreg!(
+            "doc",
+            "doccov",
+            CheckThresholds {
+                min_doc: profile.min_doc,
+                ..Default::default()
+            }
+        );
+        wreg!(
+            "crap",
+            "crap",
+            CheckThresholds {
+                max_crap: profile.max_crap,
+                coverage_path: cov.clone(),
+                ..Default::default()
+            }
+        );
+        wreg!(
+            "complexity",
+            "complexity",
+            CheckThresholds {
+                min_complexity: 10,
+                max_complexity_violations: profile.max_complexity_violations,
+                ..Default::default()
+            }
+        );
+        wreg!(
+            "taint",
+            "taint",
+            CheckThresholds {
+                max_taint: 0,
+                ..Default::default()
+            }
+        );
+        wreg!(
+            "errhandle",
+            "errhandle",
+            CheckThresholds {
+                max_errhandle: 50,
+                ..Default::default()
+            }
+        );
+        wreg!(
+            "secrets",
+            "secrets",
+            CheckThresholds {
+                max_secrets: 0,
+                ..Default::default()
+            }
+        );
+        wreg!(
+            "deadcode",
+            "deadcode",
+            CheckThresholds {
+                max_deadcode: 10,
+                ..Default::default()
+            }
+        );
+        wreg!(
+            "linelen",
+            "linelen",
+            CheckThresholds {
+                max_linelen: 0,
+                ..Default::default()
+            }
+        );
     } else {
         if should("debt") {
-            wreg!("debt", "debt", CheckThresholds { max_debt: profile.max_debt, ..Default::default() });
+            wreg!(
+                "debt",
+                "debt",
+                CheckThresholds {
+                    max_debt: profile.max_debt,
+                    ..Default::default()
+                }
+            );
         }
         if should("doc") {
-            wreg!("doc", "doccov", CheckThresholds { min_doc: profile.min_doc, ..Default::default() });
+            wreg!(
+                "doc",
+                "doccov",
+                CheckThresholds {
+                    min_doc: profile.min_doc,
+                    ..Default::default()
+                }
+            );
         }
         if should("crap") {
             let cov = coverage_opt.map(|s| s.to_string());
-            wreg!("crap", "crap", CheckThresholds { max_crap: profile.max_crap, coverage_path: cov, ..Default::default() });
+            wreg!(
+                "crap",
+                "crap",
+                CheckThresholds {
+                    max_crap: profile.max_crap,
+                    coverage_path: cov,
+                    ..Default::default()
+                }
+            );
         }
         if should("complexity") {
-            wreg!("complexity", "complexity", CheckThresholds { min_complexity: 10, max_complexity_violations: profile.max_complexity_violations, ..Default::default() });
+            wreg!(
+                "complexity",
+                "complexity",
+                CheckThresholds {
+                    min_complexity: 10,
+                    max_complexity_violations: profile.max_complexity_violations,
+                    ..Default::default()
+                }
+            );
         }
         if should("taint") {
-            wreg!("taint", "taint", CheckThresholds { max_taint: 0, ..Default::default() });
+            wreg!(
+                "taint",
+                "taint",
+                CheckThresholds {
+                    max_taint: 0,
+                    ..Default::default()
+                }
+            );
         }
         if should("errhandle") {
-            wreg!("errhandle", "errhandle", CheckThresholds { max_errhandle: 50, ..Default::default() });
+            wreg!(
+                "errhandle",
+                "errhandle",
+                CheckThresholds {
+                    max_errhandle: 50,
+                    ..Default::default()
+                }
+            );
         }
         if should("secrets") {
-            wreg!("secrets", "secrets", CheckThresholds { max_secrets: 0, ..Default::default() });
+            wreg!(
+                "secrets",
+                "secrets",
+                CheckThresholds {
+                    max_secrets: 0,
+                    ..Default::default()
+                }
+            );
         }
         if should("deadcode") {
-            wreg!("deadcode", "deadcode", CheckThresholds { max_deadcode: 10, ..Default::default() });
+            wreg!(
+                "deadcode",
+                "deadcode",
+                CheckThresholds {
+                    max_deadcode: 10,
+                    ..Default::default()
+                }
+            );
         }
         if should("linelen") {
-            wreg!("linelen", "linelen", CheckThresholds { max_linelen: 0, ..Default::default() });
+            wreg!(
+                "linelen",
+                "linelen",
+                CheckThresholds {
+                    max_linelen: 0,
+                    ..Default::default()
+                }
+            );
         }
     }
 
@@ -339,7 +475,6 @@ pub(crate) fn print_cycle_diff(prev: &[(String, bool)], curr: &[(String, bool)])
 }
 
 // ═══════════════════════════════════════════
-
 
 #[cfg(test)]
 mod tests {

@@ -4,13 +4,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Severity levels for findings
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
+    /// Informational — no action required.
+    #[default]
     Info,
+    /// Low severity.
     Low,
+    /// Medium severity.
     Medium,
+    /// High severity.
     High,
+    /// Critical severity — must be addressed.
     Critical,
 }
 
@@ -27,41 +33,32 @@ impl Severity {
     }
 }
 
-impl Default for Severity {
-    fn default() -> Self {
-        Severity::Info
-    }
-}
-
 /// Finding category
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Category {
+    /// Security-related finding.
     Security,
+    /// Code quality finding.
+    #[default]
     Quality,
+    /// Compliance-related finding.
     Compliance,
+    /// Stylistic finding.
     Style,
 }
 
-impl Default for Category {
-    fn default() -> Self {
-        Category::Quality
-    }
-}
-
 /// Confidence level for suggested fixes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Confidence {
+    /// Low confidence — review carefully before applying.
     Low,
+    /// Medium confidence.
+    #[default]
     Medium,
+    /// High confidence — safe to apply automatically.
     High,
-}
-
-impl Default for Confidence {
-    fn default() -> Self {
-        Confidence::Medium
-    }
 }
 
 /// A single finding (issue) detected during a check
@@ -116,9 +113,12 @@ pub struct Finding {
 /// Supporting evidence for a finding
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Evidence {
+    /// Code snippet that demonstrates the finding.
     pub snippet: String,
+    /// Hash of the source file the snippet came from.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_hash: Option<String>,
+    /// Surrounding context for the snippet.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context: Option<String>,
 }
@@ -126,9 +126,12 @@ pub struct Evidence {
 /// A suggested fix for a finding
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuggestedFix {
+    /// Human-readable description of the fix.
     pub description: String,
+    /// Unified diff that applies the fix.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diff: Option<String>,
+    /// Confidence in the correctness of the fix.
     #[serde(default)]
     pub confidence: Confidence,
     /// Whether this fix can be applied automatically
@@ -139,30 +142,44 @@ pub struct SuggestedFix {
 /// Per-file summary of findings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileSummary {
+    /// Source file path (relative to workspace root).
     pub file: String,
+    /// Number of findings in this file.
     pub issue_count: usize,
+    /// Aggregate severity score for this file.
     pub severity_score: usize,
+    /// Count of findings keyed by severity name.
     pub findings_by_severity: HashMap<String, usize>,
 }
 
 /// Result of a single quality check
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckResult {
+    /// Name of the check.
     pub name: String,
+    /// Whether the check passed its threshold.
     pub passed: bool,
+    /// Computed score for the check.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub score: Option<f64>,
+    /// Threshold the score was compared against.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub threshold: Option<f64>,
+    /// Human-readable summary message.
     pub message: String,
+    /// Tool-specific structured details.
     #[serde(default)]
     pub details: serde_json::Value,
+    /// Overall severity of the check result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub severity: Option<String>,
+    /// Guidance on how to fix failures.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub help: Option<String>,
+    /// Identifier of the rule that produced this result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rule_id: Option<String>,
+    /// Individual findings produced by the check.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub findings: Vec<Finding>,
 }
@@ -170,27 +187,42 @@ pub struct CheckResult {
 /// Aggregate summary across all checks in a run
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckSummary {
+    /// Unique identifier for this check run.
     pub check_id: String,
+    /// Total number of findings across all rules.
     pub total_findings: usize,
+    /// Finding counts keyed by severity name.
     pub by_severity: HashMap<String, usize>,
+    /// Finding counts keyed by category name.
     pub by_category: HashMap<String, usize>,
+    /// Per-rule summaries keyed by rule id.
     pub by_rule: HashMap<String, RuleSummary>,
+    /// Rules that were executed in this run.
     pub rules_run: Vec<String>,
+    /// Rules that were skipped in this run.
     pub skipped_rules: Vec<String>,
+    /// Whether the run used incremental scanning.
     pub incremental: bool,
+    /// Baseline this run was compared against, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub baseline_id: Option<String>,
+    /// Number of findings new relative to the baseline.
     pub new_findings: usize,
+    /// Number of findings suppressed by the baseline.
     pub suppressed_findings: usize,
 }
 
 /// Per-rule summary in check summary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleSummary {
+    /// Number of findings produced by the rule.
     pub findings: usize,
+    /// Whether the rule passed its threshold.
     pub passed: bool,
+    /// Computed score for the rule.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub score: Option<f64>,
+    /// Threshold the score was compared against.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub threshold: Option<f64>,
 }
@@ -198,9 +230,13 @@ pub struct RuleSummary {
 /// Complete check run response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckResponse {
+    /// Unique identifier for this check run.
     pub check_id: String,
+    /// Whether the overall run passed.
     pub passed: bool,
+    /// Aggregate summary of the run.
     pub summary: CheckSummary,
+    /// Baseline this run was compared against, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub baseline_id: Option<String>,
 }
@@ -216,10 +252,15 @@ pub struct RuleConfig {
 /// Rule pack definition
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RulePack {
+    /// Unique identifier of the rule pack.
     pub id: String,
+    /// Human-readable name.
     pub name: String,
+    /// Pack version string.
     pub version: String,
+    /// Description of what the pack covers.
     pub description: String,
+    /// Rules contained in the pack.
     pub rules: Vec<PackRule>,
     /// Control mapping: control_id -> list of rule_ids
     #[serde(skip_serializing_if = "HashMap::is_empty", default)]
@@ -229,7 +270,9 @@ pub struct RulePack {
 /// Rule within a pack
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackRule {
+    /// Identifier of the rule.
     pub rule_id: String,
+    /// Optional rule-specific configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<RuleConfig>,
 }
@@ -237,12 +280,17 @@ pub struct PackRule {
 /// Baseline entry for a finding
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BaselineEntry {
+    /// Identifier of the finding this entry tracks.
     pub finding_id: String,
+    /// Current status of the finding.
     pub status: BaselineStatus,
+    /// Who suppressed the finding, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suppressed_by: Option<String>,
+    /// When the finding was suppressed, if applicable.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub suppressed_at: Option<String>,
+    /// Reason for the current status.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
 }
@@ -251,40 +299,60 @@ pub struct BaselineEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BaselineStatus {
+    /// Finding is open and unresolved.
     Open,
+    /// Finding has been suppressed.
     Suppressed,
+    /// Finding has been fixed.
     Fixed,
+    /// Finding is acknowledged but will not be fixed.
     WontFix,
 }
 
 /// Complete baseline
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Baseline {
+    /// Unique identifier of the baseline.
     pub baseline_id: String,
+    /// Creation timestamp (ISO 8601).
     pub created_at: String,
+    /// Entries tracked by the baseline.
     pub entries: Vec<BaselineEntry>,
 }
 
 /// Provider capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Capabilities {
+    /// Protocol version supported by the provider.
     pub protocol_version: String,
+    /// Rule ids the provider supports.
     pub rules: Vec<String>,
+    /// Rule pack ids the provider supports.
     pub rule_packs: Vec<String>,
+    /// Optional feature flags supported by the provider.
     pub features: Vec<String>,
+    /// Maximum workspace size (in megabytes) the provider accepts.
     pub max_workspace_size_mb: usize,
+    /// Languages the provider can analyze.
     pub languages: Vec<String>,
+    /// Transports the provider supports.
     pub transports: Vec<String>,
+    /// Authentication methods the provider supports.
     pub auth_methods: Vec<String>,
 }
 
 /// Progress event for streaming updates
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressEvent {
+    /// Rule currently being executed.
     pub rule: String,
+    /// Current processing stage.
     pub stage: String,
+    /// Number of files processed so far.
     pub files_processed: usize,
+    /// Total number of files to process.
     pub total_files: usize,
+    /// Optional human-readable progress message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
 }
@@ -324,7 +392,9 @@ pub struct CheckRunParams {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OutputFormat {
+    /// Stream findings as they are produced.
     Streaming,
+    /// Return all findings in a single batched response.
     Batched,
 }
 
@@ -335,9 +405,13 @@ fn default_output_format() -> OutputFormat {
 /// Check run response (for non-streaming)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckRunResponse {
+    /// Unique identifier for this check run.
     pub check_id: String,
+    /// Whether the overall run passed.
     pub passed: bool,
+    /// Aggregate summary of the run.
     pub summary: CheckSummary,
+    /// Baseline this run was compared against, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub baseline_id: Option<String>,
 }
@@ -363,7 +437,9 @@ mod tests {
             code_snippet: Some("aws_secret = \"AKIA...\"".into()),
             suggested_fix: Some(SuggestedFix {
                 description: "Use env var".into(),
-                diff: Some("- aws_secret = \"...\"\n+ aws_secret = env::var(\"AWS_SECRET\")".into()),
+                diff: Some(
+                    "- aws_secret = \"...\"\n+ aws_secret = env::var(\"AWS_SECRET\")".into(),
+                ),
                 confidence: Confidence::High,
                 auto_applicable: true,
             }),

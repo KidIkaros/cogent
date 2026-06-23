@@ -13,10 +13,9 @@ mod tests;
 // Re-export common types so formatters.rs can reference them via `crate::`
 #[doc(hidden)]
 pub use cogent_common::{
-    CheckReport, CheckResult, CheckSummary, Finding, Evidence, SuggestedFix, FileSummary,
-    SarifArtifactLocation, SarifDriver, SarifInvocation, SarifLocation, SarifLog, SarifMessage,
-    SarifPhysicalLocation, SarifRegion, SarifResult, SarifRule, SarifRuleConfig, SarifRun,
-    SarifTool,
+    CheckReport, CheckResult, CheckSummary, Evidence, FileSummary, Finding, SarifArtifactLocation,
+    SarifDriver, SarifInvocation, SarifLocation, SarifLog, SarifMessage, SarifPhysicalLocation,
+    SarifRegion, SarifResult, SarifRule, SarifRuleConfig, SarifRun, SarifTool, SuggestedFix,
 };
 
 /// Escape HTML special characters.

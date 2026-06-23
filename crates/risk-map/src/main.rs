@@ -432,8 +432,8 @@ mod tests {
         let funcs = vec![
             ("foo".into(), 10),
             ("bar".into(), 5),
-            ("baz".into(), 4),  // > 3, so included
-            ("qux".into(), 1),  // <= 3, filtered out
+            ("baz".into(), 4), // > 3, so included
+            ("qux".into(), 1), // <= 3, filtered out
         ];
         let hot = hot_functions(funcs);
         assert_eq!(hot.len(), 3); // foo, bar, baz all > 3
@@ -444,10 +444,7 @@ mod tests {
 
     #[test]
     fn test_hot_functions_filters_complexity_below_3() {
-        let funcs = vec![
-            ("small".into(), 2),
-            ("tiny".into(), 1),
-        ];
+        let funcs = vec![("small".into(), 2), ("tiny".into(), 1)];
         assert!(hot_functions(funcs).is_empty());
     }
 

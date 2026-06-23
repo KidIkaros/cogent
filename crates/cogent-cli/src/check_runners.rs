@@ -123,8 +123,7 @@ pub(crate) fn run_parallel_tools(
         return Vec::new();
     }
     let n_workers = max_concurrent_checks().min(total);
-    let work: Mutex<Vec<(&'static str, &'static str, Vec<String>)>> =
-        Mutex::new(tools);
+    let work: Mutex<Vec<(&'static str, &'static str, Vec<String>)>> = Mutex::new(tools);
     let results: Mutex<Vec<ToolResult>> = Mutex::new(Vec::with_capacity(total));
 
     std::thread::scope(|s| {
@@ -159,8 +158,8 @@ pub(crate) fn run_tool(
 ) -> ToolResult {
     tracing::debug!(crate_name, bin_name, "running tool");
     use cogent_common::*;
-    use std::process::{Command, Stdio};
     use std::path::Path;
+    use std::process::{Command, Stdio};
 
     // Try to find the binary in target/release/ first (workspace build)
     let workspace_root = std::env::var("COGENT_WORKSPACE_ROOT").unwrap_or_else(|_| {
@@ -280,8 +279,8 @@ pub(crate) fn run_batch(
     let thresholds = load_config_thresholds(
         ".quality.toml",
         (
-            30.0, 15.0, 1000, 10, 5.0, 0, 10.0, 5, 0.0, 0, 0, 2.0, 0, 10, 5,
-            0.05, 50, 0.0, 0, 0, 0, 0, 0,
+            30.0, 15.0, 1000, 10, 5.0, 0, 10.0, 5, 0.0, 0, 0, 2.0, 0, 10, 5, 0.05, 50, 0.0, 0, 0,
+            0, 0, 0,
         ),
     );
     let max_sast = thresholds.20;
@@ -304,47 +303,91 @@ pub(crate) fn run_batch(
 
     // Load secrets_exclude from .quality.toml / COGENT_SECRETS_EXCLUDE env var
     let secrets_exclude = load_secrets_exclude(".quality.toml");
-    let secrets_exclude_args: Vec<String> = secrets_exclude.iter().flat_map(|p| {
-        vec!["--exclude".to_string(), p.clone()]
-    }).collect();
+    let secrets_exclude_args: Vec<String> = secrets_exclude
+        .iter()
+        .flat_map(|p| vec!["--exclude".to_string(), p.clone()])
+        .collect();
 
     let tools: Vec<(&str, &str, Vec<String>)> = vec![
         (
             "debt-scan",
             "debt",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "doc-coverage",
             "doccov",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "crap-metric",
             "crap",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
-        ("coupling", "coupling", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
-        ("risk-map", "riskmap", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
+        (
+            "coupling",
+            "coupling",
+            vec![path.to_string(), "--format".to_string(), "json".to_string()],
+        ),
+        (
+            "risk-map",
+            "riskmap",
+            vec![path.to_string(), "--format".to_string(), "json".to_string()],
+        ),
         (
             "duplication",
             "dupfind",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "prop-cov",
             "propcov",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "taint-scan",
             "taint",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "fuzz-surface",
             "fuzz",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         // mutation-test: run with capped mutants and enforced timeout.
         // Uses scratch workspace + watchdog kill — safe to include in batch.
@@ -369,44 +412,88 @@ pub(crate) fn run_batch(
         (
             "line-length",
             "linelen",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "halstead",
             "halstead",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         ({
-            let mut args = vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()];
+            let mut args = vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ];
             args.extend(secrets_exclude_args.iter().cloned());
             ("secrets", "secrets", args)
         }),
         (
             "dead-code",
             "deadcode",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "cohesion",
             "cohesion",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "comment-ratio",
             "comments",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "error-handling",
             "errhandle",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
         (
             "type-coverage",
             "typecov",
-            vec!["--recursive".to_string(), path.to_string(), "--format".to_string(), "json".to_string()],
+            vec![
+                "--recursive".to_string(),
+                path.to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ],
         ),
-        ("vuln-scan", "vulnscan", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
+        (
+            "vuln-scan",
+            "vulnscan",
+            vec![path.to_string(), "--format".to_string(), "json".to_string()],
+        ),
         (
             "sast",
             "sast",
@@ -431,7 +518,11 @@ pub(crate) fn run_batch(
                 max_crypto.to_string(),
             ],
         ),
-        ("licenses", "licenses", vec![path.to_string(), "--format".to_string(), "json".to_string()]),
+        (
+            "licenses",
+            "licenses",
+            vec![path.to_string(), "--format".to_string(), "json".to_string()],
+        ),
     ];
 
     // Run tools in parallel with bounded concurrency (MAX_CONCURRENT_CHECKS=4).
@@ -559,7 +650,10 @@ pub(crate) fn run_batch(
                 if failed > 0 { 1 } else { 0 },
             );
             log.add_run(run);
-            println!("{}", serde_json::to_string_pretty(&log).expect("SARIF log serialization"));
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&log).expect("SARIF log serialization")
+            );
         }
         "json" => {
             let report = new_unified_report(
@@ -595,7 +689,10 @@ pub(crate) fn run_batch(
                     languages_detected: langs_detected,
                 },
             };
-            println!("{}", serde_json::to_string_pretty(&report).expect("JSON report serialization"));
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&report).expect("JSON report serialization")
+            );
         }
         _ => {
             let all_ok = failed == 0;
@@ -692,8 +789,15 @@ mod tests {
     fn test_make_check_result_basic() {
         let data = json!({"findings": []});
         let result = make_check_result(
-            "test-check", true, 0.0, 10.0, data,
-            "info", "test-rule", "All good".into(), None,
+            "test-check",
+            true,
+            0.0,
+            10.0,
+            data,
+            "info",
+            "test-rule",
+            "All good".into(),
+            None,
         );
         assert_eq!(result.name, "test-check");
         assert!(result.passed);
@@ -709,8 +813,15 @@ mod tests {
     fn test_make_check_result_failed() {
         let data = json!({"findings": []});
         let result = make_check_result(
-            "security-check", false, 15.0, 10.0, data,
-            "high", "security-001", "Threshold exceeded".into(), Some("Reduce violations"),
+            "security-check",
+            false,
+            15.0,
+            10.0,
+            data,
+            "high",
+            "security-001",
+            "Threshold exceeded".into(),
+            Some("Reduce violations"),
         );
         assert!(!result.passed);
         assert_eq!(result.score, Some(15.0));
@@ -728,8 +839,15 @@ mod tests {
             ]
         });
         let result = make_check_result(
-            "multi-find", false, 2.0, 1.0, data,
-            "error", "multi-rule", "Multiple issues".into(), None,
+            "multi-find",
+            false,
+            2.0,
+            1.0,
+            data,
+            "error",
+            "multi-rule",
+            "Multiple issues".into(),
+            None,
         );
         assert_eq!(result.findings.len(), 2);
         assert_eq!(result.findings[0].file, "a.rs");
@@ -740,8 +858,15 @@ mod tests {
     fn test_make_check_result_empty_findings() {
         let data = json!({});
         let result = make_check_result(
-            "no-find", true, 0.0, 5.0, data,
-            "info", "no-rule", "No issues".into(), None,
+            "no-find",
+            true,
+            0.0,
+            5.0,
+            data,
+            "info",
+            "no-rule",
+            "No issues".into(),
+            None,
         );
         assert!(result.findings.is_empty());
     }

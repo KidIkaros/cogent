@@ -2,9 +2,9 @@
 
 #![deny(clippy::all)]
 
-use crate::types::{CheckReport, CheckResult};
 use crate::progress::health_score;
 use crate::report::render_markdown_report;
+use crate::types::{CheckReport, CheckResult};
 use cogent_common::{
     SarifArtifactLocation, SarifDriver, SarifInvocation, SarifLocation, SarifLog, SarifMessage,
     SarifPhysicalLocation, SarifRegion, SarifResult, SarifRule, SarifRuleConfig, SarifRun,
@@ -12,7 +12,10 @@ use cogent_common::{
 };
 
 fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 // JSON OUTPUT
@@ -146,7 +149,9 @@ pub(crate) fn output_sarif(report: &CheckReport) {
         invocations: Some(vec![SarifInvocation {
             execution_successful: report.passed,
             exit_code: Some(if report.passed { 0 } else { 1 }),
-            end_time_utc: Some(chrono::Utc::now().to_rfc3339()),
+            end_time_utc: Some(
+                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            ),
         }]),
         results: all_results,
     };
@@ -356,11 +361,10 @@ pub(crate) fn pr_comment_md(report: &CheckReport, path: &str) -> String {
     md
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{CheckReport, CheckSummary, CheckResult, Finding, FileSummary};
+    use crate::types::{CheckReport, CheckResult, CheckSummary, FileSummary, Finding};
 
     // Helper: build a minimal CheckReport for testing
     fn make_report(checks: Vec<CheckResult>) -> CheckReport {
@@ -401,7 +405,13 @@ mod tests {
         }
     }
 
-    fn make_finding(file: &str, msg: &str, severity: &str, rule_id: &str, line: Option<u64>) -> Finding {
+    fn make_finding(
+        file: &str,
+        msg: &str,
+        severity: &str,
+        rule_id: &str,
+        line: Option<u64>,
+    ) -> Finding {
         Finding {
             file: file.to_string(),
             line,
@@ -479,17 +489,24 @@ mod tests {
     #[test]
     fn test_junit_xml_with_findings_all_failed() {
         let findings = vec![
-            make_finding("main.rs", "too complex", "high", "complexity-high", Some(42)),
+            make_finding(
+                "main.rs",
+                "too complex",
+                "high",
+                "complexity-high",
+                Some(42),
+            ),
             make_finding("lib.rs", "no docs", "medium", "doccov-low", Some(10)),
         ];
-        let report = make_report(vec![
-            make_check("complexity", false, findings),
-        ]);
+        let report = make_report(vec![make_check("complexity", false, findings)]);
         let xml = format_junit_xml(&report);
         assert!(xml.contains("tests=\"2\""), "findings count = test count");
         assert!(xml.contains("failures=\"2\""), "all failed = 2 failures");
         assert!(xml.contains("<failure"), "should have failure elements");
-        assert!(xml.contains("too complex"), "should include finding message");
+        assert!(
+            xml.contains("too complex"),
+            "should include finding message"
+        );
         assert!(xml.contains("no docs"), "should include other finding");
         assert!(xml.contains("complexity-high"), "should include rule_id");
         assert!(xml.contains("main.rs"), "should include file path");
@@ -500,39 +517,63 @@ mod tests {
     fn test_junit_xml_mixed_pass_fail() {
         let report = make_report(vec![
             make_check("crap", true, vec![]),
-            make_check("complexity", false, vec![
-                make_finding("main.rs", "too complex", "high", "complexity", Some(42)),
-            ]),
+            make_check(
+                "complexity",
+                false,
+                vec![make_finding(
+                    "main.rs",
+                    "too complex",
+                    "high",
+                    "complexity",
+                    Some(42),
+                )],
+            ),
         ]);
         let xml = format_junit_xml(&report);
         assert!(xml.contains("tests=\"2\""), "2 checks");
         assert!(xml.contains("failures=\"1\""), "1 failure");
         // Two testsuite elements (exclude the root <testsuites> tag)
-        assert_eq!(xml.matches("name=\"\"").count(), 0, "should find no empty name");
+        assert_eq!(
+            xml.matches("name=\"\"").count(),
+            0,
+            "should find no empty name"
+        );
     }
 
     #[test]
     fn test_junit_xml_special_chars_escaped() {
-        let report = make_report(vec![
-            make_check("AT&T", false, vec![
-                make_finding("<script>", "xss risk", "critical", "sast-xss", None),
-            ]),
-        ]);
+        let report = make_report(vec![make_check(
+            "AT&T",
+            false,
+            vec![make_finding(
+                "<script>", "xss risk", "critical", "sast-xss", None,
+            )],
+        )]);
         let xml = format_junit_xml(&report);
         // Special chars should be HTML-escaped
-        assert!(xml.contains("AT&amp;T"), "ampersand in name should be escaped");
-        assert!(xml.contains("&lt;script&gt;"), "angle brackets should be escaped");
-        assert!(!xml.contains("<script>"), "raw script tag should not appear");
+        assert!(
+            xml.contains("AT&amp;T"),
+            "ampersand in name should be escaped"
+        );
+        assert!(
+            xml.contains("&lt;script&gt;"),
+            "angle brackets should be escaped"
+        );
+        assert!(
+            !xml.contains("<script>"),
+            "raw script tag should not appear"
+        );
     }
 
     #[test]
     fn test_junit_xml_no_findings_shows_testcase() {
-        let report = make_report(vec![
-            make_check("crap", true, vec![]),
-        ]);
+        let report = make_report(vec![make_check("crap", true, vec![])]);
         let xml = format_junit_xml(&report);
         // Empty findings → one testcase with just the check name
-        assert!(xml.contains("testcase name=\"crap\""), "should have testcase for check");
+        assert!(
+            xml.contains("testcase name=\"crap\""),
+            "should have testcase for check"
+        );
         assert!(xml.contains("/>"), "self-closing testcase when no findings");
     }
 
@@ -540,9 +581,7 @@ mod tests {
 
     #[test]
     fn test_pr_comment_md_passed() {
-        let report = make_report(vec![
-            make_check("crap", true, vec![]),
-        ]);
+        let report = make_report(vec![make_check("crap", true, vec![])]);
         let md = pr_comment_md(&report, "/repo");
         assert!(md.contains("PASSED"), "passed check should show PASSED");
         assert!(md.contains("/repo"), "should include path");
@@ -552,11 +591,17 @@ mod tests {
 
     #[test]
     fn test_pr_comment_md_failed() {
-        let report = make_report(vec![
-            make_check("complexity", false, vec![
-                make_finding("main.rs", "too complex", "high", "complexity", Some(42)),
-            ]),
-        ]);
+        let report = make_report(vec![make_check(
+            "complexity",
+            false,
+            vec![make_finding(
+                "main.rs",
+                "too complex",
+                "high",
+                "complexity",
+                Some(42),
+            )],
+        )]);
         let md = pr_comment_md(&report, "/repo");
         assert!(md.contains("FAILED"), "failed check should show FAILED");
         assert!(md.contains("Failed Checks"), "should show failed section");
@@ -569,22 +614,28 @@ mod tests {
 
     #[test]
     fn test_pr_comment_md_no_failed_section_when_all_pass() {
-        let report = make_report(vec![
-            make_check("crap", true, vec![]),
-        ]);
+        let report = make_report(vec![make_check("crap", true, vec![])]);
         let md = pr_comment_md(&report, "/repo");
-        assert!(!md.contains("Failed Checks"), "no Failed Checks section when all pass");
-        assert!(!md.contains("<details>"), "no collapsible sections when all pass");
+        assert!(
+            !md.contains("Failed Checks"),
+            "no Failed Checks section when all pass"
+        );
+        assert!(
+            !md.contains("<details>"),
+            "no collapsible sections when all pass"
+        );
     }
 
     #[test]
     fn test_pr_comment_md_file_summary() {
-        let mut report = make_report(vec![
-            make_check("crap", false, vec![
+        let mut report = make_report(vec![make_check(
+            "crap",
+            false,
+            vec![
                 make_finding("main.rs", "too complex", "high", "complexity", Some(42)),
                 make_finding("lib.rs", "no docs", "medium", "doccov", Some(10)),
-            ]),
-        ]);
+            ],
+        )]);
         report.file_summary = vec![
             FileSummary {
                 file: "main.rs".to_string(),
@@ -607,22 +658,29 @@ mod tests {
 
     #[test]
     fn test_pr_comment_md_no_file_summary_when_empty() {
-        let report = make_report(vec![
-            make_check("crap", true, vec![]),
-        ]);
+        let report = make_report(vec![make_check("crap", true, vec![])]);
         let md = pr_comment_md(&report, "/repo");
         assert!(!md.contains("Top Files"), "no file heatmap when empty");
     }
 
     #[test]
     fn test_pr_comment_md_line_none_defaults_to_dash() {
-        let report = make_report(vec![
-            make_check("crap", false, vec![
-                make_finding("main.rs", "global issue", "medium", "some-rule", None),
-            ]),
-        ]);
+        let report = make_report(vec![make_check(
+            "crap",
+            false,
+            vec![make_finding(
+                "main.rs",
+                "global issue",
+                "medium",
+                "some-rule",
+                None,
+            )],
+        )]);
         let md = pr_comment_md(&report, "/repo");
-        assert!(md.contains("| `main.rs` | - |"), "no line number → shows dash");
+        assert!(
+            md.contains("| `main.rs` | - |"),
+            "no line number → shows dash"
+        );
     }
 
     #[test]

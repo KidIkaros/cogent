@@ -225,6 +225,22 @@ fn compute_halstead(source: &str) -> (usize, usize, usize, usize) {
     (op_set.len(), opd_set.len(), n1, n2)
 }
 
+fn halstead_volume(length: usize, vocabulary: usize) -> f64 {
+    if vocabulary > 1 {
+        length as f64 * (vocabulary as f64).log2()
+    } else {
+        0.0
+    }
+}
+
+fn halstead_difficulty(eta1: usize, eta2: usize, n2: usize) -> f64 {
+    if eta2 > 0 {
+        (eta1 as f64 / 2.0) * (n2 as f64 / eta2 as f64)
+    } else {
+        0.0
+    }
+}
+
 fn halstead_from_counts(
     file: &str,
     eta1: usize,
@@ -234,19 +250,8 @@ fn halstead_from_counts(
 ) -> HalsteadMetrics {
     let vocabulary = eta1 + eta2;
     let length = n1 + n2;
-
-    let volume = if vocabulary > 1 {
-        length as f64 * (vocabulary as f64).log2()
-    } else {
-        0.0
-    };
-
-    let difficulty = if eta2 > 0 {
-        (eta1 as f64 / 2.0) * (n2 as f64 / eta2 as f64)
-    } else {
-        0.0
-    };
-
+    let volume = halstead_volume(length, vocabulary);
+    let difficulty = halstead_difficulty(eta1, eta2, n2);
     let effort = difficulty * volume;
     let bugs_estimated = volume / 3000.0;
     let time_secs = effort / 18.0;

@@ -207,175 +207,253 @@ const PUBLIC_ROUTE_KEYWORDS: &[&str] = &[
 const RULES: &[Rule] = &[
     Rule {
         category: "missing_auth",
-        rule_id: "ACL-AUTH-001", severity: "high",
-        pattern: "#[get(", also: None,
+        rule_id: "ACL-AUTH-001",
+        severity: "high",
+        pattern: "#[get(",
+        also: None,
         description: "Rust HTTP route handler may be missing an auth guard.",
-        remediation: "Add an authentication/authorization middleware or attribute to the route handler.",
+        remediation:
+            "Add an authentication/authorization middleware or attribute to the route handler.",
     },
     Rule {
         category: "missing_auth",
-        rule_id: "ACL-AUTH-002", severity: "high",
-        pattern: "app.route(", also: None,
+        rule_id: "ACL-AUTH-002",
+        severity: "high",
+        pattern: "app.route(",
+        also: None,
         description: "Axum/Actix route registration without visible auth middleware.",
         remediation: "Wrap the route with authentication middleware or use a protected router.",
     },
     Rule {
         category: "missing_auth",
-        rule_id: "ACL-AUTH-003", severity: "high",
-        pattern: "@app.route(", also: None,
+        rule_id: "ACL-AUTH-003",
+        severity: "high",
+        pattern: "@app.route(",
+        also: None,
         description: "Flask route without login_required or auth decorator.",
         remediation: "Add @login_required or a custom auth decorator to sensitive routes.",
     },
     Rule {
         category: "missing_auth",
-        rule_id: "ACL-AUTH-004", severity: "high",
-        pattern: "router.get(", also: None,
+        rule_id: "ACL-AUTH-004",
+        severity: "high",
+        pattern: "router.get(",
+        also: None,
         description: "Express router endpoint may lack authentication middleware.",
         remediation: "Add passport.authenticate or auth middleware before the route.",
     },
     Rule {
         category: "missing_auth",
-        rule_id: "ACL-AUTH-005", severity: "high",
-        pattern: "app.get(", also: None,
+        rule_id: "ACL-AUTH-005",
+        severity: "high",
+        pattern: "app.get(",
+        also: None,
         description: "Express app endpoint may lack authentication middleware.",
         remediation: "Apply authentication middleware to sensitive endpoints.",
     },
     Rule {
         category: "missing_auth",
-        rule_id: "ACL-AUTH-006", severity: "high",
-        pattern: "r.GET(", also: None,
+        rule_id: "ACL-AUTH-006",
+        severity: "high",
+        pattern: "r.GET(",
+        also: None,
         description: "Go Gin/Echo route without auth middleware.",
-        remediation: "Use router.Use(authMiddleware()) or group routes under an auth-protected group.",
+        remediation:
+            "Use router.Use(authMiddleware()) or group routes under an auth-protected group.",
     },
     Rule {
         category: "missing_auth",
-        rule_id: "ACL-AUTH-007", severity: "high",
-        pattern: "@RequestMapping", also: None,
+        rule_id: "ACL-AUTH-007",
+        severity: "high",
+        pattern: "@RequestMapping",
+        also: None,
         description: "Spring endpoint without visible method-level security annotation.",
         remediation: "Add @PreAuthorize or @Secured annotation to the endpoint method.",
     },
     Rule {
         category: "missing_auth",
-        rule_id: "ACL-AUTH-008", severity: "high",
-        pattern: "@Path(", also: None,
+        rule_id: "ACL-AUTH-008",
+        severity: "high",
+        pattern: "@Path(",
+        also: None,
         description: "JAX-RS endpoint without security annotation.",
         remediation: "Add @RolesAllowed or a security filter for the endpoint.",
     },
     // ── hardcoded_creds ────────────────────────────────────────────────
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-001", severity: "critical",
-        pattern: "password = \"", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-001",
+        severity: "critical",
+        pattern: "password = \"",
+        also: None,
         description: "Hardcoded password detected in source or config.",
         remediation: "Move credentials to environment variables or a secrets manager.",
     },
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-002", severity: "critical",
-        pattern: "passwd = \"", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-002",
+        severity: "critical",
+        pattern: "passwd = \"",
+        also: None,
         description: "Hardcoded password detected.",
         remediation: "Use environment variables or a secrets manager.",
     },
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-003", severity: "critical",
-        pattern: "secret = \"", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-003",
+        severity: "critical",
+        pattern: "secret = \"",
+        also: None,
         description: "Hardcoded secret detected.",
         remediation: "Store secrets in a dedicated secrets manager, never in source code.",
     },
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-004", severity: "critical",
-        pattern: "api_key = \"", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-004",
+        severity: "critical",
+        pattern: "api_key = \"",
+        also: None,
         description: "Hardcoded API key detected.",
         remediation: "Load API keys from environment variables or a secure vault at runtime.",
     },
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-005", severity: "critical",
-        pattern: "token = \"", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-005",
+        severity: "critical",
+        pattern: "token = \"",
+        also: None,
         description: "Hardcoded token detected.",
         remediation: "Store tokens in environment variables or a secrets manager.",
     },
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-006", severity: "critical",
-        pattern: "admin:admin", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-006",
+        severity: "critical",
+        pattern: "admin:admin",
+        also: None,
         description: "Default admin credentials detected.",
-        remediation: "Remove default credentials. Enforce strong password policies and secrets management.",
+        remediation:
+            "Remove default credentials. Enforce strong password policies and secrets management.",
     },
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-007", severity: "critical",
-        pattern: "root:password", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-007",
+        severity: "critical",
+        pattern: "root:password",
+        also: None,
         description: "Default root password detected.",
         remediation: "Remove default credentials immediately. Use a secrets manager.",
     },
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-008", severity: "high",
-        pattern: "password = \"password\"", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-008",
+        severity: "high",
+        pattern: "password = \"password\"",
+        also: None,
         description: "Literal 'password' used as a password value.",
         remediation: "Never use literal strings as passwords. Use environment variables.",
     },
     Rule {
-        category: "hardcoded_creds", rule_id: "ACL-CRED-009", severity: "high",
-        pattern: "secret = \"secret\"", also: None,
+        category: "hardcoded_creds",
+        rule_id: "ACL-CRED-009",
+        severity: "high",
+        pattern: "secret = \"secret\"",
+        also: None,
         description: "Literal 'secret' used as a secret value.",
         remediation: "Never hardcode secrets. Use a secrets manager or environment variables.",
     },
     // ── iam_policy ──────────────────────────────────────────────────
     Rule {
-        category: "iam_policy", rule_id: "ACL-IAM-001", severity: "critical",
-        pattern: "\"Effect\": \"Allow\"", also: Some("\"Resource\": \"*\""),
+        category: "iam_policy",
+        rule_id: "ACL-IAM-001",
+        severity: "critical",
+        pattern: "\"Effect\": \"Allow\"",
+        also: Some("\"Resource\": \"*\""),
         description: "Overly permissive IAM policy: Allow + Resource:* detected.",
-        remediation: "Scope the Resource to specific ARNs or resources. Avoid wildcard permissions.",
+        remediation:
+            "Scope the Resource to specific ARNs or resources. Avoid wildcard permissions.",
     },
     Rule {
-        category: "iam_policy", rule_id: "ACL-IAM-002", severity: "critical",
-        pattern: "Effect: Allow", also: Some("Resource: *"),
+        category: "iam_policy",
+        rule_id: "ACL-IAM-002",
+        severity: "critical",
+        pattern: "Effect: Allow",
+        also: Some("Resource: *"),
         description: "Overly permissive IAM policy in YAML format.",
         remediation: "Restrict Resource to specific resources. Use least-privilege principle.",
     },
     Rule {
-        category: "iam_policy", rule_id: "ACL-IAM-003", severity: "high",
-        pattern: "\"Action\": \"*\"", also: None,
+        category: "iam_policy",
+        rule_id: "ACL-IAM-003",
+        severity: "high",
+        pattern: "\"Action\": \"*\"",
+        also: None,
         description: "IAM policy allows all actions (Action:*).",
         remediation: "Restrict Action to only the specific API operations required.",
     },
     Rule {
-        category: "iam_policy", rule_id: "ACL-IAM-004", severity: "high",
-        pattern: "Action: *", also: None,
+        category: "iam_policy",
+        rule_id: "ACL-IAM-004",
+        severity: "high",
+        pattern: "Action: *",
+        also: None,
         description: "IAM policy allows all actions in YAML format.",
         remediation: "List only required actions explicitly.",
     },
     // ── cors ───────────────────────────────────────────────────────
     Rule {
-        category: "cors", rule_id: "ACL-CORS-001", severity: "high",
-        pattern: "Access-Control-Allow-Origin: *", also: None,
+        category: "cors",
+        rule_id: "ACL-CORS-001",
+        severity: "high",
+        pattern: "Access-Control-Allow-Origin: *",
+        also: None,
         description: "CORS allows all origins — potential security risk.",
         remediation: "Restrict Access-Control-Allow-Origin to specific trusted domains.",
     },
     Rule {
-        category: "cors", rule_id: "ACL-CORS-002", severity: "high",
-        pattern: "cors(allow_all=True)", also: None,
+        category: "cors",
+        rule_id: "ACL-CORS-002",
+        severity: "high",
+        pattern: "cors(allow_all=True)",
+        also: None,
         description: "CORS configured to allow all origins.",
         remediation: "Set allow_all=False and specify an explicit allowlist of origins.",
     },
     Rule {
-        category: "cors", rule_id: "ACL-CORS-003", severity: "medium",
-        pattern: "@cross_origin(", also: None,
+        category: "cors",
+        rule_id: "ACL-CORS-003",
+        severity: "medium",
+        pattern: "@cross_origin(",
+        also: None,
         description: "Flask-CORS decorator without origin restrictions.",
         remediation: "Specify origins= parameter to restrict cross-origin access.",
     },
     Rule {
-        category: "cors", rule_id: "ACL-CORS-004", severity: "medium",
-        pattern: "CORS(app", also: None,
+        category: "cors",
+        rule_id: "ACL-CORS-004",
+        severity: "medium",
+        pattern: "CORS(app",
+        also: None,
         description: "Flask-CORS applied to entire app without origin restrictions.",
         remediation: "Configure CORS with a specific origins list, not globally open.",
     },
     // ── dangerous_shell ────────────────────────────────────────────
     Rule {
-        category: "dangerous_shell", rule_id: "ACL-SUDO-001", severity: "high",
-        pattern: "ALL=(ALL) NOPASSWD: ALL", also: None,
+        category: "dangerous_shell",
+        rule_id: "ACL-SUDO-001",
+        severity: "high",
+        pattern: "ALL=(ALL) NOPASSWD: ALL",
+        also: None,
         description: "Sudoers file allows any user to run any command without a password.",
-        remediation: "Restrict sudo privileges to specific users, commands, and require a password.",
+        remediation:
+            "Restrict sudo privileges to specific users, commands, and require a password.",
     },
     Rule {
-        category: "dangerous_shell", rule_id: "ACL-SUDO-002", severity: "medium",
-        pattern: "sudo su", also: None,
+        category: "dangerous_shell",
+        rule_id: "ACL-SUDO-002",
+        severity: "medium",
+        pattern: "sudo su",
+        also: None,
         description: "Direct root escalation via sudo su without restrictions.",
         remediation: "Use sudo with specific commands only. Avoid blanket root access.",
     },
@@ -393,6 +471,36 @@ struct ProjectContext {
     public_routes: Vec<String>,
 }
 
+/// Scan a single source line for auth middleware and public-route markers.
+fn scan_context_line(line: &str, ctx: &mut ProjectContext) {
+    let line_lower = line.to_lowercase();
+
+    // Check for auth middleware registration patterns
+    for pattern in AUTH_MIDDLEWARE_PATTERNS {
+        if line.contains(pattern) && !line.trim_start().starts_with("//") {
+            ctx.has_app_wide_auth = true;
+            ctx.middleware_names.push(pattern.to_string());
+            break;
+        }
+    }
+
+    // Check for public route markers
+    for keyword in PUBLIC_ROUTE_KEYWORDS {
+        if line_lower.contains(&keyword.to_lowercase()) {
+            // Only collect if it looks like a route definition
+            if line.contains("route")
+                || line.contains("get(")
+                || line.contains("post(")
+                || line.contains("put(")
+                || line.contains("delete(")
+            {
+                ctx.public_routes.push(keyword.to_string());
+            }
+            break;
+        }
+    }
+}
+
 /// First pass: scan ALL source files to collect auth middleware context.
 fn collect_project_context(files: &[String]) -> ProjectContext {
     let mut ctx = ProjectContext::default();
@@ -402,29 +510,7 @@ fn collect_project_context(files: &[String]) -> ProjectContext {
             continue;
         };
         for line in source.lines() {
-            let line_lower = line.to_lowercase();
-
-            // Check for auth middleware registration patterns
-            for pattern in AUTH_MIDDLEWARE_PATTERNS {
-                if line.contains(pattern) && !line.trim_start().starts_with("//") {
-                    ctx.has_app_wide_auth = true;
-                    ctx.middleware_names.push(pattern.to_string());
-                    break;
-                }
-            }
-
-            // Check for public route markers
-            for keyword in PUBLIC_ROUTE_KEYWORDS {
-                if line_lower.contains(&keyword.to_lowercase()) {
-                    // Only collect if it looks like a route definition
-                    if line.contains("route") || line.contains("get(") || line.contains("post(")
-                        || line.contains("put(") || line.contains("delete(")
-                    {
-                        ctx.public_routes.push(keyword.to_string());
-                    }
-                    break;
-                }
-            }
+            scan_context_line(line, &mut ctx);
         }
     }
 
@@ -456,7 +542,9 @@ fn has_inline_auth(line: &str) -> bool {
 
     // Strategy: detect inline middleware by counting arguments in route calls.
     // Patterns like router.get('/path', authMiddleware, handler) have 3+ args.
-    let route_methods = ["get(", "post(", "put(", "delete(", "patch(", "head(", "options("];
+    let route_methods = [
+        "get(", "post(", "put(", "delete(", "patch(", "head(", "options(",
+    ];
     for method in &route_methods {
         if let Some(pos) = lower.find(method) {
             // Find the argument list after the method name
@@ -477,7 +565,9 @@ fn has_inline_auth(line: &str) -> bool {
                     '(' => depth += 1,
                     ')' => {
                         depth -= 1;
-                        if depth < 0 { break; }
+                        if depth < 0 {
+                            break;
+                        }
                     }
                     '"' | '\'' => {
                         in_string = true;
@@ -501,7 +591,9 @@ fn has_inline_auth(line: &str) -> bool {
 /// Check if a line looks like a public/health endpoint that should be exempt.
 fn is_exempt_route(line: &str) -> bool {
     let lower = line.to_lowercase();
-    PUBLIC_ROUTE_KEYWORDS.iter().any(|kw| lower.contains(&kw.to_lowercase()))
+    PUBLIC_ROUTE_KEYWORDS
+        .iter()
+        .any(|kw| lower.contains(&kw.to_lowercase()))
 }
 
 /// True if this is a `missing_auth` rule (suppressible via middleware context).
@@ -535,7 +627,10 @@ fn scan_file(path: &str, ctx: &ProjectContext) -> Vec<AccessFinding> {
             continue;
         }
         if trimmed.starts_with("//")
-            || (trimmed.starts_with('#') && !trimmed.starts_with("#[") && !trimmed.starts_with("#!") && !trimmed.starts_with("##"))
+            || (trimmed.starts_with('#')
+                && !trimmed.starts_with("#[")
+                && !trimmed.starts_with("#!")
+                && !trimmed.starts_with("##"))
             || trimmed.starts_with("--")
             || trimmed.starts_with("<!--")
             || trimmed.starts_with(";")
@@ -613,9 +708,7 @@ fn run(cli: Cli) {
     // Apply exclude patterns
     let files: Vec<String> = files
         .into_iter()
-        .filter(|f| {
-            cli.exclude.is_empty() || !cli.exclude.iter().any(|ex| f.contains(ex))
-        })
+        .filter(|f| cli.exclude.is_empty() || !cli.exclude.iter().any(|ex| f.contains(ex)))
         .collect();
 
     // First pass: collect auth middleware context across all files
@@ -640,9 +733,15 @@ fn run(cli: Cli) {
             .then(a.line.cmp(&b.line))
     });
 
-    let critical = all_findings.iter().filter(|f| f.severity == "critical").count();
+    let critical = all_findings
+        .iter()
+        .filter(|f| f.severity == "critical")
+        .count();
     let high = all_findings.iter().filter(|f| f.severity == "high").count();
-    let medium = all_findings.iter().filter(|f| f.severity == "medium").count();
+    let medium = all_findings
+        .iter()
+        .filter(|f| f.severity == "medium")
+        .count();
     let low = all_findings.iter().filter(|f| f.severity == "low").count();
 
     let summary = AccessSummary {
@@ -701,7 +800,12 @@ fn run(cli: Cli) {
 
             println!(
                 "\n  Total: {} findings ({} critical, {} high, {} medium, {} low) in {} files",
-                summary.total_findings, critical, high, medium, low, files.len()
+                summary.total_findings,
+                critical,
+                high,
+                medium,
+                low,
+                files.len()
             );
             if exceeds_threshold {
                 println!("  Exceeds threshold of {} violations", cli.max_violations);
@@ -727,74 +831,79 @@ mod tests {
 
     #[test]
     fn test_detect_axum_auth_layer() {
-        let files = vec!["/tmp/test_auth.rs".to_string()];
-        std::fs::write(
-            "/tmp/test_auth.rs",
-            "Router::new()\n    .route(\"/api/users\", get(list_users))\n    .layer(AuthLayer::new(config))\n",
-        ).ok();
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::with_suffix(".rs").unwrap();
+        f.write_all(
+            b"Router::new()\n    .route(\"/api/users\", get(list_users))\n    .layer(AuthLayer::new(config))\n",
+        )
+        .unwrap();
+        let files = vec![f.path().to_str().unwrap().to_string()];
         let ctx = collect_project_context(&files);
         assert!(ctx.has_app_wide_auth, "should detect AuthLayer");
-        let _ = std::fs::remove_file("/tmp/test_auth.rs");
     }
 
     #[test]
     fn test_detect_express_auth_middleware() {
-        let files = vec!["/tmp/test_auth.js".to_string()];
-        std::fs::write(
-            "/tmp/test_auth.js",
-            "app.use(authMiddleware);\napp.get('/users', listUsers);\n",
-        ).ok();
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::with_suffix(".js").unwrap();
+        f.write_all(b"app.use(authMiddleware);\napp.get('/users', listUsers);\n")
+            .unwrap();
+        let files = vec![f.path().to_str().unwrap().to_string()];
         let ctx = collect_project_context(&files);
         assert!(ctx.has_app_wide_auth, "should detect authMiddleware");
-        let _ = std::fs::remove_file("/tmp/test_auth.js");
     }
 
     #[test]
     fn test_no_middleware_detected() {
-        let files = vec!["/tmp/test_no_auth.rs".to_string()];
-        std::fs::write(
-            "/tmp/test_no_auth.rs",
-            "fn main() {\n    let x = 1;\n    println!(\"{}\", x);\n}\n",
-        ).ok();
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::with_suffix(".rs").unwrap();
+        f.write_all(b"fn main() {\n    let x = 1;\n    println!(\"{}\", x);\n}\n")
+            .unwrap();
+        let files = vec![f.path().to_str().unwrap().to_string()];
         let ctx = collect_project_context(&files);
-        assert!(!ctx.has_app_wide_auth, "should not detect auth in clean code");
-        let _ = std::fs::remove_file("/tmp/test_no_auth.rs");
+        assert!(
+            !ctx.has_app_wide_auth,
+            "should not detect auth in clean code"
+        );
     }
 
     #[test]
     fn test_detect_flask_login_required() {
-        let files = vec!["/tmp/test_auth.py".to_string()];
-        std::fs::write(
-            "/tmp/test_auth.py",
-            "from flask_login import login_required\n\n@app.route('/admin')\n@login_required\ndef admin():\n    pass\n",
-        ).ok();
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::with_suffix(".py").unwrap();
+        f.write_all(
+            b"from flask_login import login_required\n\n@app.route('/admin')\n@login_required\ndef admin():\n    pass\n",
+        )
+        .unwrap();
+        let files = vec![f.path().to_str().unwrap().to_string()];
         let ctx = collect_project_context(&files);
         assert!(ctx.has_app_wide_auth, "should detect login_required");
-        let _ = std::fs::remove_file("/tmp/test_auth.py");
     }
 
     #[test]
     fn test_detect_spring_security() {
-        let files = vec!["/tmp/test_auth.java".to_string()];
-        std::fs::write(
-            "/tmp/test_auth.java",
-            "import org.springframework.security.config.annotation.web.builders.HttpSecurity;\n\n@EnableWebSecurity\npublic class SecurityConfig {\n    @Bean\n    public SecurityFilterChain filterChain(HttpSecurity http) {\n        return http.authenticated().build();\n    }\n}\n",
-        ).ok();
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::with_suffix(".java").unwrap();
+        f.write_all(
+            b"import org.springframework.security.config.annotation.web.builders.HttpSecurity;\n\n@EnableWebSecurity\npublic class SecurityConfig {\n    @Bean\n    public SecurityFilterChain filterChain(HttpSecurity http) {\n        return http.authenticated().build();\n    }\n}\n",
+        )
+        .unwrap();
+        let files = vec![f.path().to_str().unwrap().to_string()];
         let ctx = collect_project_context(&files);
         assert!(ctx.has_app_wide_auth, "should detect Spring Security");
-        let _ = std::fs::remove_file("/tmp/test_auth.java");
     }
 
     #[test]
     fn test_detect_go_gin_auth() {
-        let files = vec!["/tmp/test_auth.go".to_string()];
-        std::fs::write(
-            "/tmp/test_auth.go",
-            "r := gin.Default()\nr.Use(gin.BasicAuth(accounts))\nr.GET(\"/admin\", adminHandler)\n",
-        ).ok();
+        use std::io::Write;
+        let mut f = tempfile::NamedTempFile::with_suffix(".go").unwrap();
+        f.write_all(
+            b"r := gin.Default()\nr.Use(gin.BasicAuth(accounts))\nr.GET(\"/admin\", adminHandler)\n",
+        )
+        .unwrap();
+        let files = vec![f.path().to_str().unwrap().to_string()];
         let ctx = collect_project_context(&files);
         assert!(ctx.has_app_wide_auth, "should detect gin.BasicAuth");
-        let _ = std::fs::remove_file("/tmp/test_auth.go");
     }
 
     // ── Inline auth detection tests ─────────────────────────────────
@@ -827,13 +936,22 @@ mod tests {
 
     #[test]
     fn test_detect_health_endpoint() {
-        assert!(is_exempt_route("app.get('/health', healthHandler)"), "health should be exempt");
-        assert!(is_exempt_route("router.get('/ping', pingHandler)"), "ping should be exempt");
+        assert!(
+            is_exempt_route("app.get('/health', healthHandler)"),
+            "health should be exempt"
+        );
+        assert!(
+            is_exempt_route("router.get('/ping', pingHandler)"),
+            "ping should be exempt"
+        );
     }
 
     #[test]
     fn test_detect_non_exempt_route() {
-        assert!(!is_exempt_route("app.get('/admin', adminHandler)"), "admin should not be exempt");
+        assert!(
+            !is_exempt_route("app.get('/admin', adminHandler)"),
+            "admin should not be exempt"
+        );
     }
 
     // ── Scan suppression tests ──────────────────────────────────────
@@ -895,7 +1013,8 @@ mod tests {
         );
     }
 
-    // ── Non-auth rules still fire ────────────────────────────────────    #[test]
+    // ── Non-auth rules still fire ──
+    #[test]
     fn test_hardcoded_creds_still_detected() {
         use std::io::Write;
         let mut f = tempfile::NamedTempFile::with_suffix(".rs").unwrap();
@@ -909,7 +1028,8 @@ mod tests {
             findings.iter().any(|f| f.category == "hardcoded_creds"),
             "hardcoded creds should still be detected regardless of auth middleware"
         );
-    }    #[test]
+    }
+    #[test]
     fn test_cors_still_detected() {
         use std::io::Write;
         let mut f = tempfile::NamedTempFile::with_suffix(".rs").unwrap();

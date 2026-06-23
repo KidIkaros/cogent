@@ -68,10 +68,7 @@ pub fn apply_patches(patches: &[FixPatch], dry_run: bool, validate: bool) -> Vec
     let mut by_file: std::collections::HashMap<String, Vec<&FixPatch>> =
         std::collections::HashMap::new();
     for p in patches {
-        by_file
-            .entry(p.file.clone())
-            .or_default()
-            .push(p);
+        by_file.entry(p.file.clone()).or_default().push(p);
     }
 
     let mut results = Vec::new();
@@ -116,8 +113,7 @@ pub fn apply_patches(patches: &[FixPatch], dry_run: bool, validate: bool) -> Vec
             }
 
             // Replace the span with new_text.
-            let new_lines: Vec<String> =
-                patch.new_text.lines().map(|l| l.to_string()).collect();
+            let new_lines: Vec<String> = patch.new_text.lines().map(|l| l.to_string()).collect();
             lines.splice(idx..idx + span, new_lines);
             applied += 1;
         }
@@ -212,17 +208,9 @@ fn fixer_errhandle(files: &[String]) -> Vec<FixPatch> {
 
                     // Determine context for the error message
                     let expr_name = extract_expr_name(before);
-                    let new_line = format!(
-                        "{}{}?{}",
-                        indent_str,
-                        before.trim(),
-                        after
-                    );
+                    let new_line = format!("{}{}?{}", indent_str, before.trim(), after);
                     let old_line = line.to_string();
-                    let desc = format!(
-                        "Replace `.unwrap()` with `?` operator on `{}`",
-                        expr_name
-                    );
+                    let desc = format!("Replace `.unwrap()` with `?` operator on `{}`", expr_name);
                     patches.push(FixPatch {
                         file: file.clone(),
                         line: ln,
@@ -390,8 +378,9 @@ fn fixer_deadcode(files: &[String]) -> Vec<FixPatch> {
                 line: ln,
                 old_text: line.to_string(),
                 new_text: format!("{}#[allow(dead_code)]\n{}", indent_str, line),
-                rule_id: "deadcode-annotate".into(),                    confidence: "high".into(),
-                    description: "Add `#[allow(dead_code)]` to suppress dead code warning".to_string(),
+                rule_id: "deadcode-annotate".into(),
+                confidence: "high".into(),
+                description: "Add `#[allow(dead_code)]` to suppress dead code warning".to_string(),
             });
         }
     }
@@ -402,7 +391,9 @@ fn fixer_deadcode(files: &[String]) -> Vec<FixPatch> {
 
 fn fixer_debt(files: &[String]) -> Vec<FixPatch> {
     let mut patches = Vec::new();
-    let markers = ["TODO:", "FIXME:", "HACK:", "XXX:", "todo:", "fixme:", "hack:", "xxx:"];
+    let markers = [
+        "TODO:", "FIXME:", "HACK:", "XXX:", "todo:", "fixme:", "hack:", "xxx:",
+    ];
 
     for file in files {
         let Ok(src) = std::fs::read_to_string(file) else {
@@ -484,12 +475,12 @@ fn fixer_secrets(files: &[String]) -> Vec<FixPatch> {
 
     // Suspicious string patterns
     let suspicious_prefixes = [
-        "sk-", "sk_live_", "sk_test_",       // Stripe
-        "ghp_", "gho_", "ghu_", "ghs_",      // GitHub
-        "AKIA",                                // AWS
-        "xoxb-", "xoxp-", "xoxa-",            // Slack
-        "eyJ",                                 // JWT
-        "key=\"", "key = \"",                  // Generic key assignment
+        "sk-", "sk_live_", "sk_test_", // Stripe
+        "ghp_", "gho_", "ghu_", "ghs_", // GitHub
+        "AKIA", // AWS
+        "xoxb-", "xoxp-", "xoxa-", // Slack
+        "eyJ",   // JWT
+        "key=\"", "key = \"", // Generic key assignment
     ];
 
     for file in files {
@@ -501,7 +492,8 @@ fn fixer_secrets(files: &[String]) -> Vec<FixPatch> {
             let trimmed = line.trim();
 
             // Skip comments and imports
-            if trimmed.starts_with("//") || trimmed.starts_with("use ") || trimmed.starts_with('#') {
+            if trimmed.starts_with("//") || trimmed.starts_with("use ") || trimmed.starts_with('#')
+            {
                 continue;
             }
 
@@ -518,11 +510,16 @@ fn fixer_secrets(files: &[String]) -> Vec<FixPatch> {
                         // Find the string literal value
                         if let Some(val) = extract_string_literal(&line[pos + assignment.len()..]) {
                             // Skip empty or placeholder values
-                            if val.len() < 4 || val.contains("TODO") || val.contains("your") || val.contains("xxx") {
+                            if val.len() < 4
+                                || val.contains("TODO")
+                                || val.contains("your")
+                                || val.contains("xxx")
+                            {
                                 continue;
                             }
                             // Check if it actually looks like a secret (not a URL or format string)
-                            if val.starts_with("http") || val.starts_with('/') || val.contains("{}") {
+                            if val.starts_with("http") || val.starts_with('/') || val.contains("{}")
+                            {
                                 continue;
                             }
 
@@ -531,7 +528,9 @@ fn fixer_secrets(files: &[String]) -> Vec<FixPatch> {
                             // For const we can't use ?, use expect for const context
                             let env_msg = format_args!("{} must be set", env_name);
                             let keyword = line.split_whitespace().next().unwrap_or("let");
-                            let new_line = if line.trim().starts_with("const") || line.trim().starts_with("static") {
+                            let new_line = if line.trim().starts_with("const")
+                                || line.trim().starts_with("static")
+                            {
                                 format!(
                                     "{}{}std::env::var(\"{}\").expect(\"{}\");",
                                     indent_str, keyword, env_name, env_msg
@@ -707,7 +706,8 @@ fn fixer_crypto(files: &[String]) -> Vec<FixPatch> {
                         new_text: new_line,
                         rule_id: "crypto-weak-rng".into(),
                         confidence: "medium".into(),
-                        description: "Replace `thread_rng()` with `OsRng` for cryptographic use".into(),
+                        description: "Replace `thread_rng()` with `OsRng` for cryptographic use"
+                            .into(),
                     });
                     continue;
                 }
@@ -717,16 +717,12 @@ fn fixer_crypto(files: &[String]) -> Vec<FixPatch> {
             if line.contains("rand::random()") {
                 // Check context: key/secret/token/nonce/salt/iv
                 let sensitive_context = [
-                    "key", "secret", "token", "nonce", "salt", "iv",
-                    "Key", "Secret", "Token", "Nonce", "Salt", "IV",
-                    "password", "Password",
+                    "key", "secret", "token", "nonce", "salt", "iv", "Key", "Secret", "Token",
+                    "Nonce", "Salt", "IV", "password", "Password",
                 ];
                 let is_sensitive = sensitive_context.iter().any(|kw| line.contains(kw));
                 if is_sensitive {
-                    let new_line = line.replace(
-                        "rand::random()",
-                        "rand::rngs::OsRng.gen()",
-                    );
+                    let new_line = line.replace("rand::random()", "rand::rngs::OsRng.gen()");
                     patches.push(FixPatch {
                         file: file.clone(),
                         line: ln,
@@ -734,7 +730,8 @@ fn fixer_crypto(files: &[String]) -> Vec<FixPatch> {
                         new_text: new_line,
                         rule_id: "crypto-weak-rng".into(),
                         confidence: "low".into(),
-                        description: "Replace `rand::random()` with `OsRng` in security context".into(),
+                        description: "Replace `rand::random()` with `OsRng` in security context"
+                            .into(),
                     });
                 }
             }
@@ -859,9 +856,10 @@ impl<'a> syn::visit::Visit<'a> for DocCovVisitor<'a> {
     fn visit_item_fn(&mut self, node: &'a syn::ItemFn) {
         // Check if public
         if node.vis.to_token_stream().to_string().starts_with("pub") {
-            let has_doc = node.attrs.iter().any(|a| {
-                a.path().to_token_stream().to_string() == "doc"
-            });
+            let has_doc = node
+                .attrs
+                .iter()
+                .any(|a| a.path().to_token_stream().to_string() == "doc");
             if !has_doc {
                 let line = node.sig.fn_token.span.start().line;
                 let fn_name = node.sig.ident.to_string();
@@ -899,11 +897,7 @@ impl<'a> syn::visit::Visit<'a> for DocCovVisitor<'a> {
                 let indent = get_indent_at_line(self.src, line);
                 let stub = format!(
                     "{}/// `{}` — TODO: describe\n{}{}{}",
-                    indent,
-                    fn_name,
-                    indent,
-                    param_section,
-                    returns
+                    indent, fn_name, indent, param_section, returns
                 );
 
                 self.patches.push(FixPatch {
@@ -922,9 +916,10 @@ impl<'a> syn::visit::Visit<'a> for DocCovVisitor<'a> {
 
     fn visit_item_struct(&mut self, node: &'a syn::ItemStruct) {
         if node.vis.to_token_stream().to_string().starts_with("pub") {
-            let has_doc = node.attrs.iter().any(|a| {
-                a.path().to_token_stream().to_string() == "doc"
-            });
+            let has_doc = node
+                .attrs
+                .iter()
+                .any(|a| a.path().to_token_stream().to_string() == "doc");
             if !has_doc {
                 let line = node.struct_token.span.start().line;
                 let name = node.ident.to_string();
@@ -947,9 +942,10 @@ impl<'a> syn::visit::Visit<'a> for DocCovVisitor<'a> {
 
     fn visit_item_enum(&mut self, node: &'a syn::ItemEnum) {
         if node.vis.to_token_stream().to_string().starts_with("pub") {
-            let has_doc = node.attrs.iter().any(|a| {
-                a.path().to_token_stream().to_string() == "doc"
-            });
+            let has_doc = node
+                .attrs
+                .iter()
+                .any(|a| a.path().to_token_stream().to_string() == "doc");
             if !has_doc {
                 let line = node.enum_token.span.start().line;
                 let name = node.ident.to_string();
@@ -1054,7 +1050,7 @@ mod tests {
         let patches = vec![FixPatch {
             file: f.path().to_str().unwrap().to_string(),
             line: 1,
-            old_text: "let x = 999;".into(),  // doesn't match
+            old_text: "let x = 999;".into(), // doesn't match
             new_text: "let x = 10;".into(),
             rule_id: "test".into(),
             confidence: "high".into(),
@@ -1088,8 +1084,15 @@ mod tests {
     #[test]
     fn test_extract_expr_name_chained() {
         let name = extract_expr_name("let x = get_data()");
-        assert!(!name.is_empty(), "should extract a non-empty expression name");
-        assert!(!name.contains('('), "should not include opening paren: got '{}'", name);
+        assert!(
+            !name.is_empty(),
+            "should extract a non-empty expression name"
+        );
+        assert!(
+            !name.contains('('),
+            "should not include opening paren: got '{}'",
+            name
+        );
     }
 
     #[test]
@@ -1146,7 +1149,10 @@ mod tests {
 
     #[test]
     fn test_extract_var_name_const() {
-        assert_eq!(extract_var_name("const SECRET: &str = \"value\";"), "SECRET");
+        assert_eq!(
+            extract_var_name("const SECRET: &str = \"value\";"),
+            "SECRET"
+        );
     }
 
     #[test]
@@ -1185,8 +1191,11 @@ mod tests {
         let patches = fixer_debt(&[f.path().to_str().unwrap().to_string()]);
         assert!(!patches.is_empty(), "should convert TODO");
         // The format uses TODO:(#0): — colon before parens
-        assert!(patches[0].new_text.contains("TODO:(#0):") || patches[0].new_text.contains("(#0):"),
-            "new_text should contain issue tracker reference, got: {}", patches[0].new_text);
+        assert!(
+            patches[0].new_text.contains("TODO:(#0):") || patches[0].new_text.contains("(#0):"),
+            "new_text should contain issue tracker reference, got: {}",
+            patches[0].new_text
+        );
     }
 
     #[test]
@@ -1262,7 +1271,10 @@ mod tests {
         writeln!(f, "pub fn undocumented() {{}}").unwrap();
         let patches = fixer_doccov(&[f.path().to_str().unwrap().to_string()]);
         // Only the undocumented function should get a stub
-        let undocumented_patches: Vec<&FixPatch> = patches.iter().filter(|p| p.description.contains("undocumented")).collect();
+        let undocumented_patches: Vec<&FixPatch> = patches
+            .iter()
+            .filter(|p| p.description.contains("undocumented"))
+            .collect();
         assert_eq!(undocumented_patches.len(), 1);
     }
 
@@ -1285,10 +1297,16 @@ mod tests {
         f.flush().unwrap();
         let patches = collect_patches(f.path().to_str().unwrap(), "all");
         // Should find patches for at least the debt fixer
-        assert!(!patches.is_empty(), "should find patches, got {}", patches.len());
-        assert!(patches.iter().any(|p| p.rule_id == "debt-track"),
+        assert!(
+            !patches.is_empty(),
+            "should find patches, got {}",
+            patches.len()
+        );
+        assert!(
+            patches.iter().any(|p| p.rule_id == "debt-track"),
             "should find deb-track patch, got rules: {:?}",
-            patches.iter().map(|p| &p.rule_id).collect::<Vec<_>>());
+            patches.iter().map(|p| &p.rule_id).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1298,7 +1316,10 @@ mod tests {
         writeln!(f, "let x = get_value().unwrap();").unwrap();
         f.flush().unwrap();
         let patches = collect_patches(f.path().to_str().unwrap(), "errhandle");
-        assert!(!patches.is_empty(), "should find errhandle patches, got {}", patches.len());
+        assert!(
+            !patches.is_empty(),
+            "should find errhandle patches, got {}",
+            patches.len()
+        );
     }
 }
-

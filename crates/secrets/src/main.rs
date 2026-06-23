@@ -321,8 +321,11 @@ fn is_format_or_description_string(s: &str) -> bool {
     // Very long strings (100+ chars) with natural language words and punctuation are descriptions
     if trimmed.len() > 100 {
         let lower = trimmed.to_lowercase();
-        let has_common_words = lower.contains("the ") || lower.contains(" and ")
-            || lower.contains(" is ") || lower.contains(" for ") || lower.contains(" to ");
+        let has_common_words = lower.contains("the ")
+            || lower.contains(" and ")
+            || lower.contains(" is ")
+            || lower.contains(" for ")
+            || lower.contains(" to ");
         let has_punct = trimmed.contains('.') || trimmed.contains(',') || trimmed.contains(';');
         if has_common_words && has_punct {
             return true;
@@ -550,7 +553,6 @@ fn main() {
     run(Cli::parse());
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -651,9 +653,7 @@ mod tests {
 
     #[test]
     fn test_false_positive_pattern_detection() {
-        assert!(is_false_positive_pattern(
-            r#"pattern: "password = \"\""#
-        ));
+        assert!(is_false_positive_pattern(r#"pattern: "password = \"\""#));
         assert!(is_false_positive_pattern(
             r#"description: "Hardcoded password detected.""#
         ));
@@ -669,7 +669,9 @@ mod tests {
     fn test_value_looks_like_secret() {
         // Real secret: actual password value assigned
         assert!(value_looks_like_secret(r#"password = "s3cr3tP@ss";"#));
-        assert!(value_looks_like_secret(r#"api_key = "sk-1234567890abcdef";"#));
+        assert!(value_looks_like_secret(
+            r#"api_key = "sk-1234567890abcdef";"#
+        ));
         // Real password that starts with "password" keyword should still be flagged
         assert!(value_looks_like_secret(r#"password = "password123!";"#));
         // False positive: keyword repetition as value
@@ -701,9 +703,7 @@ mod tests {
 
     #[test]
     fn test_format_string_filtered() {
-        assert!(is_format_or_description_string(
-            r#""Health Score: {}/100""#
-        ));
+        assert!(is_format_or_description_string(r#""Health Score: {}/100""#));
         assert!(is_format_or_description_string(
             "\"Measures how risky a function is to change. Combines cyclomatic complexity and test coverage into a single metric.\""
         ));
@@ -717,17 +717,19 @@ mod tests {
             &["description: \"Hardcoded password detected.\""],
             4.5,
         );
-        assert!(findings.is_empty(), "description lines should not be flagged");
+        assert!(
+            findings.is_empty(),
+            "description lines should not be flagged"
+        );
     }
 
     #[test]
     fn test_pattern_definition_not_flagged() {
-        let findings = scan_file_lines(
-            "test.rs",
-            &[r#"pattern: "password = \"\""#],
-            4.5,
+        let findings = scan_file_lines("test.rs", &[r#"pattern: "password = \"\""#], 4.5);
+        assert!(
+            findings.is_empty(),
+            "pattern definitions should not be flagged"
         );
-        assert!(findings.is_empty(), "pattern definitions should not be flagged");
     }
 
     #[test]
@@ -742,145 +744,173 @@ mod tests {
 
     #[test]
     fn test_real_secret_still_flagged() {
-        let findings = scan_file_lines(
-            "test.rs",
-            &[r#"let password = "s3cr3tP@ss1234!";"#],
-            4.5,
-        );
+        let findings = scan_file_lines("test.rs", &[r#"let password = "s3cr3tP@ss1234!";"#], 4.5);
         assert!(!findings.is_empty(), "real secrets should still be flagged");
     }
 }
 
-    #[test]
-    fn test_is_excluded() {
-        let patterns = vec!["secrets".to_string(), "tests".to_string()];
-        assert!(is_excluded("./crates/secrets/src/main.rs", &patterns));
-        assert!(is_excluded("./crates/foo/tests/integration.rs", &patterns));
-        assert!(!is_excluded("./crates/cogent-cli/src/main.rs", &patterns));
-        assert!(!is_excluded("./src/lib.rs", &patterns));
-        assert!(!is_excluded("./crates/secrets/src/main.rs", &[]));
+#[test]
+fn test_is_excluded() {
+    let patterns = vec!["secrets".to_string(), "tests".to_string()];
+    assert!(is_excluded("./crates/secrets/src/main.rs", &patterns));
+    assert!(is_excluded("./crates/foo/tests/integration.rs", &patterns));
+    assert!(!is_excluded("./crates/cogent-cli/src/main.rs", &patterns));
+    assert!(!is_excluded("./src/lib.rs", &patterns));
+    assert!(!is_excluded("./crates/secrets/src/main.rs", &[]));
+}
+
+#[test]
+fn test_is_excluded_edge_cases() {
+    // Empty pattern list matches nothing
+    assert!(!is_excluded("any/path.rs", &[]));
+    // Empty string pattern is skipped (would match everything otherwise)
+    assert!(!is_excluded("any/path.rs", &[String::new()]));
+    // Substring match
+    assert!(is_excluded("src/vendor/lib.rs", &["vendor".to_string()]));
+    // Exact substring at start
+    assert!(is_excluded("vendor/lib.rs", &["vendor".to_string()]));
+    // Partial match in middle of path component
+    assert!(is_excluded(
+        "src/some_vendor_dir/file.rs",
+        &["vendor".to_string()]
+    ));
+}
+
+/// End-to-end: create temp files with hardcoded secrets, run the scanner
+/// with `--exclude`, and verify the excluded file is suppressed.
+#[test]
+fn test_exclude_suppresses_real_file_scanning() {
+    use std::io::Write;
+
+    let dir = std::env::temp_dir().join("cogent_secrets_e2e_test");
+    let _ = std::fs::create_dir_all(&dir);
+
+    // File A: should be scanned (contains a real secret)
+    let file_a = dir.join("app_config.rs");
+    {
+        let mut f = std::fs::File::create(&file_a).unwrap();
+        writeln!(f, "pub const API_KEY: &str = \"sk-proj-abc1234567890xyz\";").unwrap();
     }
 
-    #[test]
-    fn test_is_excluded_edge_cases() {
-        // Empty pattern list matches nothing
-        assert!(!is_excluded("any/path.rs", &[]));
-        // Empty string pattern is skipped (would match everything otherwise)
-        assert!(!is_excluded("any/path.rs", &[String::new()]));
-        // Substring match
-        assert!(is_excluded("src/vendor/lib.rs", &["vendor".to_string()]));
-        // Exact substring at start
-        assert!(is_excluded("vendor/lib.rs", &["vendor".to_string()]));
-        // Partial match in middle of path component
-        assert!(is_excluded("src/some_vendor_dir/file.rs", &["vendor".to_string()]));
+    // File B: should be excluded (also contains a real secret)
+    let file_b = dir.join("vendor_secret.rs");
+    {
+        let mut f = std::fs::File::create(&file_b).unwrap();
+        writeln!(f, "pub const DB_PASSWORD: &str = \"p@ssw0rd_9876543210\";").unwrap();
     }
 
-    /// End-to-end: create temp files with hardcoded secrets, run the scanner
-    /// with `--exclude`, and verify the excluded file is suppressed.
-    #[test]
-    fn test_exclude_suppresses_real_file_scanning() {
-        use std::io::Write;
+    // Scan WITHOUT exclude — both files should produce findings
+    let findings_no_exclude = scan_file(file_a.to_str().unwrap(), 4.5);
+    assert!(
+        !findings_no_exclude.is_empty(),
+        "file_a should have findings"
+    );
+    let findings_b_no_exclude = scan_file(file_b.to_str().unwrap(), 4.5);
+    assert!(
+        !findings_b_no_exclude.is_empty(),
+        "file_b should have findings"
+    );
 
-        let dir = std::env::temp_dir().join("cogent_secrets_e2e_test");
-        let _ = std::fs::create_dir_all(&dir);
+    // Verify is_excluded would suppress file_b but not file_a
+    let exclude_patterns = vec!["vendor".to_string()];
+    assert!(
+        !is_excluded(file_a.to_str().unwrap(), &exclude_patterns),
+        "app_config.rs should NOT be excluded"
+    );
+    assert!(
+        is_excluded(file_b.to_str().unwrap(), &exclude_patterns),
+        "vendor_secret.rs SHOULD be excluded"
+    );
 
-        // File A: should be scanned (contains a real secret)
-        let file_a = dir.join("app_config.rs");
-        {
-            let mut f = std::fs::File::create(&file_a).unwrap();
-            writeln!(f, "pub const API_KEY: &str = \"sk-proj-abc1234567890xyz\";").unwrap();
-        }
+    // Simulate the filtering pipeline: collect files, apply is_excluded, scan remaining
+    let all_files = vec![
+        file_a.to_str().unwrap().to_string(),
+        file_b.to_str().unwrap().to_string(),
+    ];
+    let filtered: Vec<&String> = all_files
+        .iter()
+        .filter(|f| !is_excluded(f, &exclude_patterns))
+        .collect();
+    assert_eq!(
+        filtered.len(),
+        1,
+        "only file_a should remain after exclusion"
+    );
+    assert!(filtered[0].ends_with("app_config.rs"));
 
-        // File B: should be excluded (also contains a real secret)
-        let file_b = dir.join("vendor_secret.rs");
-        {
-            let mut f = std::fs::File::create(&file_b).unwrap();
-            writeln!(f, "pub const DB_PASSWORD: &str = \"p@ssw0rd_9876543210\";").unwrap();
-        }
+    // Clean up
+    let _ = std::fs::remove_file(&file_a);
+    let _ = std::fs::remove_file(&file_b);
+    let _ = std::fs::remove_dir(&dir);
+}
 
-        // Scan WITHOUT exclude — both files should produce findings
-        let findings_no_exclude = scan_file(file_a.to_str().unwrap(), 4.5);
-        assert!(!findings_no_exclude.is_empty(), "file_a should have findings");
-        let findings_b_no_exclude = scan_file(file_b.to_str().unwrap(), 4.5);
-        assert!(!findings_b_no_exclude.is_empty(), "file_b should have findings");
+/// End-to-end: verify that exclude with multiple patterns
+/// correctly filters from a realistic file set.
+#[test]
+fn test_is_excluded_path_traversal_patterns() {
+    // Path traversal with ../
+    assert!(is_excluded(
+        "../../vendor/secret.rs",
+        &["vendor".to_string()]
+    ));
+    // Absolute paths
+    assert!(is_excluded(
+        "/home/user/vendor/lib.rs",
+        &["vendor".to_string()]
+    ));
+    // Windows-style paths
+    assert!(is_excluded(
+        "C:\\Users\\vendor\\file.rs",
+        &["vendor".to_string()]
+    ));
+    // Empty path should not match non-empty patterns
+    assert!(!is_excluded("", &["vendor".to_string()]));
+    // Path that is exactly the pattern (no slashes)
+    assert!(is_excluded("vendor", &["vendor".to_string()]));
+    // Pattern is a substring at start of a path component
+    assert!(is_excluded("vendorlib/main.rs", &["vendor".to_string()]));
+}
 
-        // Verify is_excluded would suppress file_b but not file_a
-        let exclude_patterns = vec!["vendor".to_string()];
-        assert!(!is_excluded(file_a.to_str().unwrap(), &exclude_patterns),
-            "app_config.rs should NOT be excluded");
-        assert!(is_excluded(file_b.to_str().unwrap(), &exclude_patterns),
-            "vendor_secret.rs SHOULD be excluded");
+#[test]
+fn test_exclude_multiple_empty_patterns() {
+    // Multiple empty patterns should all be skipped
+    assert!(!is_excluded("any/path.rs", &[String::new(), String::new()]));
+    // Mix of empty and valid
+    assert!(is_excluded(
+        "src/vendor/lib.rs",
+        &[String::new(), "vendor".to_string()]
+    ));
+}
 
-        // Simulate the filtering pipeline: collect files, apply is_excluded, scan remaining
-        let all_files = vec![
-            file_a.to_str().unwrap().to_string(),
-            file_b.to_str().unwrap().to_string(),
-        ];
-        let filtered: Vec<&String> = all_files
-            .iter()
-            .filter(|f| !is_excluded(f, &exclude_patterns))
-            .collect();
-        assert_eq!(filtered.len(), 1, "only file_a should remain after exclusion");
-        assert!(filtered[0].ends_with("app_config.rs"));
+#[test]
+fn test_exclude_unicode_patterns() {
+    assert!(is_excluded(
+        "src/日本語テスト/main.rs",
+        &["日本語".to_string()]
+    ));
+    assert!(!is_excluded("src/main.rs", &["日本語".to_string()]));
+}
 
-        // Clean up
-        let _ = std::fs::remove_file(&file_a);
-        let _ = std::fs::remove_file(&file_b);
-        let _ = std::fs::remove_dir(&dir);
-    }
+#[test]
+fn test_exclude_multi_pattern_filtering() {
+    let paths = vec![
+        "src/main.rs".to_string(),
+        "vendor/lib.rs".to_string(),
+        "tests/integration.rs".to_string(),
+        "docs/README.md".to_string(),
+        "src/vendor_helper.rs".to_string(),
+    ];
+    let excludes = vec!["vendor".to_string(), "tests".to_string()];
 
-    /// End-to-end: verify that exclude with multiple patterns
-    /// correctly filters from a realistic file set.
-    #[test]
-    fn test_is_excluded_path_traversal_patterns() {
-        // Path traversal with ../
-        assert!(is_excluded("../../vendor/secret.rs", &["vendor".to_string()]));
-        // Absolute paths
-        assert!(is_excluded("/home/user/vendor/lib.rs", &["vendor".to_string()]));
-        // Windows-style paths
-        assert!(is_excluded("C:\\Users\\vendor\\file.rs", &["vendor".to_string()]));
-        // Empty path should not match non-empty patterns
-        assert!(!is_excluded("", &["vendor".to_string()]));
-        // Path that is exactly the pattern (no slashes)
-        assert!(is_excluded("vendor", &["vendor".to_string()]));
-        // Pattern is a substring at start of a path component
-        assert!(is_excluded("vendorlib/main.rs", &["vendor".to_string()]));
-    }
+    let filtered: Vec<&String> = paths
+        .iter()
+        .filter(|p| !is_excluded(p, &excludes))
+        .collect();
 
-    #[test]
-    fn test_exclude_multiple_empty_patterns() {
-        // Multiple empty patterns should all be skipped
-        assert!(!is_excluded("any/path.rs", &[String::new(), String::new()]));
-        // Mix of empty and valid
-        assert!(is_excluded("src/vendor/lib.rs", &[String::new(), "vendor".to_string()]));
-    }
-
-    #[test]
-    fn test_exclude_unicode_patterns() {
-        assert!(is_excluded("src/日本語テスト/main.rs", &["日本語".to_string()]));
-        assert!(!is_excluded("src/main.rs", &["日本語".to_string()]));
-    }
-
-    #[test]
-    fn test_exclude_multi_pattern_filtering() {
-        let paths = vec![
-            "src/main.rs".to_string(),
-            "vendor/lib.rs".to_string(),
-            "tests/integration.rs".to_string(),
-            "docs/README.md".to_string(),
-            "src/vendor_helper.rs".to_string(),
-        ];
-        let excludes = vec!["vendor".to_string(), "tests".to_string()];
-
-        let filtered: Vec<&String> = paths
-            .iter()
-            .filter(|p| !is_excluded(p, &excludes))
-            .collect();
-
-        // vendor/ and vendor_helper.rs both contain "vendor" substring
-        assert_eq!(filtered.len(), 2);
-        assert!(filtered.iter().any(|p| p.ends_with("main.rs")));
-        assert!(filtered.iter().any(|p| p.ends_with("README.md")));
-        assert!(!filtered.iter().any(|p| p.contains("vendor")));
-        assert!(!filtered.iter().any(|p| p.contains("tests")));
-    }
+    // vendor/ and vendor_helper.rs both contain "vendor" substring
+    assert_eq!(filtered.len(), 2);
+    assert!(filtered.iter().any(|p| p.ends_with("main.rs")));
+    assert!(filtered.iter().any(|p| p.ends_with("README.md")));
+    assert!(!filtered.iter().any(|p| p.contains("vendor")));
+    assert!(!filtered.iter().any(|p| p.contains("tests")));
+}

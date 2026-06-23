@@ -417,6 +417,25 @@ fn analyze_file_js(
     (property_tests, unit_tests, functions)
 }
 
+fn insert_go_fn(
+    functions: &mut HashMap<String, FunctionCoverage>,
+    trimmed: &str,
+    file: &str,
+    line_num: usize,
+    has_unit_test: bool,
+) {
+    if let Some(name) = extract_go_fn_name(trimmed) {
+        functions.entry(name.clone()).or_insert(FunctionCoverage {
+            name,
+            file: file.to_string(),
+            line: line_num,
+            has_property_test: false,
+            has_unit_test,
+            property_tests: Vec::new(),
+        });
+    }
+}
+
 fn analyze_file_go(
     source: &str,
     file: &str,
@@ -427,32 +446,12 @@ fn analyze_file_go(
 
     for (line_num, line) in source.lines().enumerate() {
         let trimmed = line.trim();
-
         if trimmed.starts_with("func Test") {
             unit_tests += 1;
-            if let Some(name) = extract_go_fn_name(trimmed) {
-                functions.entry(name.clone()).or_insert(FunctionCoverage {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    has_property_test: false,
-                    has_unit_test: true,
-                    property_tests: Vec::new(),
-                });
-            }
+            insert_go_fn(&mut functions, trimmed, file, line_num, true);
         }
-
         if trimmed.starts_with("func ") {
-            if let Some(name) = extract_go_fn_name(trimmed) {
-                functions.entry(name.clone()).or_insert(FunctionCoverage {
-                    name,
-                    file: file.to_string(),
-                    line: line_num,
-                    has_property_test: false,
-                    has_unit_test: false,
-                    property_tests: Vec::new(),
-                });
-            }
+            insert_go_fn(&mut functions, trimmed, file, line_num, false);
         }
     }
 

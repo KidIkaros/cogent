@@ -309,7 +309,11 @@ mod tests {
     #[test]
     fn test_analyze_file_rust_with_comments() {
         let dir = tempfile::tempdir().unwrap();
-        let path = make_large_file(&dir, "test.rs", "// header comment\nfn main() {\n    // inline\n    let x = 1;\n}\n");
+        let path = make_large_file(
+            &dir,
+            "test.rs",
+            "// header comment\nfn main() {\n    // inline\n    let x = 1;\n}\n",
+        );
         let stats = analyze_file(&path, 0.1).unwrap();
         assert_eq!(stats.comment_lines, 2);
         assert!(stats.code_lines >= 3);
@@ -318,7 +322,11 @@ mod tests {
     #[test]
     fn test_analyze_file_all_code_no_comments() {
         let dir = tempfile::tempdir().unwrap();
-        let path = make_large_file(&dir, "main.rs", "fn main() {\nlet x = 1;\nprintln!(\"hi\");\n}\n");
+        let path = make_large_file(
+            &dir,
+            "main.rs",
+            "fn main() {\nlet x = 1;\nprintln!(\"hi\");\n}\n",
+        );
         let stats = analyze_file(&path, 0.3).unwrap();
         assert_eq!(stats.comment_lines, 0);
     }

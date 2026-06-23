@@ -117,25 +117,62 @@ fn detect_physical_cores() -> Option<usize> {
             }
         }
     }
-    if cores > 0 { Some(cores) } else { None }
+    if cores > 0 {
+        Some(cores)
+    } else {
+        None
+    }
 }
 
 fn detect_memory_mb() -> (u64, u64) {
-    let meminfo = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
-    let mut total_kb = 0u64;
-    let mut avail_kb = 0u64;
-    for line in meminfo.lines() {
-        if line.starts_with("MemTotal:") {
-            total_kb = line.split_whitespace().nth(1)
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
-        } else if line.starts_with("MemAvailable:") {
-            avail_kb = line.split_whitespace().nth(1)
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(0);
-        }
-    }
-    (total_kb / 1024, avail_kb / 1024)
+    #[cfg(target_os = "linux")]
+    let result = {
+        let meminfo = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
+        let field = |name: &str| {
+            meminfo
+                .lines()
+                .find(|l| l.starts_with(name))
+                .and_then(|l| l.split_whitespace().nth(1))
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0)
+        };
+        (field("MemTotal:") / 1024, field("MemAvailable:") / 1024)
+    };
+    #[cfg(target_os = "macos")]
+    let result = {
+        let out = std::process::Command::new("sysctl")
+            .args(["-n", "hw.memsize"])
+            .output()
+            .ok();
+        let mb = parse_total_ram_mb(out);
+        (mb, mb)
+    };
+    #[cfg(target_os = "windows")]
+    let result = {
+        let out = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory",
+            ])
+            .output()
+            .ok();
+        let mb = parse_total_ram_mb(out);
+        (mb, mb)
+    };
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    let result = (0u64, 0u64);
+    result
+}
+
+/// Parse total RAM (in MB) from a command that prints a single byte count.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn parse_total_ram_mb(out: Option<std::process::Output>) -> u64 {
+    let bytes = out
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| s.trim().parse::<u64>().ok())
+        .unwrap_or(0);
+    bytes / (1024 * 1024)
 }
 
 fn detect_gpu() -> (bool, Option<String>, bool) {
@@ -184,29 +221,29 @@ fn detect_gpu() -> (bool, Option<String>, bool) {
 /// All benchmarkable tools: (display_name, crate_name, binary, needs_recursive).
 fn benchmark_tools() -> Vec<(&'static str, &'static str, &'static str, bool)> {
     vec![
-        ("debt",       "debt-scan",       "debt",             true),
-        ("doccov",     "doc-coverage",    "doccov",           true),
-        ("crap",       "crap-metric",     "crap",             true),
-        ("coupling",   "coupling",        "coupling",         false),
-        ("riskmap",    "risk-map",        "riskmap",          false),
-        ("dupfind",    "duplication",     "dupfind",          true),
-        ("propcov",    "prop-cov",        "propcov",          true),
-        ("taint",      "taint-scan",      "taint",            true),
-        ("fuzz",       "fuzz-surface",    "fuzz",             true),
-        ("linelen",    "line-length",     "linelen",          true),
-        ("halstead",   "halstead",        "halstead",         true),
-        ("secrets",    "secrets",         "secrets",          true),
-        ("deadcode",   "dead-code",       "deadcode",         true),
-        ("cohesion",   "cohesion",        "cohesion",         true),
-        ("comments",   "comment-ratio",   "comments",         true),
-        ("errhandle",  "error-handling",  "errhandle",        true),
-        ("typecov",    "type-coverage",   "typecov",          true),
-        ("vulnscan",   "vuln-scan",       "vulnscan",         false),
-        ("sast",       "sast",            "sast",             true),
-        ("crypto",     "crypto-check",    "cryptocheck",      true),
-        ("licenses",   "licenses",        "licenses",         false),
+        ("debt", "debt-scan", "debt", true),
+        ("doccov", "doc-coverage", "doccov", true),
+        ("crap", "crap-metric", "crap", true),
+        ("coupling", "coupling", "coupling", false),
+        ("riskmap", "risk-map", "riskmap", false),
+        ("dupfind", "duplication", "dupfind", true),
+        ("propcov", "prop-cov", "propcov", true),
+        ("taint", "taint-scan", "taint", true),
+        ("fuzz", "fuzz-surface", "fuzz", true),
+        ("linelen", "line-length", "linelen", true),
+        ("halstead", "halstead", "halstead", true),
+        ("secrets", "secrets", "secrets", true),
+        ("deadcode", "dead-code", "deadcode", true),
+        ("cohesion", "cohesion", "cohesion", true),
+        ("comments", "comment-ratio", "comments", true),
+        ("errhandle", "error-handling", "errhandle", true),
+        ("typecov", "type-coverage", "typecov", true),
+        ("vulnscan", "vuln-scan", "vulnscan", false),
+        ("sast", "sast", "sast", true),
+        ("crypto", "crypto-check", "cryptocheck", true),
+        ("licenses", "licenses", "licenses", false),
         ("access-control", "access-control", "access-control", false),
-        ("supply-chain",  "supply-chain",  "supply-chain",    false),
+        ("supply-chain", "supply-chain", "supply-chain", false),
     ]
 }
 
@@ -219,7 +256,13 @@ fn benchmark_tools() -> Vec<(&'static str, &'static str, &'static str, bool)> {
 /// Success is determined by whether the tool produced valid JSON output,
 /// not by exit code. Many tools exit non-zero when they find issues —
 /// that's expected behavior ("findings"), not an error.
-fn bench_single_tool(name: &str, crate_name: &str, binary: &str, path: &str, recursive: bool) -> ToolBenchResult {
+fn bench_single_tool(
+    name: &str,
+    crate_name: &str,
+    binary: &str,
+    path: &str,
+    recursive: bool,
+) -> ToolBenchResult {
     let mut args = vec![path];
     if recursive {
         args.push("--recursive");
@@ -229,11 +272,16 @@ fn bench_single_tool(name: &str, crate_name: &str, binary: &str, path: &str, rec
     let start = Instant::now();
     let result = run_tool(crate_name, binary, &args, start);
     let wall_time_ms = result.duration_ms;
-    let output_bytes = serde_json::to_string(&result.data).map(|s| s.len()).unwrap_or(0);
+    let output_bytes = serde_json::to_string(&result.data)
+        .map(|s| s.len())
+        .unwrap_or(0);
     let exit_code = if result.success { Some(0) } else { Some(1) };
 
     // Tool is skipped if it's not installed
-    let skipped = result.error.as_deref().is_some_and(|e| e.contains("not found") || e.contains("Skipped"));
+    let skipped = result
+        .error
+        .as_deref()
+        .is_some_and(|e| e.contains("not found") || e.contains("Skipped"));
     let skip_reason = if skipped { result.error.clone() } else { None };
 
     // Tool succeeded if it produced valid JSON output (not null).
@@ -323,29 +371,69 @@ pub fn bench_command(path: &str, format: &str) -> i32 {
     if format == "text" {
         eprintln!();
         eprintln!("  {} Cogent Benchmark", "▶".cyan().bold());
-        eprintln!("  {}────────────────────────────────────", "".bright_black());
+        eprintln!(
+            "  {}────────────────────────────────────",
+            "".bright_black()
+        );
         eprintln!();
         eprintln!("  {} System", "⚙".cyan().bold());
-        eprintln!("    {} CPU cores: {} ({} threads)", "·".bright_black(), system.cpu_cores, system.cpu_threads);
-        eprintln!("    {} RAM: {} MB total, {} MB available", "·".bright_black(), system.total_ram_mb, system.available_ram_mb);
+        eprintln!(
+            "    {} CPU cores: {} ({} threads)",
+            "·".bright_black(),
+            system.cpu_cores,
+            system.cpu_threads
+        );
+        eprintln!(
+            "    {} RAM: {} MB total, {} MB available",
+            "·".bright_black(),
+            system.total_ram_mb,
+            system.available_ram_mb
+        );
         if system.gpu_detected {
-            eprintln!("    {} GPU: {} {}", "·".bright_black(), "✓".green().bold(), system.gpu_name.as_deref().unwrap_or("detected"));
+            eprintln!(
+                "    {} GPU: {} {}",
+                "·".bright_black(),
+                "✓".green().bold(),
+                system.gpu_name.as_deref().unwrap_or("detected")
+            );
         } else if system.gpu_detection_possible {
-            eprintln!("    {} GPU: none detected (not needed — all tools are CPU-bound static analysis)", "·".bright_black());
+            eprintln!(
+                "    {} GPU: none detected (not needed — all tools are CPU-bound static analysis)",
+                "·".bright_black()
+            );
         } else {
-            eprintln!("    {} GPU: unknown (detection tools not installed)", "·".bright_black());
+            eprintln!(
+                "    {} GPU: unknown (detection tools not installed)",
+                "·".bright_black()
+            );
         }
-        eprintln!("    {} Recommended concurrency: {}", "·".bright_black(), system.recommended_concurrency.to_string().cyan());
+        eprintln!(
+            "    {} Recommended concurrency: {}",
+            "·".bright_black(),
+            system.recommended_concurrency.to_string().cyan()
+        );
         eprintln!();
-        eprintln!("  {} Benchmarking {} tools (serial)...", "▶".cyan().bold(), benchmark_tools().len());
+        eprintln!(
+            "  {} Benchmarking {} tools (serial)...",
+            "▶".cyan().bold(),
+            benchmark_tools().len()
+        );
     }
 
     let (tools, serial_total_ms) = run_serial(path);
 
     if format == "text" {
-        eprintln!("  {} Serial complete: {:.1}s", "✓".green().bold(), serial_total_ms as f64 / 1000.0);
+        eprintln!(
+            "  {} Serial complete: {:.1}s",
+            "✓".green().bold(),
+            serial_total_ms as f64 / 1000.0
+        );
         eprintln!();
-        eprintln!("  {} Benchmarking (parallel, {} workers)...", "▶".cyan().bold(), system.recommended_concurrency);
+        eprintln!(
+            "  {} Benchmarking (parallel, {} workers)...",
+            "▶".cyan().bold(),
+            system.recommended_concurrency
+        );
     }
 
     let parallel_total_ms = run_parallel(path);
@@ -360,7 +448,10 @@ pub fn bench_command(path: &str, format: &str) -> i32 {
     let tools_passed = tools.iter().filter(|t| t.success && !t.skipped).count();
     let tools_skipped = tools.iter().filter(|t| t.skipped).count();
     let tools_findings = tools.iter().filter(|t| t.has_findings).count();
-    let tools_clean = tools.iter().filter(|t| t.success && !t.has_findings && !t.skipped).count();
+    let tools_clean = tools
+        .iter()
+        .filter(|t| t.success && !t.has_findings && !t.skipped)
+        .count();
     let tools_failed = tools.iter().filter(|t| !t.success && !t.skipped).count();
 
     let report = BenchReport {
@@ -389,12 +480,26 @@ pub fn bench_command(path: &str, format: &str) -> i32 {
 }
 
 fn print_text_report(report: &BenchReport) {
-    eprintln!("  {} Parallel complete: {:.1}s ({:.1}× speedup)", "✓".green().bold(), report.parallel_total_ms as f64 / 1000.0, report.speedup_factor);
+    eprintln!(
+        "  {} Parallel complete: {:.1}s ({:.1}× speedup)",
+        "✓".green().bold(),
+        report.parallel_total_ms as f64 / 1000.0,
+        report.speedup_factor
+    );
     eprintln!();
     eprintln!("  {} Results", "📊".cyan().bold());
-    eprintln!("  {}────────────────────────────────────────────────────────────────────", "".bright_black());
-    eprintln!("  {:<18} {:>8} {:>10} {:>10} Status", "Tool", "Time", "Output", "RSS");
-    eprintln!("  {}────────────────────────────────────────────────────────────────────", "".bright_black());
+    eprintln!(
+        "  {}────────────────────────────────────────────────────────────────────",
+        "".bright_black()
+    );
+    eprintln!(
+        "  {:<18} {:>8} {:>10} {:>10} Status",
+        "Tool", "Time", "Output", "RSS"
+    );
+    eprintln!(
+        "  {}────────────────────────────────────────────────────────────────────",
+        "".bright_black()
+    );
 
     for tool in &report.tools {
         let status = if tool.skipped {
@@ -411,32 +516,78 @@ fn print_text_report(report: &BenchReport) {
         let output_str = format_bytes(tool.output_bytes);
         let rss_str = format!("{} MB", tool.peak_rss_mb);
 
-        eprintln!("  {:<18} {:>8} {:>10} {:>10} {}", tool.name.cyan(), time_str, output_str, rss_str.bright_black(), status);
+        eprintln!(
+            "  {:<18} {:>8} {:>10} {:>10} {}",
+            tool.name.cyan(),
+            time_str,
+            output_str,
+            rss_str.bright_black(),
+            status
+        );
     }
 
-    eprintln!("  {}────────────────────────────────────────────────────────────────────", "".bright_black());
+    eprintln!(
+        "  {}────────────────────────────────────────────────────────────────────",
+        "".bright_black()
+    );
     eprintln!();
 
     // Summary box
     eprintln!("  {} Summary", "▶".cyan().bold());
-    eprintln!("    {} Serial total:   {:.1}s", "·".bright_black(), report.serial_total_ms as f64 / 1000.0);
-    eprintln!("    {} Parallel total: {:.1}s  ({} workers)", "·".bright_black(), report.parallel_total_ms as f64 / 1000.0, report.system.recommended_concurrency);
-    eprintln!("    {} Speedup:        {:.1}×", "·".bright_black(), report.speedup_factor);
-    eprintln!("    {} Tools:          {} clean, {} findings, {} skipped, {} failed", "·".bright_black(),
+    eprintln!(
+        "    {} Serial total:   {:.1}s",
+        "·".bright_black(),
+        report.serial_total_ms as f64 / 1000.0
+    );
+    eprintln!(
+        "    {} Parallel total: {:.1}s  ({} workers)",
+        "·".bright_black(),
+        report.parallel_total_ms as f64 / 1000.0,
+        report.system.recommended_concurrency
+    );
+    eprintln!(
+        "    {} Speedup:        {:.1}×",
+        "·".bright_black(),
+        report.speedup_factor
+    );
+    eprintln!(
+        "    {} Tools:          {} clean, {} findings, {} skipped, {} failed",
+        "·".bright_black(),
         report.tools_clean.to_string().green(),
         report.tools_findings.to_string().yellow(),
         report.tools_skipped.to_string().bright_black(),
-        if report.tools_failed > 0 { report.tools_failed.to_string().red().to_string() } else { "0".to_string() }
+        if report.tools_failed > 0 {
+            report.tools_failed.to_string().red().to_string()
+        } else {
+            "0".to_string()
+        }
     );
-    eprintln!("    {} Total output:   {}", "·".bright_black(), format_bytes(report.total_output_bytes));
+    eprintln!(
+        "    {} Total output:   {}",
+        "·".bright_black(),
+        format_bytes(report.total_output_bytes)
+    );
     eprintln!();
 
     // Compute characteristics
     eprintln!("  {} Compute Profile", "⚙".cyan().bold());
-    eprintln!("    {} CPU-bound: All 23 tools are static analysis (AST parsing, pattern matching)", "·".bright_black());
-    eprintln!("    {} No GPU needed: No ML inference or matrix operations", "·".bright_black());
-    eprintln!("    {} Memory: ~50-200 MB per tool subprocess", "·".bright_black());
-    eprintln!("    {} Parallelism: Process-level via thread pool (COGENT_MAX_CONCURRENT={})", "·".bright_black(), report.system.recommended_concurrency);
+    eprintln!(
+        "    {} CPU-bound: All 23 tools are static analysis (AST parsing, pattern matching)",
+        "·".bright_black()
+    );
+    eprintln!(
+        "    {} No GPU needed: No ML inference or matrix operations",
+        "·".bright_black()
+    );
+    eprintln!(
+        "    {} Memory: ~50-200 MB per tool subprocess",
+        "·".bright_black()
+    );
+    eprintln!(
+        "    {} Parallelism: Process-level via thread pool (COGENT_MAX_CONCURRENT={})",
+        "·".bright_black(),
+        report.system.recommended_concurrency
+    );
     eprintln!();
 
     // Heaviest tools
@@ -446,7 +597,12 @@ fn print_text_report(report: &BenchReport) {
     if !top5.is_empty() {
         eprintln!("  {} Heaviest tools (top 5):", "⏱".cyan().bold());
         for (i, t) in top5.iter().enumerate() {
-            eprintln!("    {} {} — {}", format!("{}.", i + 1).bright_black(), t.name.cyan(), format_ms(t.wall_time_ms));
+            eprintln!(
+                "    {} {} — {}",
+                format!("{}.", i + 1).bright_black(),
+                t.name.cyan(),
+                format_ms(t.wall_time_ms)
+            );
         }
         eprintln!();
     }
@@ -497,7 +653,10 @@ mod tests {
     fn test_detect_system_recommended_concurrency() {
         let sys = detect_system();
         assert!(sys.recommended_concurrency >= 1, "concurrency >= 1");
-        assert!(sys.recommended_concurrency <= sys.cpu_threads, "concurrency <= threads");
+        assert!(
+            sys.recommended_concurrency <= sys.cpu_threads,
+            "concurrency <= threads"
+        );
     }
 
     #[test]
@@ -536,7 +695,11 @@ mod tests {
     fn test_benchmark_tools_not_empty() {
         let tools = benchmark_tools();
         assert!(!tools.is_empty(), "should have at least one benchmark tool");
-        assert!(tools.len() >= 20, "should have 20+ tools, got {}", tools.len());
+        assert!(
+            tools.len() >= 20,
+            "should have 20+ tools, got {}",
+            tools.len()
+        );
     }
 
     #[test]

@@ -323,8 +323,7 @@ pub fn extract_offenders(check: &CheckResult, limit: usize) -> Vec<(String, Opti
     out
 }
 
-/// Print inline offenders under a check line (used by run_check! for failures).
-pub fn print_offenders(check: &CheckResult) {
+fn print_offender_lines(check: &CheckResult) {
     let offenders = extract_offenders(check, 5);
     for (file, line, desc) in offenders {
         let loc = if file.is_empty() {
@@ -348,6 +347,11 @@ pub fn print_offenders(check: &CheckResult) {
             eprintln!("      {}  {}", loc.cyan(), truncated_desc.bright_black());
         }
     }
+}
+
+/// Print inline offenders under a check line (used by run_check! for failures).
+pub fn print_offenders(check: &CheckResult) {
+    print_offender_lines(check);
     let arrays = [
         "items",
         "functions",

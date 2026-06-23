@@ -10,32 +10,37 @@ use colored::Colorize;
 
 use crate::audit;
 use crate::check_runners::{run_batch, run_parallel_checks, run_tool};
-use crate::cli::{CacheAction, Commands, ExceptionAction, PolicyAction, hqse_phase_for};
-use crate::config::{detect_project, generate_config, load_config_thresholds, load_secrets_exclude};
+use crate::cli::{hqse_phase_for, CacheAction, Commands, ExceptionAction, PolicyAction};
+use crate::commands::{discover_command, explain_command, init_ci};
+use crate::config::{
+    detect_project, generate_config, load_config_thresholds, load_secrets_exclude,
+};
 use crate::diff::diff_command;
+use crate::doctor::doctor_command;
 use crate::history::history_command;
 use crate::hooks::{install_hooks, uninstall_hooks};
 use crate::progress::{
-    format_elapsed, print_audit_opinion, print_fix_summary, print_margin_summary,
-    print_offenders, print_severity_grouped, print_summary_box, run_with_spinner,
+    format_elapsed, print_audit_opinion, print_fix_summary, print_margin_summary, print_offenders,
+    print_severity_grouped, print_summary_box, run_with_spinner,
 };
 use crate::report::{render_html_report, report_command, setup_command};
 use crate::report_formatters::*;
 use crate::serve::serve_command;
 use crate::types::{
-    aggregate_file_summary, CheckReport, CheckResult, CheckSummary,
-    Finding, SuggestedFix,
+    aggregate_file_summary, CheckReport, CheckResult, CheckSummary, Finding, SuggestedFix,
 };
 use crate::watch::watch_mode;
-use crate::commands::{discover_command, explain_command, init_ci};
-use crate::doctor::doctor_command;
 use cogent_common::{compute_audit, health_score};
 use cogent_engine::{registry, CheckThresholds};
-use cogent_fix::{collect_patches, apply_patches, FixPatch};
+use cogent_fix::{apply_patches, collect_patches};
 
 /// Resolve the output format: CI mode forces JSON regardless of the specified format.
 fn ci_format(format: String, ci: bool) -> String {
-    if ci { "json".to_string() } else { format }
+    if ci {
+        "json".to_string()
+    } else {
+        format
+    }
 }
 
 /// Run the `cogent audit` command: orchestrates security/quality/compliance checks,
@@ -61,13 +66,34 @@ fn run_audit_subcommand(path: String, format: String, cfg: AuditCommandConfig) -
     let audit_start = Instant::now();
 
     let security_checks = [
-        "secrets", "sast", "crypto", "taint", "vulnscan", "access-control", "errhandle",
+        "secrets",
+        "sast",
+        "crypto",
+        "taint",
+        "vulnscan",
+        "access-control",
+        "errhandle",
     ];
     let quality_checks = [
-        "crap", "debt", "doccov", "complexity", "dupfind", "riskmap",
-        "coupling", "propcov", "fuzz", "linelen", "halstead", "deadcode",
-        "cohesion", "comments", "typecov", "observability",
-        "test-quality", "design-docs", "debuggability",
+        "crap",
+        "debt",
+        "doccov",
+        "complexity",
+        "dupfind",
+        "riskmap",
+        "coupling",
+        "propcov",
+        "fuzz",
+        "linelen",
+        "halstead",
+        "deadcode",
+        "cohesion",
+        "comments",
+        "typecov",
+        "observability",
+        "test-quality",
+        "design-docs",
+        "debuggability",
     ];
     let compliance_checks = ["licenses", "supply-chain", "outdated", "sbom"];
 
@@ -84,29 +110,48 @@ fn run_audit_subcommand(path: String, format: String, cfg: AuditCommandConfig) -
     };
 
     let skip_set: std::collections::HashSet<String> = parse_comma_list(&skip).into_iter().collect();
-    let only_set: std::collections::HashSet<String> = parse_comma_list(&checks).into_iter().collect();
+    let only_set: std::collections::HashSet<String> =
+        parse_comma_list(&checks).into_iter().collect();
 
-    let should_run_audit = |name: &str| -> bool {
-        audit_should_run(name, &only_set, &skip_set, &active_categories)
-    };
+    let should_run_audit =
+        |name: &str| -> bool { audit_should_run(name, &only_set, &skip_set, &active_categories) };
 
     let mut checks_run: Vec<CheckResult> = Vec::new();
 
     let reg = registry();
     let secrets_exclude_paths = load_secrets_exclude(".quality.toml");
     let audit_thresholds = CheckThresholds {
-        max_crap: 30.0, min_doc: 0.0, max_debt: usize::MAX,
-        max_complexity_violations: usize::MAX, min_complexity: 10,
-        max_taint: 0, max_duplication: 100.0, max_risk: 100.0,
-        max_coupling: usize::MAX, min_propcov: 0.0, max_fuzz_risk: usize::MAX,
-        max_linelen: usize::MAX, max_halstead_bugs: 100.0,
-        max_secrets: 0, max_deadcode: usize::MAX, max_cohesion: usize::MAX,
-        min_comment_ratio: 0.0, max_errhandle: usize::MAX, min_typecov: 0.0,
-        max_vuln_critical: 0, max_vuln_high: 0, max_sast: 0, max_crypto: 0,
-        max_license_violations: 0, max_outdated: usize::MAX,
-        max_access_control: 0, max_supply_chain: 0, coverage_path: None,
+        max_crap: 30.0,
+        min_doc: 0.0,
+        max_debt: usize::MAX,
+        max_complexity_violations: usize::MAX,
+        min_complexity: 10,
+        max_taint: 0,
+        max_duplication: 100.0,
+        max_risk: 100.0,
+        max_coupling: usize::MAX,
+        min_propcov: 0.0,
+        max_fuzz_risk: usize::MAX,
+        max_linelen: usize::MAX,
+        max_halstead_bugs: 100.0,
+        max_secrets: 0,
+        max_deadcode: usize::MAX,
+        max_cohesion: usize::MAX,
+        min_comment_ratio: 0.0,
+        max_errhandle: usize::MAX,
+        min_typecov: 0.0,
+        max_vuln_critical: 0,
+        max_vuln_high: 0,
+        max_sast: 0,
+        max_crypto: 0,
+        max_license_violations: 0,
+        max_outdated: usize::MAX,
+        max_access_control: 0,
+        max_supply_chain: 0,
+        coverage_path: None,
         secrets_exclude_paths,
-        max_observability: 1000, max_test_quality: 60,
+        max_observability: 1000,
+        max_test_quality: 60,
         max_debuggability: 1000,
         access_control_exclude_paths: Vec::new(),
     };
@@ -116,7 +161,9 @@ fn run_audit_subcommand(path: String, format: String, cfg: AuditCommandConfig) -
             if should_run_audit($name) {
                 let t = audit_thresholds.clone();
                 let p = path.clone();
-                checks_run.push(run_with_spinner($name, || reg.run_check($name, &p, true, &t).unwrap()));
+                checks_run.push(run_with_spinner($name, || {
+                    reg.run_check($name, &p, true, &t).unwrap()
+                }));
             }
         };
     }
@@ -176,7 +223,11 @@ fn run_check_command(result: CheckResult, format: &str) -> i32 {
         "text" => println!("{}", result.message),
         _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
     }
-    if passed { 0 } else { 1 }
+    if passed {
+        0
+    } else {
+        1
+    }
 }
 
 /// Full check command display: icon + message on stderr, message on stdout, JSON for other formats.
@@ -184,23 +235,25 @@ fn run_check_command_full(label: &str, result: CheckResult, format: &str) -> i32
     let passed = result.passed;
     match format {
         "text" => {
-            let icon = if passed { "✓".green().bold() } else { "✗".red().bold() };
+            let icon = if passed {
+                "✓".green().bold()
+            } else {
+                "✗".red().bold()
+            };
             eprintln!("  {} {}  {}", icon, label, result.message.bright_black());
             println!("{}", result.message);
         }
         _ => println!("{}", serde_json::to_string_pretty(&result).unwrap()),
     }
-    if passed { 0 } else { 1 }
+    if passed {
+        0
+    } else {
+        1
+    }
 }
 
 /// Fix command handler: collects patches from cogent-fix and applies or diffs them.
-fn run_fix_command(
-    path: String,
-    check: String,
-    dry_run: bool,
-    force: bool,
-    format: &str,
-) -> i32 {
+fn run_fix_command(path: String, check: String, dry_run: bool, force: bool, format: &str) -> i32 {
     let patches = collect_patches(&path, &check);
     if patches.is_empty() {
         eprintln!("No patches found for check: {}", check);
@@ -222,8 +275,14 @@ fn run_fix_command(
         for rej in &r.rejected {
             eprintln!(
                 "{}: patch rejected at {}:{} — {}",
-                rej.file, rej.line, rej.rule_id,
-                if rej.old_text.is_empty() { "no match" } else { "source mismatch" }
+                rej.file,
+                rej.line,
+                rej.rule_id,
+                if rej.old_text.is_empty() {
+                    "no match"
+                } else {
+                    "source mismatch"
+                }
             );
         }
     }
@@ -241,10 +300,15 @@ fn run_fix_command(
         eprintln!(
             "{} Fix: {} applied, {} rejected",
             if total_rejected == 0 { "✓" } else { "⚠" },
-            total_applied, total_rejected
+            total_applied,
+            total_rejected
         );
     }
-    if total_rejected > 0 { 1 } else { 0 }
+    if total_rejected > 0 {
+        1
+    } else {
+        0
+    }
 }
 
 /// Parse a comma-separated list from an `Option<String>` into a `Vec<String>`.
@@ -282,7 +346,7 @@ fn detect_mutate_package(path: &str) -> Option<String> {
             let members_str = &line[start + 1..end];
             for member in members_str.split(',') {
                 let member = member.trim().trim_matches('"');
-                if let Some(name) = member.split('/').last() {
+                if let Some(name) = member.split('/').next_back() {
                     return Some(name.to_string());
                 }
             }
@@ -347,9 +411,15 @@ fn prepare_audit_report_meta(
     }
 
     let total_findings = all_findings.len();
-    let critical = all_findings.iter().filter(|f| f.severity == "critical").count();
+    let critical = all_findings
+        .iter()
+        .filter(|f| f.severity == "critical")
+        .count();
     let high = all_findings.iter().filter(|f| f.severity == "high").count();
-    let medium = all_findings.iter().filter(|f| f.severity == "medium").count();
+    let medium = all_findings
+        .iter()
+        .filter(|f| f.severity == "medium")
+        .count();
     let low = all_findings.iter().filter(|f| f.severity == "low").count();
     let passed = checks_run.iter().all(|c| c.passed);
     let (health, grade) = health_score(&checks_run);
@@ -501,7 +571,12 @@ fn run_audit_report_format(format: &str, meta: &AuditReportMeta) -> i32 {
 /// `only_set` takes highest priority: if non-empty, only named checks in it run.
 /// Next, `skip_set` excludes named checks.
 /// Finally, `active_categories` acts as the default allow-list.
-fn audit_should_run(name: &str, only_set: &std::collections::HashSet<String>, skip_set: &std::collections::HashSet<String>, active_categories: &[&str]) -> bool {
+fn audit_should_run(
+    name: &str,
+    only_set: &std::collections::HashSet<String>,
+    skip_set: &std::collections::HashSet<String>,
+    active_categories: &[&str],
+) -> bool {
     if !only_set.is_empty() {
         return only_set.contains(name);
     }
@@ -578,7 +653,12 @@ struct CheckCommandConfig {
 /// Run the `cogent check` command: orchestrates 20+ quality/security checks,
 /// builds a `CheckReport`, and outputs in text, JSON, SARIF, JUnit, or markdown.
 #[tracing::instrument(level = "info", skip(cfg), fields(path = %path, recursive, format = %format))]
-fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: CheckCommandConfig) -> i32 {
+fn run_check_subcommand(
+    path: String,
+    recursive: bool,
+    format: String,
+    cfg: CheckCommandConfig,
+) -> i32 {
     if cfg.clear_cache {
         if let Err(e) = crate::cache::clear_cache() {
             eprintln!("Warning: failed to clear cache: {}", e);
@@ -681,16 +761,37 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     //   full     = all checks including mutate (slow)
     let profile_skips: Vec<String> = match cfg.profile.as_str() {
         "quick" => vec![
-            "taint", "dup", "dupfind", "duplication", "risk", "riskmap",
-            "coupling", "propcov", "fuzz", "halstead", "cohesion", "comments",
-            "typecov", "vulnscan", "sast", "crypto", "licenses",
-            "mutate", "access-control", "supply-chain", "outdated",
-        ].iter().map(|s| s.to_string()).collect(),
+            "taint",
+            "dup",
+            "dupfind",
+            "duplication",
+            "risk",
+            "riskmap",
+            "coupling",
+            "propcov",
+            "fuzz",
+            "halstead",
+            "cohesion",
+            "comments",
+            "typecov",
+            "vulnscan",
+            "sast",
+            "crypto",
+            "licenses",
+            "mutate",
+            "access-control",
+            "supply-chain",
+            "outdated",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect(),
         "full" => vec![],
         _ => vec![],
     };
 
-    let effective_skip_list: Vec<String> = skip_list.iter()
+    let effective_skip_list: Vec<String> = skip_list
+        .iter()
         .chain(profile_skips.iter())
         .cloned()
         .collect();
@@ -723,7 +824,8 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
         reg_thresholds.secrets_exclude_paths = parse_comma_list(&Some(cli_exclude.clone()));
     }
     if let Some(ref cli_ac_exclude) = cfg.access_control_exclude {
-        reg_thresholds.access_control_exclude_paths = parse_comma_list(&Some(cli_ac_exclude.clone()));
+        reg_thresholds.access_control_exclude_paths =
+            parse_comma_list(&Some(cli_ac_exclude.clone()));
     }
     // Override with CLI threshold values
     reg_thresholds.max_crap = max_crap;
@@ -783,14 +885,18 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     {
         let p = path.clone();
         let t = reg_thresholds.clone();
-        add_check!("duplication", move || reg.run_check("dupfind", &p, recursive, &t).unwrap());
+        add_check!("duplication", move || reg
+            .run_check("dupfind", &p, recursive, &t)
+            .unwrap());
     }
     if check_should_run("risk", &only_list, &effective_skip_list)
         || check_should_run("riskmap", &only_list, &effective_skip_list)
     {
         let p = path.clone();
         let t = reg_thresholds.clone();
-        add_check!("riskmap", move || reg.run_check("riskmap", &p, false, &t).unwrap());
+        add_check!("riskmap", move || reg
+            .run_check("riskmap", &p, false, &t)
+            .unwrap());
     }
     reg_check!("coupling", "coupling", false);
     reg_check!("propcov", "propcov", recursive);
@@ -805,7 +911,9 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     if check_should_run("typecov", &only_list, &effective_skip_list) && min_typecov > 0.0 {
         let p = path.clone();
         let t = reg_thresholds.clone();
-        add_check!("typecov", move || reg.run_check("typecov", &p, recursive, &t).unwrap());
+        add_check!("typecov", move || reg
+            .run_check("typecov", &p, recursive, &t)
+            .unwrap());
     }
     reg_check!("vulnscan", "vulnscan", false);
     reg_check!("sast", "sast", recursive);
@@ -821,23 +929,44 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
                 args.push(pkg.as_str());
             }
             let res = run_tool("mutation-test", "mutate", &args, Instant::now());
-            let score = res.data.get("summary").and_then(|s| s.get("kill_rate")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let score = res
+                .data
+                .get("summary")
+                .and_then(|s| s.get("kill_rate"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
             let min_kill_rate = std::fs::read_to_string(".quality.toml")
-                .ok().and_then(|content| {
+                .ok()
+                .and_then(|content| {
                     content.lines().find_map(|line| {
                         let line = line.trim();
                         if line.starts_with("min_kill_rate") {
                             line.split('=').nth(1)?.trim().parse::<f64>().ok()
-                        } else { None }
+                        } else {
+                            None
+                        }
                     })
-                }).unwrap_or(0.0);
+                })
+                .unwrap_or(0.0);
             let passed = score >= min_kill_rate;
             CheckResult {
-                name: "mutate".into(), passed,
-                score: Some(score), threshold: Some(min_kill_rate),
-                message: if passed { format!("Mutation testing passed (kill rate {:.1}%)", score) } else { format!("Mutation testing failed (kill rate {:.1}% < {:.0}%)", score, min_kill_rate) },
+                name: "mutate".into(),
+                passed,
+                score: Some(score),
+                threshold: Some(min_kill_rate),
+                message: if passed {
+                    format!("Mutation testing passed (kill rate {:.1}%)", score)
+                } else {
+                    format!(
+                        "Mutation testing failed (kill rate {:.1}% < {:.0}%)",
+                        score, min_kill_rate
+                    )
+                },
                 details: serde_json::json!({}),
-                severity: None, help: None, rule_id: None, findings: Vec::new(),
+                severity: None,
+                help: None,
+                rule_id: None,
+                findings: Vec::new(),
             }
         });
     }
@@ -883,28 +1012,61 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
     // Each check is an independent subprocess (spawned via run_tool),
     // so they can safely execute concurrently.
     if show_progress {
-        eprintln!("  {} Running {} checks in parallel...", "▶".cyan().bold(), check_defs.len());
+        eprintln!(
+            "  {} Running {} checks in parallel...",
+            "▶".cyan().bold(),
+            check_defs.len()
+        );
     }
     let checks = run_parallel_checks(check_defs);
     if show_progress {
         for c in &checks {
-            let icon = if c.passed { "✓".green().bold() } else { "✗".red().bold() };
-            let name_col = if c.passed { c.name.normal() } else { c.name.red() };
-            let msg_col = if c.passed { c.message.bright_black() } else { c.message.red() };
-            let cached_tag = if c.details.get("__cached").and_then(|v| v.as_bool()).unwrap_or(false) {
+            let icon = if c.passed {
+                "✓".green().bold()
+            } else {
+                "✗".red().bold()
+            };
+            let name_col = if c.passed {
+                c.name.normal()
+            } else {
+                c.name.red()
+            };
+            let msg_col = if c.passed {
+                c.message.bright_black()
+            } else {
+                c.message.red()
+            };
+            let cached_tag = if c
+                .details
+                .get("__cached")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 " (cached)".bright_black().to_string()
             } else {
                 String::new()
             };
-            let timing_tag = c.details.get("duration_ms").and_then(|v| v.as_u64()).map(|ms| {
-                if ms < 1000 {
-                    format!(" {}ms", ms).bright_black().to_string()
-                } else {
-                    format!(" {:.1}s", ms as f64 / 1000.0).bright_black().to_string()
-                }
-            }).unwrap_or_default();
-            eprintln!("  {} {:<18} {}{}{}", icon, name_col, msg_col, cached_tag, timing_tag);
-            if !c.passed || verbose { print_offenders(c); }
+            let timing_tag = c
+                .details
+                .get("duration_ms")
+                .and_then(|v| v.as_u64())
+                .map(|ms| {
+                    if ms < 1000 {
+                        format!(" {}ms", ms).bright_black().to_string()
+                    } else {
+                        format!(" {:.1}s", ms as f64 / 1000.0)
+                            .bright_black()
+                            .to_string()
+                    }
+                })
+                .unwrap_or_default();
+            eprintln!(
+                "  {} {:<18} {}{}{}",
+                icon, name_col, msg_col, cached_tag, timing_tag
+            );
+            if !c.passed || verbose {
+                print_offenders(c);
+            }
         }
     }
 
@@ -1066,7 +1228,10 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
                 "linelen" => ("max_linelen", c.score.unwrap_or(c.findings.len() as f64)),
                 "fuzz" => ("max_fuzz_risk", c.score.unwrap_or(c.findings.len() as f64)),
                 "deadcode" => ("max_deadcode", c.score.unwrap_or(c.findings.len() as f64)),
-                "halstead" => ("max_halstead_bugs", c.score.unwrap_or(c.findings.len() as f64)),
+                "halstead" => (
+                    "max_halstead_bugs",
+                    c.score.unwrap_or(c.findings.len() as f64),
+                ),
                 _ => continue,
             };
             baselines.insert(threshold_key.to_string(), serde_json::json!(value));
@@ -1076,14 +1241,21 @@ fn run_check_subcommand(path: String, recursive: bool, format: String, cfg: Chec
                 if let Err(e) = std::fs::write(".cogent-baselines.json", &json) {
                     eprintln!("Warning: could not write .cogent-baselines.json: {}", e);
                 } else {
-                    eprintln!("  {} Wrote baselines to .cogent-baselines.json", "✓".green().bold());
+                    eprintln!(
+                        "  {} Wrote baselines to .cogent-baselines.json",
+                        "✓".green().bold()
+                    );
                 }
             }
             Err(e) => eprintln!("Warning: could not serialize baselines: {}", e),
         }
     }
 
-    if passed { 0 } else { 1 }
+    if passed {
+        0
+    } else {
+        1
+    }
 }
 
 /// Return a short name for the command variant, used for tracing spans.
@@ -1232,52 +1404,163 @@ pub fn dispatch(command: Commands) -> i32 {
             },
         ),
 
-        Commands::Crap { path, recursive, coverage, format } => {
-            let thresholds = CheckThresholds { coverage_path: coverage, ..Default::default() };
+        Commands::Crap {
+            path,
+            recursive,
+            coverage,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                coverage_path: coverage,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command_full("crap", run_spinner_or("crap", &format, move || reg.run_check("crap", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command_full(
+                "crap",
+                run_spinner_or("crap", &format, move || {
+                    reg.run_check("crap", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
 
-        Commands::Debt { path, recursive, format, .. } => {
-            let thresholds = CheckThresholds { ..Default::default() };
+        Commands::Debt {
+            path,
+            recursive,
+            format,
+            ..
+        } => {
+            let thresholds = CheckThresholds {
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command_full("debt", run_spinner_or("debt", &format, move || reg.run_check("debt", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command_full(
+                "debt",
+                run_spinner_or("debt", &format, move || {
+                    reg.run_check("debt", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
 
-        Commands::Doccov { path, recursive, format } => {
-            let thresholds = CheckThresholds { min_doc: 0.0, ..Default::default() };
+        Commands::Doccov {
+            path,
+            recursive,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                min_doc: 0.0,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command_full("doccov", run_spinner_or("doccov", &format, move || reg.run_check("doccov", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command_full(
+                "doccov",
+                run_spinner_or("doccov", &format, move || {
+                    reg.run_check("doccov", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
 
-        Commands::Dupfind { path, recursive, min_lines, format } => {
-            let thresholds = CheckThresholds { max_duplication: min_lines as f64, ..Default::default() };
+        Commands::Dupfind {
+            path,
+            recursive,
+            min_lines,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_duplication: min_lines as f64,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("dupfind", &format, move || reg.run_check("dupfind", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("dupfind", &format, move || {
+                    reg.run_check("dupfind", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
 
-        Commands::Complexity { path, recursive, min_complexity, format } => {
-            let thresholds = CheckThresholds { min_complexity, ..Default::default() };
+        Commands::Complexity {
+            path,
+            recursive,
+            min_complexity,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                min_complexity,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command_full("complexity", run_spinner_or("complexity", &format, move || reg.run_check("complexity", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command_full(
+                "complexity",
+                run_spinner_or("complexity", &format, move || {
+                    reg.run_check("complexity", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
 
-        Commands::Taint { path, recursive, max_taint, format } => {
-            let thresholds = CheckThresholds { max_taint, ..Default::default() };
+        Commands::Taint {
+            path,
+            recursive,
+            max_taint,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_taint,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("taint", &format, move || reg.run_check("taint", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("taint", &format, move || {
+                    reg.run_check("taint", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
 
-        Commands::Coupling { path, max_coupling, format } => {
-            let thresholds = CheckThresholds { max_coupling, ..Default::default() };
+        Commands::Coupling {
+            path,
+            max_coupling,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_coupling,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("coupling", &format, move || reg.run_check("coupling", &path, false, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("coupling", &format, move || {
+                    reg.run_check("coupling", &path, false, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
 
-        Commands::Riskmap { path, max_risk, format } => {
-            let thresholds = CheckThresholds { max_risk, ..Default::default() };
+        Commands::Riskmap {
+            path,
+            max_risk,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_risk,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("riskmap", &format, move || reg.run_check("riskmap", &path, false, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("riskmap", &format, move || {
+                    reg.run_check("riskmap", &path, false, &thresholds).unwrap()
+                }),
+                &format,
+            )
         }
 
         Commands::Mutate { path, format } => {
@@ -1296,103 +1579,350 @@ pub fn dispatch(command: Commands) -> i32 {
                 "text" => println!("{}", msg),
                 _ => println!("{}", serde_json::to_string_pretty(&res.data).unwrap()),
             }
-            if passed { 0 } else { 1 }
+            if passed {
+                0
+            } else {
+                1
+            }
         }
 
-        Commands::Fuzz { path, recursive, max_fuzz_risk, format } => {
-            let thresholds = CheckThresholds { max_fuzz_risk, ..Default::default() };
+        Commands::Fuzz {
+            path,
+            recursive,
+            max_fuzz_risk,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_fuzz_risk,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("fuzz", &format, move || reg.run_check("fuzz", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("fuzz", &format, move || {
+                    reg.run_check("fuzz", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
-        Commands::Propcov { path, recursive, min_propcov, format } => {
-            let thresholds = CheckThresholds { min_propcov, ..Default::default() };
+        Commands::Propcov {
+            path,
+            recursive,
+            min_propcov,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                min_propcov,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("propcov", &format, move || reg.run_check("propcov", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("propcov", &format, move || {
+                    reg.run_check("propcov", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
-        Commands::Linelen { path, recursive, max_violations, format } => {
-            let thresholds = CheckThresholds { max_linelen: max_violations, ..Default::default() };
+        Commands::Linelen {
+            path,
+            recursive,
+            max_violations,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_linelen: max_violations,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("linelen", &format, move || reg.run_check("linelen", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("linelen", &format, move || {
+                    reg.run_check("linelen", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
-        Commands::Halstead { path, recursive, max_bugs, format } => {
-            let thresholds = CheckThresholds { max_halstead_bugs: max_bugs, ..Default::default() };
+        Commands::Halstead {
+            path,
+            recursive,
+            max_bugs,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_halstead_bugs: max_bugs,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("halstead", &format, move || reg.run_check("halstead", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("halstead", &format, move || {
+                    reg.run_check("halstead", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
-        Commands::Secrets { path, recursive, max_findings, format, secrets_exclude } => {
+        Commands::Secrets {
+            path,
+            recursive,
+            max_findings,
+            format,
+            secrets_exclude,
+        } => {
             let secrets_exclude_paths = if let Some(ref cli_exclude) = secrets_exclude {
                 // CLI flag overrides .quality.toml
                 parse_comma_list(&Some(cli_exclude.clone()))
             } else {
                 load_secrets_exclude(".quality.toml")
             };
-            let thresholds = CheckThresholds { max_secrets: max_findings, secrets_exclude_paths, ..Default::default() };
+            let thresholds = CheckThresholds {
+                max_secrets: max_findings,
+                secrets_exclude_paths,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("secrets", &format, move || reg.run_check("secrets", &path, recursive, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("secrets", &format, move || {
+                    reg.run_check("secrets", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
-        Commands::Deadcode { path, recursive, max_findings, format } => {
-            let thresholds = CheckThresholds { max_deadcode: max_findings, ..Default::default() };
+        Commands::Deadcode {
+            path,
+            recursive,
+            max_findings,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_deadcode: max_findings,
+                ..Default::default()
+            };
             let reg = registry();
-            run_check_command(run_spinner_or("deadcode", &format, move || reg.run_check("deadcode", &path, recursive, &thresholds).unwrap()), &format)
-        }
-
-        Commands::Cohesion { path, recursive, max_violations, format } => {
-            let thresholds = CheckThresholds { max_cohesion: max_violations, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("cohesion", &format, move || reg.run_check("cohesion", &path, recursive, &thresholds).unwrap()), &format)
-        }
-        Commands::Comments { path, recursive, min_ratio, format } => {
-            let thresholds = CheckThresholds { min_comment_ratio: min_ratio, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("comments", &format, move || reg.run_check("comments", &path, recursive, &thresholds).unwrap()), &format)
-        }
-        Commands::Errhandle { path, recursive, max_violations, format } => {
-            let thresholds = CheckThresholds { max_errhandle: max_violations, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("errhandle", &format, move || reg.run_check("errhandle", &path, recursive, &thresholds).unwrap()), &format)
-        }
-        Commands::Typecov { path, recursive, min_pct, format } => {
-            let thresholds = CheckThresholds { min_typecov: min_pct, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("typecov", &format, move || reg.run_check("typecov", &path, recursive, &thresholds).unwrap()), &format)
-        }
-        Commands::Vulnscan { path, max_critical, max_high, format } => {
-            let thresholds = CheckThresholds { max_vuln_critical: max_critical, max_vuln_high: max_high, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("vulnscan", &format, move || reg.run_check("vulnscan", &path, false, &thresholds).unwrap()), &format)
-        }
-        Commands::Sast { path, recursive, max_findings, format } => {
-            let thresholds = CheckThresholds { max_sast: max_findings, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("sast", &format, move || reg.run_check("sast", &path, recursive, &thresholds).unwrap()), &format)
-        }
-        Commands::Crypto { path, recursive, max_findings, format } => {
-            let thresholds = CheckThresholds { max_crypto: max_findings, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("crypto", &format, move || reg.run_check("crypto", &path, recursive, &thresholds).unwrap()), &format)
-        }
-        Commands::Licenses { path, max_violations, format } => {
-            let thresholds = CheckThresholds { max_license_violations: max_violations, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("licenses", &format, move || reg.run_check("licenses", &path, false, &thresholds).unwrap()), &format)
-        }
-        Commands::Outdated { path, max_major_behind, format } => {
-            let thresholds = CheckThresholds { max_outdated: max_major_behind, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("outdated", &format, move || reg.run_check("outdated", &path, false, &thresholds).unwrap()), &format)
-        }
-        Commands::AccessControl { path, recursive, max_violations, format, access_control_exclude: _ } => {
-            let thresholds = CheckThresholds { max_access_control: max_violations, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("access-control", &format, move || reg.run_check("access-control", &path, recursive, &thresholds).unwrap()), &format)
-        }
-        Commands::SupplyChain { path, max_risks, format } => {
-            let thresholds = CheckThresholds { max_supply_chain: max_risks, ..Default::default() };
-            let reg = registry();
-            run_check_command(run_spinner_or("supply-chain", &format, move || reg.run_check("supply-chain", &path, false, &thresholds).unwrap()), &format)
+            run_check_command(
+                run_spinner_or("deadcode", &format, move || {
+                    reg.run_check("deadcode", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
         }
 
-        Commands::Sbom { path, format, output } => {
+        Commands::Cohesion {
+            path,
+            recursive,
+            max_violations,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_cohesion: max_violations,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("cohesion", &format, move || {
+                    reg.run_check("cohesion", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::Comments {
+            path,
+            recursive,
+            min_ratio,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                min_comment_ratio: min_ratio,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("comments", &format, move || {
+                    reg.run_check("comments", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::Errhandle {
+            path,
+            recursive,
+            max_violations,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_errhandle: max_violations,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("errhandle", &format, move || {
+                    reg.run_check("errhandle", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::Typecov {
+            path,
+            recursive,
+            min_pct,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                min_typecov: min_pct,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("typecov", &format, move || {
+                    reg.run_check("typecov", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::Vulnscan {
+            path,
+            max_critical,
+            max_high,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_vuln_critical: max_critical,
+                max_vuln_high: max_high,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("vulnscan", &format, move || {
+                    reg.run_check("vulnscan", &path, false, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::Sast {
+            path,
+            recursive,
+            max_findings,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_sast: max_findings,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("sast", &format, move || {
+                    reg.run_check("sast", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::Crypto {
+            path,
+            recursive,
+            max_findings,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_crypto: max_findings,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("crypto", &format, move || {
+                    reg.run_check("crypto", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::Licenses {
+            path,
+            max_violations,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_license_violations: max_violations,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("licenses", &format, move || {
+                    reg.run_check("licenses", &path, false, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::Outdated {
+            path,
+            max_major_behind,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_outdated: max_major_behind,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("outdated", &format, move || {
+                    reg.run_check("outdated", &path, false, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::AccessControl {
+            path,
+            recursive,
+            max_violations,
+            format,
+            access_control_exclude: _,
+        } => {
+            let thresholds = CheckThresholds {
+                max_access_control: max_violations,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("access-control", &format, move || {
+                    reg.run_check("access-control", &path, recursive, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+        Commands::SupplyChain {
+            path,
+            max_risks,
+            format,
+        } => {
+            let thresholds = CheckThresholds {
+                max_supply_chain: max_risks,
+                ..Default::default()
+            };
+            let reg = registry();
+            run_check_command(
+                run_spinner_or("supply-chain", &format, move || {
+                    reg.run_check("supply-chain", &path, false, &thresholds)
+                        .unwrap()
+                }),
+                &format,
+            )
+        }
+
+        Commands::Sbom {
+            path,
+            format,
+            output,
+        } => {
             let args = vec![&path, "--format", &format];
             let res = run_tool("sbom", "sbom", &args, Instant::now());
             let stdout = res.data.get("raw").and_then(|v| v.as_str()).unwrap_or("");
@@ -1405,7 +1935,11 @@ pub fn dispatch(command: Commands) -> i32 {
             } else {
                 println!("{}", stdout);
             }
-            if res.success { 0 } else { 1 }
+            if res.success {
+                0
+            } else {
+                1
+            }
         }
 
         Commands::Doctor { format } => doctor_command(&format),
@@ -1582,7 +2116,11 @@ pub fn dispatch(command: Commands) -> i32 {
             open,
         ),
 
-        Commands::Diff { before, after, format } => diff_command(&before, &after, &format),
+        Commands::Diff {
+            before,
+            after,
+            format,
+        } => diff_command(&before, &after, &format),
 
         Commands::Serve { port, history_dir } => {
             serve_command(port, &history_dir);
@@ -1614,11 +2152,32 @@ pub fn dispatch(command: Commands) -> i32 {
         Commands::Policy { action } => match action {
             PolicyAction::Validate => {
                 let known_tools: Vec<String> = [
-                    "secrets", "sast", "debt", "dupfind", "deadcode", "linelen",
-                    "comments", "coupling", "cohesion", "halstead", "crap", "riskmap",
-                    "cryptocheck", "errhandle", "taint", "typecov", "propcov", "fuzz",
-                    "licenses", "supply-chain", "access-control", "vulnscan", "mutate",
-                    "doccov", "sbom", "complexity",
+                    "secrets",
+                    "sast",
+                    "debt",
+                    "dupfind",
+                    "deadcode",
+                    "linelen",
+                    "comments",
+                    "coupling",
+                    "cohesion",
+                    "halstead",
+                    "crap",
+                    "riskmap",
+                    "cryptocheck",
+                    "errhandle",
+                    "taint",
+                    "typecov",
+                    "propcov",
+                    "fuzz",
+                    "licenses",
+                    "supply-chain",
+                    "access-control",
+                    "vulnscan",
+                    "mutate",
+                    "doccov",
+                    "sbom",
+                    "complexity",
                 ]
                 .iter()
                 .map(|s| s.to_string())
@@ -1633,7 +2192,11 @@ pub fn dispatch(command: Commands) -> i32 {
                         let result = audit::validate_policy(p, &known_tools);
                         println!(
                             "{}  {}",
-                            if result.valid { "✓".green() } else { "✗".red() },
+                            if result.valid {
+                                "✓".green()
+                            } else {
+                                "✗".red()
+                            },
                             p.display()
                         );
                         for w in &result.warnings {
@@ -1644,10 +2207,18 @@ pub fn dispatch(command: Commands) -> i32 {
                             all_valid = false;
                         }
                     }
-                    if all_valid { 0 } else { 1 }
+                    if all_valid {
+                        0
+                    } else {
+                        1
+                    }
                 }
             }
-            PolicyAction::Check { path, format, force } => {
+            PolicyAction::Check {
+                path,
+                format,
+                force,
+            } => {
                 println!(
                     "Policy-based check on {} (format: {}, force: {})",
                     path, format, force
@@ -1670,10 +2241,15 @@ pub fn dispatch(command: Commands) -> i32 {
             CacheAction::Status => {
                 let fmt_age = |elapsed: std::time::Duration| -> String {
                     let s = elapsed.as_secs();
-                    if s < 60 { format!("{}s ago", s) }
-                    else if s < 3600 { format!("{}m ago", s / 60) }
-                    else if s < 86400 { format!("{}h ago", s / 3600) }
-                    else { format!("{}d ago", s / 86400) }
+                    if s < 60 {
+                        format!("{}s ago", s)
+                    } else if s < 3600 {
+                        format!("{}m ago", s / 60)
+                    } else if s < 86400 {
+                        format!("{}h ago", s / 3600)
+                    } else {
+                        format!("{}d ago", s / 86400)
+                    }
                 };
                 let status = crate::cache::cache_status();
                 if status.entry_count == 0 {
@@ -1782,7 +2358,11 @@ pub fn dispatch(command: Commands) -> i32 {
             format,
         } => run_fix_command(path, check, diff, force, &format),
 
-        Commands::AuditTrail { verify, command, since } => {
+        Commands::AuditTrail {
+            verify,
+            command,
+            since,
+        } => {
             if verify {
                 let (ok, errors) = audit::verify_audit_trail();
                 if ok {
@@ -1793,7 +2373,11 @@ pub fn dispatch(command: Commands) -> i32 {
                         println!("  {}", e);
                     }
                 }
-                if ok { 0 } else { 2 }
+                if ok {
+                    0
+                } else {
+                    2
+                }
             } else {
                 let entries = audit::query_audit_trail(since.as_deref(), command.as_deref());
                 if entries.is_empty() {
@@ -1909,28 +2493,46 @@ mod tests {
 
     #[test]
     fn test_run_check_command_full_text_returns_0_on_pass() {
-        assert_eq!(run_check_command_full("greeter", make_result(true, "ok"), "text"), 0);
+        assert_eq!(
+            run_check_command_full("greeter", make_result(true, "ok"), "text"),
+            0
+        );
     }
 
     #[test]
     fn test_run_check_command_full_text_returns_1_on_fail() {
-        assert_eq!(run_check_command_full("greeter", make_result(false, "fail"), "text"), 1);
+        assert_eq!(
+            run_check_command_full("greeter", make_result(false, "fail"), "text"),
+            1
+        );
     }
 
     #[test]
     fn test_run_check_command_full_json_returns_0_on_pass() {
-        assert_eq!(run_check_command_full("greeter", make_result(true, "ok"), "json"), 0);
+        assert_eq!(
+            run_check_command_full("greeter", make_result(true, "ok"), "json"),
+            0
+        );
     }
 
     #[test]
     fn test_run_check_command_full_json_returns_1_on_fail() {
-        assert_eq!(run_check_command_full("greeter", make_result(false, "fail"), "json"), 1);
+        assert_eq!(
+            run_check_command_full("greeter", make_result(false, "fail"), "json"),
+            1
+        );
     }
 
     #[test]
     fn test_run_check_command_full_any_non_text_returns_properly() {
-        assert_eq!(run_check_command_full("greeter", make_result(true, "ok"), "markdown"), 0);
-        assert_eq!(run_check_command_full("greeter", make_result(false, "fail"), "junit"), 1);
+        assert_eq!(
+            run_check_command_full("greeter", make_result(true, "ok"), "markdown"),
+            0
+        );
+        assert_eq!(
+            run_check_command_full("greeter", make_result(false, "fail"), "junit"),
+            1
+        );
     }
 
     // ── Edge cases ───────────────────────────────────────────────────────
@@ -1939,14 +2541,23 @@ mod tests {
     fn test_run_check_command_empty_message() {
         // Empty messages should not crash anything
         assert_eq!(run_check_command(make_result(true, ""), "text"), 0);
-        assert_eq!(run_check_command_full("greeter", make_result(false, ""), "text"), 1);
+        assert_eq!(
+            run_check_command_full("greeter", make_result(false, ""), "text"),
+            1
+        );
     }
 
     #[test]
     fn test_run_check_command_full_with_empty_label() {
         // Empty labels should not crash
-        assert_eq!(run_check_command_full("", make_result(true, "ok"), "text"), 0);
-        assert_eq!(run_check_command_full("", make_result(false, "fail"), "json"), 1);
+        assert_eq!(
+            run_check_command_full("", make_result(true, "ok"), "text"),
+            0
+        );
+        assert_eq!(
+            run_check_command_full("", make_result(false, "fail"), "json"),
+            1
+        );
     }
 
     #[test]
@@ -2038,6 +2649,7 @@ mod tests {
             no_cache: false,
             clear_cache: false,
             secrets_exclude: None,
+            access_control_exclude: None,
             save_baselines: false,
         };
         assert!(!cfg.ci);
@@ -2086,6 +2698,7 @@ mod tests {
             no_cache: false,
             clear_cache: false,
             secrets_exclude: None,
+            access_control_exclude: None,
             save_baselines: false,
         };
         assert!(cfg.ci);
@@ -2133,6 +2746,7 @@ mod tests {
             no_cache: true,
             clear_cache: true,
             secrets_exclude: None,
+            access_control_exclude: None,
             save_baselines: false,
         };
         assert!(cfg.pr_comment);
@@ -2436,9 +3050,9 @@ mod tests {
         let meta = prepare_audit_report_meta(
             vec![result],
             None,
-            false,   // no evidence enrichment
-            false,   // no verify remediation
-            true,    // CI mode
+            false, // no evidence enrichment
+            false, // no verify remediation
+            true,  // CI mode
             "src".to_string(),
             std::time::Instant::now(),
         );
@@ -2514,8 +3128,8 @@ mod tests {
         let meta = prepare_audit_report_meta(
             vec![result],
             None,
-            true,   // evidence enrichment
-            true,   // verify remediation
+            true, // evidence enrichment
+            true, // verify remediation
             false,
             "/tmp".to_string(),
             std::time::Instant::now(),
@@ -2527,10 +3141,7 @@ mod tests {
         assert_eq!(meta.low, 1);
         assert!(!meta.passed);
         // auto_closed is 0 because no remediation log entries match these findings
-        assert_eq!(
-            meta.auto_closed, 0,
-            "no remediation log → auto_closed is 0"
-        );
+        assert_eq!(meta.auto_closed, 0, "no remediation log → auto_closed is 0");
         // newly_recorded will vary depending on audit state, but should be >= 0
         assert!(
             meta.newly_recorded <= meta.total_findings,
@@ -2680,32 +3291,71 @@ mod tests {
     #[test]
     fn test_quick_profile_skips_non_core_tools() {
         let quick_skips: Vec<String> = vec![
-            "taint", "dup", "dupfind", "duplication", "risk", "riskmap",
-            "coupling", "propcov", "fuzz", "halstead", "cohesion", "comments",
-            "typecov", "vulnscan", "sast", "crypto", "licenses",
-            "mutate", "access-control", "supply-chain", "outdated",
-        ].iter().map(|s| s.to_string()).collect();
-        for core in &["crap", "debt", "doc", "complexity", "secrets", "deadcode", "linelen", "errhandle"] {
-            assert!(!quick_skips.contains(&core.to_string()),
-                "core tool '{}' should not be skipped in quick profile", core);
+            "taint",
+            "dup",
+            "dupfind",
+            "duplication",
+            "risk",
+            "riskmap",
+            "coupling",
+            "propcov",
+            "fuzz",
+            "halstead",
+            "cohesion",
+            "comments",
+            "typecov",
+            "vulnscan",
+            "sast",
+            "crypto",
+            "licenses",
+            "mutate",
+            "access-control",
+            "supply-chain",
+            "outdated",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        for core in &[
+            "crap",
+            "debt",
+            "doc",
+            "complexity",
+            "secrets",
+            "deadcode",
+            "linelen",
+            "errhandle",
+        ] {
+            assert!(
+                !quick_skips.contains(&core.to_string()),
+                "core tool '{}' should not be skipped in quick profile",
+                core
+            );
         }
         for heavy in &["taint", "sast", "crypto", "mutate", "halstead"] {
-            assert!(quick_skips.contains(&heavy.to_string()),
-                "heavy tool '{}' should be skipped in quick profile", heavy);
+            assert!(
+                quick_skips.contains(&heavy.to_string()),
+                "heavy tool '{}' should be skipped in quick profile",
+                heavy
+            );
         }
     }
 
     #[test]
     fn test_full_profile_has_no_extra_skips() {
         let full_skips: Vec<String> = vec![];
-        assert!(full_skips.is_empty(), "full profile should have no extra skips");
+        assert!(
+            full_skips.is_empty(),
+            "full profile should have no extra skips"
+        );
     }
 
     #[test]
     fn test_effective_skip_list_merges_user_and_profile() {
         let user_skip: Vec<String> = vec!["comments".to_string()];
         let profile_skips: Vec<String> = vec!["taint".to_string(), "sast".to_string()];
-        let effective: Vec<String> = user_skip.iter()
+        let effective: Vec<String> = user_skip
+            .iter()
             .chain(profile_skips.iter())
             .cloned()
             .collect();
@@ -2719,7 +3369,8 @@ mod tests {
     fn test_standard_profile_has_no_extra_skips() {
         let standard_skips: Vec<String> = vec![];
         let user_skip: Vec<String> = vec!["crypto".to_string()];
-        let effective: Vec<String> = user_skip.iter()
+        let effective: Vec<String> = user_skip
+            .iter()
             .chain(standard_skips.iter())
             .cloned()
             .collect();
@@ -2727,7 +3378,3 @@ mod tests {
         assert_eq!(effective.len(), 1, "only user skip should be present");
     }
 }
-
-
-
-

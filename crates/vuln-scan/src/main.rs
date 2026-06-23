@@ -812,4 +812,3 @@ mod tests {
         assert!(check_thresholds(6, 4, 5, 3));
     }
 }
-

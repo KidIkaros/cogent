@@ -34,8 +34,8 @@ impl ToolRunner for DefaultToolRunner {
         args: &[&str],
         tool_start: Instant,
     ) -> Result<ToolResult, CogentError> {
-        use std::process::{Command, Stdio};
         use std::path::Path;
+        use std::process::{Command, Stdio};
 
         info!(tool = bin_name, crate = crate_name, args = ?args, "spawning tool process");
 
@@ -59,7 +59,11 @@ impl ToolRunner for DefaultToolRunner {
         let binary_path = if release_binary.exists() {
             info!(tool = bin_name, path = %release_binary.display(), "using pre-built release binary");
             // Canonicalize to absolute path to avoid working directory issues
-            release_binary.canonicalize().unwrap_or(release_binary).to_string_lossy().to_string()
+            release_binary
+                .canonicalize()
+                .unwrap_or(release_binary)
+                .to_string_lossy()
+                .to_string()
         } else {
             info!(tool = bin_name, "no pre-built binary found, searching PATH");
             bin_name.to_string()
@@ -233,9 +237,6 @@ mod tests {
             .run("secrets", "secrets", &["--format", "json"], Instant::now())
             .unwrap();
         assert!(result.success);
-        assert_eq!(
-            result.data["summary"]["findings_count"],
-            3
-        );
+        assert_eq!(result.data["summary"]["findings_count"], 3);
     }
 }

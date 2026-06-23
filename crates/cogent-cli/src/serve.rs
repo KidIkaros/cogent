@@ -27,13 +27,19 @@ pub(crate) fn serve_index_html(history_dir: &str) -> String {
     body.push_str("ul{list-style:none;padding:0}");
     body.push_str("li{border-bottom:1px solid var(--border-light);padding:14px 0;display:flex;justify-content:space-between;align-items:center;transition:background .12s}");
     body.push_str("li:hover{background:var(--surface-alt);border-radius:8px;padding-left:12px;padding-right:12px}");
-    body.push_str("a{color:var(--accent);text-decoration:none;font-weight:600;transition:color .15s}");
+    body.push_str(
+        "a{color:var(--accent);text-decoration:none;font-weight:600;transition:color .15s}",
+    );
     body.push_str("a:hover{color:var(--accent-light)}");
-    body.push_str(".meta{font-size:12px;color:var(--text-muted);font-family:ui-monospace,monospace}");
+    body.push_str(
+        ".meta{font-size:12px;color:var(--text-muted);font-family:ui-monospace,monospace}",
+    );
     body.push_str(".nav{margin-bottom:28px;display:flex;gap:8px}");
     body.push_str(".nav a{padding:8px 16px;border-radius:8px;font-size:13px;background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);font-weight:500;transition:all .15s}");
     body.push_str(".nav a:hover{background:var(--accent);color:#fff;border-color:var(--accent)}");
-    body.push_str(".footer{margin-top:40px;font-size:12px;color:var(--text-muted);text-align:center}");
+    body.push_str(
+        ".footer{margin-top:40px;font-size:12px;color:var(--text-muted);text-align:center}",
+    );
     body.push_str(".theme-toggle{position:fixed;top:16px;right:16px;padding:8px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--border);cursor:pointer;font-size:12px;color:var(--text-muted);transition:all .15s;font-family:inherit}");
     body.push_str(".theme-toggle:hover{color:var(--text);border-color:var(--accent)}");
     body.push_str("</style></head><body>");
@@ -58,7 +64,9 @@ pub(crate) fn serve_index_html(history_dir: &str) -> String {
             }
         }
     }
-    body.push_str("</ul><div class='footer'>Cogent — automated code quality &amp; security auditing</div>");
+    body.push_str(
+        "</ul><div class='footer'>Cogent — automated code quality &amp; security auditing</div>",
+    );
     body.push_str("<script>function toggleTheme(){var h=document.documentElement;var d=h.getAttribute('data-theme')==='dark';h.setAttribute('data-theme',d?'':'dark');localStorage.setItem('cogent-theme',d?'':'dark')}(function(){var s=localStorage.getItem('cogent-theme');if(s==='dark')document.documentElement.setAttribute('data-theme','dark')})()</script>");
     body.push_str("</body></html>");
     body
@@ -87,7 +95,8 @@ pub(crate) fn serve_api_latest_json() -> (String, u16) {
         }
     }
     (
-        r##"{"error":"No latest report found. Run cogent check --ci to generate one."}"##.to_string(),
+        r##"{"error":"No latest report found. Run cogent check --ci to generate one."}"##
+            .to_string(),
         404,
     )
 }
@@ -119,7 +128,11 @@ pub(crate) fn serve_command(port: u16, history_dir: &str) {
     for request in server.incoming_requests() {
         let url = request.url().to_string();
         let (content, status, content_type) = match url.as_str() {
-            "/" => (serve_index_html(history_dir), 200, "text/html; charset=utf-8"),
+            "/" => (
+                serve_index_html(history_dir),
+                200,
+                "text/html; charset=utf-8",
+            ),
             "/latest" => {
                 let (content, status) = serve_latest_html();
                 (content, status, "text/html; charset=utf-8")
@@ -139,7 +152,8 @@ pub(crate) fn serve_command(port: u16, history_dir: &str) {
                 (content, status, content_type)
             }
             _ => ("Not found".to_string(), 404, "text/plain; charset=utf-8"),
-        };            let response = tiny_http::Response::from_string(content)
+        };
+        let response = tiny_http::Response::from_string(content)
             .with_status_code(tiny_http::StatusCode(status))
             .with_header(
                 tiny_http::Header::from_bytes(&b"Content-Type"[..], content_type.as_bytes())
@@ -175,11 +189,17 @@ mod tests {
     fn test_serve_index_html_empty_dir() {
         let dir = tempfile::tempdir().expect("tempdir");
         let html = serve_index_html(dir.path().to_str().unwrap());
-        assert!(html.starts_with("<!DOCTYPE html>"), "should start with doctype");
+        assert!(
+            html.starts_with("<!DOCTYPE html>"),
+            "should start with doctype"
+        );
         assert!(html.contains("Cogent Reports"), "should have title");
         assert!(html.contains("</html>"), "should close html");
         // Empty dir → no list items
-        assert!(!html.contains("<li>"), "empty dir should have no list items");
+        assert!(
+            !html.contains("<li>"),
+            "empty dir should have no list items"
+        );
     }
 
     #[test]
@@ -193,9 +213,18 @@ mod tests {
 
         let html = serve_index_html(dir.path().to_str().unwrap());
         assert!(html.contains("report-123.json"), "should list first report");
-        assert!(html.contains("report-456.json"), "should list second report");
-        assert!(!html.contains("notes.txt"), "should not list non-JSON files");
-        assert!(html.contains("/report/report-123.json"), "should link to report");
+        assert!(
+            html.contains("report-456.json"),
+            "should list second report"
+        );
+        assert!(
+            !html.contains("notes.txt"),
+            "should not list non-JSON files"
+        );
+        assert!(
+            html.contains("/report/report-123.json"),
+            "should link to report"
+        );
         assert!(html.contains("/latest"), "should have latest link");
         assert!(html.contains("/api/latest"), "should have API link");
     }
@@ -203,8 +232,14 @@ mod tests {
     #[test]
     fn test_serve_index_html_nonexistent_dir() {
         let html = serve_index_html("/tmp/nonexistent-serve-test-dir-12345");
-        assert!(html.starts_with("<!DOCTYPE html>"), "nonexistent dir should still produce HTML");
-        assert!(!html.contains("<li>"), "nonexistent dir should have no items");
+        assert!(
+            html.starts_with("<!DOCTYPE html>"),
+            "nonexistent dir should still produce HTML"
+        );
+        assert!(
+            !html.contains("<li>"),
+            "nonexistent dir should have no items"
+        );
     }
 
     // ── serve_latest_html ──
@@ -250,8 +285,7 @@ mod tests {
     #[test]
     fn test_serve_latest_html_fallback_to_check_report() {
         let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(dir.path().join("check-report.html"), "<html>check</html>")
-            .expect("write");
+        std::fs::write(dir.path().join("check-report.html"), "<html>check</html>").expect("write");
         let original = std::env::current_dir().ok();
         std::env::set_current_dir(dir.path()).ok();
 
@@ -261,7 +295,10 @@ mod tests {
         }
 
         assert_eq!(status, 200, "should fallback to check-report.html");
-        assert!(content.contains("check"), "should contain check report content");
+        assert!(
+            content.contains("check"),
+            "should contain check report content"
+        );
     }
 
     #[test]
@@ -302,8 +339,11 @@ mod tests {
     #[test]
     fn test_serve_api_latest_json_with_report() {
         let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(dir.path().join("cogent-summary.json"), r#"{"passed": true}"#)
-            .expect("write");
+        std::fs::write(
+            dir.path().join("cogent-summary.json"),
+            r#"{"passed": true}"#,
+        )
+        .expect("write");
         let original = std::env::current_dir().ok();
         std::env::set_current_dir(dir.path()).ok();
 
@@ -330,7 +370,10 @@ mod tests {
         }
 
         assert_eq!(status, 200);
-        assert!(content.contains("false"), "should fallback to check-report.json");
+        assert!(
+            content.contains("false"),
+            "should fallback to check-report.json"
+        );
     }
 
     // ── serve_report_file ──

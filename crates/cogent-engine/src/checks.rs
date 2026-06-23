@@ -2,15 +2,13 @@
 
 use ast_parse_ts::{parse_complexity_file, parse_doc_coverage_file, Language};
 use cogent_common::{
-    CheckResult, Finding,
-    crap_score, function_coverage, parse_lcov, CoverageRecord, find_source_files,
+    crap_score, find_source_files, function_coverage, parse_lcov, CheckResult, CoverageRecord,
+    Finding,
 };
 use std::path::Path;
 use std::time::Instant;
 use syn::visit::Visit;
 use syn::{ImplItemFn, ItemEnum, ItemFn, ItemStruct, ItemTrait, Visibility};
-
-
 
 /// Detect if the given path is a Cargo workspace root with a `crates/` directory.
 /// If so, return the path to the crates directory for tools that need to scan source files.
@@ -18,7 +16,7 @@ fn adjust_path_for_workspace(path: &str) -> String {
     let path = Path::new(path);
     let cargo_toml = path.join("Cargo.toml");
     let crates_dir = path.join("crates");
-    
+
     if cargo_toml.exists() && crates_dir.exists() && crates_dir.is_dir() {
         if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
             if content.contains("[workspace]") {
@@ -72,10 +70,15 @@ pub(crate) fn summary_u64(data: &serde_json::Value, field: &str) -> usize {
 /// Extract an `f64` from `data.summary.field`, defaulting to `0.0`.
 #[allow(dead_code)]
 pub(crate) fn summary_f64(data: &serde_json::Value, field: &str) -> f64 {
+    summary_f64_or(data, field, 0.0)
+}
+
+/// Extract an `f64` from `data.summary.field`, falling back to `default`.
+pub(crate) fn summary_f64_or(data: &serde_json::Value, field: &str, default: f64) -> f64 {
     data.get("summary")
         .and_then(|s| s.get(field))
         .and_then(|v| v.as_f64())
-        .unwrap_or(0.0)
+        .unwrap_or(default)
 }
 
 /// Build a standard `CheckResult` for a tool-based count check.
@@ -98,7 +101,8 @@ fn check_result_from_count(
     findings_severity: &str,
 ) -> CheckResult {
     let passed = score <= threshold;
-    let findings = crate::extract_findings_from_details(&details, findings_rule_id, findings_severity);
+    let findings =
+        crate::extract_findings_from_details(&details, findings_rule_id, findings_severity);
     CheckResult {
         name: name.into(),
         passed,
@@ -110,7 +114,11 @@ fn check_result_from_count(
             format!("{} findings > allowed {}", score, threshold)
         },
         details,
-        severity: Some(if passed { severity_pass.into() } else { severity_fail.into() }),
+        severity: Some(if passed {
+            severity_pass.into()
+        } else {
+            severity_fail.into()
+        }),
         help: help.map(|h| h.into()),
         findings,
         rule_id: Some(rule_id.into()),
@@ -602,7 +610,13 @@ pub fn check_complexity(
         findings,
     }
 }
-pub fn check_access_control(path: &str, recursive: bool, max_violations: usize, exclude_paths: &[String], runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_access_control(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+    exclude_paths: &[String],
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     // Use owned Strings for args to avoid lifetime issues with temporary values
     let mut args: Vec<String> = vec![path.to_string(), "--format".to_string(), "json".to_string()];
     if recursive {
@@ -611,7 +625,11 @@ pub fn check_access_control(path: &str, recursive: bool, max_violations: usize, 
     // Add exclude paths
     let valid_excludes: Vec<&String> = exclude_paths.iter().filter(|s| !s.is_empty()).collect();
     if !valid_excludes.is_empty() {
-        let exclude_str = valid_excludes.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(",");
+        let exclude_str = valid_excludes
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
         args.push("--exclude".to_string());
         args.push(exclude_str);
     }
@@ -620,7 +638,13 @@ pub fn check_access_control(path: &str, recursive: bool, max_violations: usize, 
     args.push(max_str);
     // Convert to &[&str] for the runner
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    let res = crate::run_tool_with_runner(runner, "access-control", "access-control", &args_ref, Instant::now());
+    let res = crate::run_tool_with_runner(
+        runner,
+        "access-control",
+        "access-control",
+        &args_ref,
+        Instant::now(),
+    );
     if res.data.is_null() {
         return crate::skipped_tool_check(
             "access-control",
@@ -675,9 +699,20 @@ pub fn check_supply_chain_with_runner(
 ) -> CheckResult {
     let max_str = format!("{}", max_risks);
     let args = vec![path, "--format", "json", "--max-risks", &max_str];
-    let res = crate::run_tool_with_runner(runner, "supply-chain", "supply-chain", &args, Instant::now());
+    let res = crate::run_tool_with_runner(
+        runner,
+        "supply-chain",
+        "supply-chain",
+        &args,
+        Instant::now(),
+    );
     if res.data.is_null() {
-        return crate::skipped_tool_check("supply-chain", "supply-chain", max_risks, res.error.clone());
+        return crate::skipped_tool_check(
+            "supply-chain",
+            "supply-chain",
+            max_risks,
+            res.error.clone(),
+        );
     }
     let total = res
         .data
@@ -720,7 +755,12 @@ pub fn check_taint(path: &str, recursive: bool, max_taint: usize) -> CheckResult
     check_taint_with_runner(path, recursive, max_taint, &crate::DefaultToolRunner)
 }
 
-pub fn check_taint_with_runner(path: &str, recursive: bool, max_taint: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_taint_with_runner(
+    path: &str,
+    recursive: bool,
+    max_taint: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let adjusted_path = adjust_path_for_workspace(path);
     let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
@@ -750,7 +790,12 @@ pub fn check_dupfind(path: &str, recursive: bool, max_duplication: f64) -> Check
     check_dupfind_with_runner(path, recursive, max_duplication, &crate::DefaultToolRunner)
 }
 
-pub fn check_dupfind_with_runner(path: &str, recursive: bool, max_duplication: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_dupfind_with_runner(
+    path: &str,
+    recursive: bool,
+    max_duplication: f64,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let adjusted_path = adjust_path_for_workspace(path);
     let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
@@ -789,40 +834,45 @@ pub fn check_riskmap(path: &str, _recursive: bool, max_risk: f64) -> CheckResult
     check_riskmap_with_runner(path, _recursive, max_risk, &crate::DefaultToolRunner)
 }
 
-pub fn check_riskmap_with_runner(path: &str, _recursive: bool, max_risk: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
-    let adjusted_path = adjust_path_for_workspace(path);
-    let args = vec![adjusted_path.as_str(), "--format", "json"];
-    let res = crate::run_tool_with_runner(runner, "risk-map", "riskmap", &args, Instant::now());
-    let max_found_risk = res
-        .data
-        .get("files")
+/// Highest `risk_score` across `data.files`, or `0.0` if none present.
+fn max_risk_score(data: &serde_json::Value) -> f64 {
+    data.get("files")
         .and_then(|a| a.as_array())
         .map(|arr| {
             arr.iter()
                 .filter_map(|f| f.get("risk_score").and_then(|v| v.as_f64()))
                 .fold(0.0f64, f64::max)
         })
-        .unwrap_or(0.0);
+        .unwrap_or(0.0)
+}
+
+pub fn check_riskmap_with_runner(
+    path: &str,
+    _recursive: bool,
+    max_risk: f64,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
+    let adjusted_path = adjust_path_for_workspace(path);
+    let args = vec![adjusted_path.as_str(), "--format", "json"];
+    let res = crate::run_tool_with_runner(runner, "risk-map", "riskmap", &args, Instant::now());
+    let max_found_risk = max_risk_score(&res.data);
     let passed = max_found_risk <= max_risk;
+    let message = if passed {
+        format!("Max risk score {:.1} <= {:.1}", max_found_risk, max_risk)
+    } else {
+        format!(
+            "Max risk score {:.1} > allowed {:.1}",
+            max_found_risk, max_risk
+        )
+    };
     CheckResult {
         name: "riskmap".into(),
         passed,
         score: Some(max_found_risk),
         threshold: Some(max_risk),
-        message: if passed {
-            format!("Max risk score {:.1} <= {:.1}", max_found_risk, max_risk)
-        } else {
-            format!(
-                "Max risk score {:.1} > allowed {:.1}",
-                max_found_risk, max_risk
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
+        severity: Some(if passed { "info" } else { "high" }.into()),
         help: None,
         findings: crate::extract_findings_from_details(&res.data, "riskmap_limit", "high"),
         rule_id: Some("riskmap_limit".into()),
@@ -832,7 +882,11 @@ pub fn check_coupling(path: &str, max_coupling: usize) -> CheckResult {
     check_coupling_with_runner(path, max_coupling, &crate::DefaultToolRunner)
 }
 
-pub fn check_coupling_with_runner(path: &str, max_coupling: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_coupling_with_runner(
+    path: &str,
+    max_coupling: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let adjusted_path = adjust_path_for_workspace(path);
     let args = vec![adjusted_path.as_str(), "--format", "json"];
     let res = crate::run_tool_with_runner(runner, "coupling", "coupling", &args, Instant::now());
@@ -868,7 +922,12 @@ pub fn check_propcov(path: &str, recursive: bool, min_propcov: f64) -> CheckResu
     check_propcov_with_runner(path, recursive, min_propcov, &crate::DefaultToolRunner)
 }
 
-pub fn check_propcov_with_runner(path: &str, recursive: bool, min_propcov: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_propcov_with_runner(
+    path: &str,
+    recursive: bool,
+    min_propcov: f64,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let adjusted_path = adjust_path_for_workspace(path);
     let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
@@ -907,7 +966,12 @@ pub fn check_fuzz(path: &str, recursive: bool, max_fuzz_risk: usize) -> CheckRes
     check_fuzz_with_runner(path, recursive, max_fuzz_risk, &crate::DefaultToolRunner)
 }
 
-pub fn check_fuzz_with_runner(path: &str, recursive: bool, max_fuzz_risk: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_fuzz_with_runner(
+    path: &str,
+    recursive: bool,
+    max_fuzz_risk: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let adjusted_path = adjust_path_for_workspace(path);
     let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
@@ -921,25 +985,22 @@ pub fn check_fuzz_with_runner(path: &str, recursive: bool, max_fuzz_risk: usize,
         .and_then(|v| v.as_u64())
         .unwrap_or(0) as usize;
     let passed = fuzzable <= max_fuzz_risk;
+    let message = if passed {
+        format!("{} fuzzable endpoints <= {}", fuzzable, max_fuzz_risk)
+    } else {
+        format!(
+            "{} fuzzable endpoints > allowed {}",
+            fuzzable, max_fuzz_risk
+        )
+    };
     CheckResult {
         name: "fuzz".into(),
         passed,
         score: Some(fuzzable as f64),
         threshold: Some(max_fuzz_risk as f64),
-        message: if passed {
-            format!("{} fuzzable endpoints <= {}", fuzzable, max_fuzz_risk)
-        } else {
-            format!(
-                "{} fuzzable endpoints > allowed {}",
-                fuzzable, max_fuzz_risk
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
+        severity: Some(if passed { "info" } else { "high" }.into()),
         help: None,
         findings: crate::extract_findings_from_details(&res.data, "fuzz_limit", "high"),
         rule_id: Some("fuzz_limit".into()),
@@ -949,49 +1010,44 @@ pub fn check_linelen(path: &str, recursive: bool, max_violations: usize) -> Chec
     check_linelen_with_runner(path, recursive, max_violations, &crate::DefaultToolRunner)
 }
 
-pub fn check_linelen_with_runner(path: &str, recursive: bool, max_violations: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+fn linelen_message(total: usize, max_violations: usize, passed: bool) -> String {
+    if !passed {
+        return format!(
+            "{} line-length violations > allowed {}",
+            total, max_violations
+        );
+    }
+    if total == 0 {
+        "All functions and files within size limits".to_string()
+    } else {
+        format!("{} violations <= allowed {}", total, max_violations)
+    }
+}
+
+pub fn check_linelen_with_runner(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let mut args = vec![path, "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
     let res = crate::run_tool_with_runner(runner, "line-length", "linelen", &args, Instant::now());
-    let fn_viols = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("fn_violations"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let file_viols = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("file_violations"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let fn_viols = summary_u64(&res.data, "fn_violations");
+    let file_viols = summary_u64(&res.data, "file_violations");
     let total = fn_viols + file_viols;
     let passed = total <= max_violations;
+    let message = linelen_message(total, max_violations, passed);
     CheckResult {
         name: "linelen".into(),
         passed,
         score: Some(total as f64),
         threshold: Some(max_violations as f64),
-        message: if passed {
-            if total == 0 {
-                "All functions and files within size limits".to_string()
-            } else {
-                format!("{} violations <= allowed {}", total, max_violations)
-            }
-        } else {
-            format!(
-                "{} line-length violations > allowed {}",
-                total, max_violations
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("warning".into())
-        },
+        severity: Some(if passed { "info" } else { "warning" }.into()),
         help: Some("Functions should be <= 40 lines; files should be <= 500 lines.".into()),
         findings: crate::extract_findings_from_details(&res.data, "linelen_limit", "warning"),
         rule_id: Some("linelen_limit".into()),
@@ -1001,10 +1057,21 @@ pub fn check_halstead(path: &str, recursive: bool, max_bugs: f64) -> CheckResult
     check_halstead_with_runner(path, recursive, max_bugs, &crate::DefaultToolRunner)
 }
 
-pub fn check_halstead_with_runner(path: &str, recursive: bool, max_bugs: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_halstead_with_runner(
+    path: &str,
+    recursive: bool,
+    max_bugs: f64,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let max_bugs_str = format!("{}", max_bugs);
     let adjusted_path = adjust_path_for_workspace(path);
-    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--max-bugs", &max_bugs_str];
+    let mut args = vec![
+        adjusted_path.as_str(),
+        "--format",
+        "json",
+        "--max-bugs",
+        &max_bugs_str,
+    ];
     if recursive {
         args.push("--recursive");
     }
@@ -1053,13 +1120,47 @@ pub fn check_halstead_with_runner(path: &str, recursive: bool, max_bugs: f64, ru
     }
 }
 pub fn check_secrets(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
-    check_secrets_with_excludes(path, recursive, max_violations, &[], &crate::DefaultToolRunner)
+    check_secrets_with_excludes(
+        path,
+        recursive,
+        max_violations,
+        &[],
+        &crate::DefaultToolRunner,
+    )
+}
+
+/// Join non-empty exclude paths into a comma-separated `--exclude` argument.
+///
+/// Empty strings are filtered out first, since `"".contains("")` is `true` in
+/// Rust and would otherwise suppress all files.
+fn join_excludes(exclude_paths: &[String]) -> Option<String> {
+    let valid: Vec<&str> = exclude_paths
+        .iter()
+        .filter(|s| !s.is_empty())
+        .map(|s| s.as_str())
+        .collect();
+    if valid.is_empty() {
+        None
+    } else {
+        Some(valid.join(","))
+    }
+}
+
+fn secrets_message(findings: usize, max_violations: usize, passed: bool) -> String {
+    if !passed {
+        return format!(
+            "{} hardcoded secret findings > allowed {}",
+            findings, max_violations
+        );
+    }
+    if findings == 0 {
+        "No hardcoded secrets detected".into()
+    } else {
+        format!("{} secret findings <= allowed {}", findings, max_violations)
+    }
 }
 
 /// [`check_secrets`] with path exclusions and an injectable [`ToolRunner`] for testing.
-///
-/// Empty strings in `exclude_paths` are filtered out before joining, since
-/// `"".contains("")` is `true` in Rust and would suppress all files.
 pub fn check_secrets_with_excludes(
     path: &str,
     recursive: bool,
@@ -1071,14 +1172,7 @@ pub fn check_secrets_with_excludes(
     if recursive {
         args.push("--recursive");
     }
-    // Filter out empty strings before joining — they would match everything
-    // (defense-in-depth; parse_string_list already filters at config parse time)
-    let valid_excludes: Vec<&String> = exclude_paths.iter().filter(|s| !s.is_empty()).collect();
-    let exclude_str = if !valid_excludes.is_empty() {
-        Some(valid_excludes.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(","))
-    } else {
-        None
-    };
+    let exclude_str = join_excludes(exclude_paths);
     if let Some(ref s) = exclude_str {
         args.push("--exclude");
         args.push(s);
@@ -1086,29 +1180,15 @@ pub fn check_secrets_with_excludes(
     let res = crate::run_tool_with_runner(runner, "secrets", "secrets", &args, Instant::now());
     let findings = summary_u64(&res.data, "findings_count");
     let passed = findings <= max_violations;
+    let message = secrets_message(findings, max_violations, passed);
     CheckResult {
         name: "secrets".into(),
         passed,
         score: Some(findings as f64),
         threshold: Some(max_violations as f64),
-        message: if passed {
-            if findings == 0 {
-                "No hardcoded secrets detected".into()
-            } else {
-                format!("{} secret findings <= allowed {}", findings, max_violations)
-            }
-        } else {
-            format!(
-                "{} hardcoded secret findings > allowed {}",
-                findings, max_violations
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
+        severity: Some(if passed { "info" } else { "high" }.into()),
         help: Some("Move secrets to environment variables or a secrets manager.".into()),
         findings: crate::extract_findings_from_details(&res.data, "secrets_limit", "high"),
         rule_id: Some("secrets_limit".into()),
@@ -1118,7 +1198,29 @@ pub fn check_deadcode(path: &str, recursive: bool, max_violations: usize) -> Che
     check_deadcode_with_runner(path, recursive, max_violations, &crate::DefaultToolRunner)
 }
 
-pub fn check_deadcode_with_runner(path: &str, recursive: bool, max_violations: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+fn deadcode_message(findings: usize, max_violations: usize, passed: bool) -> String {
+    if !passed {
+        return format!(
+            "{} dead code findings > allowed {}",
+            findings, max_violations
+        );
+    }
+    if findings == 0 {
+        "No dead code patterns detected".into()
+    } else {
+        format!(
+            "{} dead code findings <= allowed {}",
+            findings, max_violations
+        )
+    }
+}
+
+pub fn check_deadcode_with_runner(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let adjusted_path = adjust_path_for_workspace(path);
     let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
@@ -1127,32 +1229,15 @@ pub fn check_deadcode_with_runner(path: &str, recursive: bool, max_violations: u
     let res = crate::run_tool_with_runner(runner, "dead-code", "deadcode", &args, Instant::now());
     let findings = summary_u64(&res.data, "total_findings");
     let passed = findings <= max_violations;
+    let message = deadcode_message(findings, max_violations, passed);
     CheckResult {
         name: "deadcode".into(),
         passed,
         score: Some(findings as f64),
         threshold: Some(max_violations as f64),
-        message: if passed {
-            if findings == 0 {
-                "No dead code patterns detected".into()
-            } else {
-                format!(
-                    "{} dead code findings <= allowed {}",
-                    findings, max_violations
-                )
-            }
-        } else {
-            format!(
-                "{} dead code findings > allowed {}",
-                findings, max_violations
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("warning".into())
-        },
+        severity: Some(if passed { "info" } else { "warning" }.into()),
         help: Some(
             "Remove unused imports, #[allow(dead_code)] suppressions, and dead assignments.".into(),
         ),
@@ -1164,10 +1249,21 @@ pub fn check_sast(path: &str, recursive: bool, max_findings: usize) -> CheckResu
     check_sast_with_runner(path, recursive, max_findings, &crate::DefaultToolRunner)
 }
 
-pub fn check_sast_with_runner(path: &str, recursive: bool, max_findings: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_sast_with_runner(
+    path: &str,
+    recursive: bool,
+    max_findings: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let max_str = format!("{}", max_findings);
     let adjusted_path = adjust_path_for_workspace(path);
-    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--max-findings", &max_str];
+    let mut args = vec![
+        adjusted_path.as_str(),
+        "--format",
+        "json",
+        "--max-findings",
+        &max_str,
+    ];
     if recursive {
         args.push("--recursive");
     }
@@ -1216,16 +1312,33 @@ pub fn check_crypto(path: &str, recursive: bool, max_findings: usize) -> CheckRe
     check_crypto_with_runner(path, recursive, max_findings, &crate::DefaultToolRunner)
 }
 
-pub fn check_crypto_with_runner(path: &str, recursive: bool, max_findings: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+pub fn check_crypto_with_runner(
+    path: &str,
+    recursive: bool,
+    max_findings: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let max_str = format!("{}", max_findings);
     let adjusted_path = adjust_path_for_workspace(path);
-    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--max-findings", &max_str];
+    let mut args = vec![
+        adjusted_path.as_str(),
+        "--format",
+        "json",
+        "--max-findings",
+        &max_str,
+    ];
     if recursive {
         args.push("--recursive");
     }
-    let res = crate::run_tool_with_runner(runner, "crypto-check", "cryptocheck", &args, Instant::now());
+    let res =
+        crate::run_tool_with_runner(runner, "crypto-check", "cryptocheck", &args, Instant::now());
     if res.data.is_null() {
-        return crate::skipped_tool_check("crypto", "crypto_limit", max_findings, res.error.clone());
+        return crate::skipped_tool_check(
+            "crypto",
+            "crypto_limit",
+            max_findings,
+            res.error.clone(),
+        );
     }
     let total = res
         .data
@@ -1262,7 +1375,28 @@ pub fn check_licenses(path: &str, max_violations: usize) -> CheckResult {
     check_licenses_with_runner(path, max_violations, &crate::DefaultToolRunner)
 }
 
-pub fn check_licenses_with_runner(path: &str, max_violations: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+fn license_message(violations: usize, max_violations: usize, total: usize, passed: bool) -> String {
+    if !passed {
+        return format!(
+            "{} license violations — GPL/AGPL packages in deny list",
+            violations
+        );
+    }
+    if violations == 0 {
+        format!("No license violations in {} packages scanned", total)
+    } else {
+        format!(
+            "{} license violations <= allowed {} ({} packages)",
+            violations, max_violations, total
+        )
+    }
+}
+
+pub fn check_licenses_with_runner(
+    path: &str,
+    max_violations: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let max_str = format!("{}", max_violations);
     let args = vec![path, "--format", "json", "--max-violations", &max_str];
     let res = crate::run_tool_with_runner(runner, "licenses", "licenses", &args, Instant::now());
@@ -1274,32 +1408,18 @@ pub fn check_licenses_with_runner(path: &str, max_violations: usize, runner: &dy
             res.error.clone(),
         );
     }
-    let violations = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("violations"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let total = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("packages_scanned"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let violations = summary_u64(&res.data, "violations");
+    let total = summary_u64(&res.data, "packages_scanned");
     let passed = violations <= max_violations;
+    let message = license_message(violations, max_violations, total, passed);
     CheckResult {
         name: "licenses".into(),
         passed,
         score: Some(violations as f64),
         threshold: Some(max_violations as f64),
-        message: if passed {
-            if violations == 0 { format!("No license violations in {} packages scanned", total) }
-            else { format!("{} license violations <= allowed {} ({} packages)", violations, max_violations, total) }
-        } else {
-            format!("{} license violations — GPL/AGPL packages in deny list", violations)
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed { Some("info".into()) } else { Some("high".into()) },
+        severity: Some(if passed { "info" } else { "high" }.into()),
         help: Some("Review copyleft (GPL/AGPL) licenses. They may require open-sourcing your code. Consult legal counsel.".into()),
         findings: crate::extract_findings_from_details(&res.data, "license_compliance", "high"),
         rule_id: Some("license_compliance".into()),
@@ -1395,46 +1515,49 @@ pub fn check_typecov(path: &str, recursive: bool, min_pct: f64) -> CheckResult {
     check_typecov_with_runner(path, recursive, min_pct, &crate::DefaultToolRunner)
 }
 
-pub fn check_typecov_with_runner(path: &str, recursive: bool, min_pct: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
+fn typecov_message(overall: f64, below: usize, min_pct: f64, passed: bool) -> String {
+    if passed {
+        format!("Type coverage {:.1}% >= {:.0}%", overall, min_pct)
+    } else {
+        format!(
+            "{} files below type coverage threshold of {:.0}%",
+            below, min_pct
+        )
+    }
+}
+
+pub fn check_typecov_with_runner(
+    path: &str,
+    recursive: bool,
+    min_pct: f64,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let min_pct_str = format!("{}", min_pct);
     let adjusted_path = adjust_path_for_workspace(path);
-    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--min-pct", &min_pct_str];
+    let mut args = vec![
+        adjusted_path.as_str(),
+        "--format",
+        "json",
+        "--min-pct",
+        &min_pct_str,
+    ];
     if recursive {
         args.push("--recursive");
     }
-    let res = crate::run_tool_with_runner(runner, "type-coverage", "typecov", &args, Instant::now());
-    let overall = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("overall_coverage_pct"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(100.0);
-    let below = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("files_below_threshold"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let res =
+        crate::run_tool_with_runner(runner, "type-coverage", "typecov", &args, Instant::now());
+    let overall = summary_f64_or(&res.data, "overall_coverage_pct", 100.0);
+    let below = summary_u64(&res.data, "files_below_threshold");
     let passed = below == 0;
+    let message = typecov_message(overall, below, min_pct, passed);
     CheckResult {
         name: "typecov".into(),
         passed,
         score: Some(overall),
         threshold: Some(min_pct),
-        message: if passed {
-            format!("Type coverage {:.1}% >= {:.0}%", overall, min_pct)
-        } else {
-            format!(
-                "{} files below type coverage threshold of {:.0}%",
-                below, min_pct
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("medium".into())
-        },
+        severity: Some(if passed { "info" } else { "medium" }.into()),
         help: Some(
             "Add type annotations to Python/JS/TS functions for better maintainability.".into(),
         ),
@@ -1446,7 +1569,36 @@ pub fn check_vulnscan(path: &str, max_critical: usize, max_high: usize) -> Check
     check_vulnscan_with_runner(path, max_critical, max_high, &crate::DefaultToolRunner)
 }
 
-pub fn check_vulnscan_with_runner(path: &str, max_critical: usize, max_high: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+fn vulnscan_message(
+    critical: usize,
+    high: usize,
+    total: usize,
+    max_critical: usize,
+    max_high: usize,
+    passed: bool,
+) -> String {
+    if !passed {
+        return format!(
+            "{} critical + {} high CVEs exceed allowed thresholds ({}/{})",
+            critical, high, max_critical, max_high
+        );
+    }
+    if total == 0 {
+        "No known vulnerabilities".into()
+    } else {
+        format!(
+            "{} vulnerabilities ({} critical, {} high) within allowed thresholds",
+            total, critical, high
+        )
+    }
+}
+
+pub fn check_vulnscan_with_runner(
+    path: &str,
+    max_critical: usize,
+    max_high: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let max_critical_str = format!("{}", max_critical);
     let max_high_str = format!("{}", max_high);
     let args = vec![
@@ -1460,53 +1612,26 @@ pub fn check_vulnscan_with_runner(path: &str, max_critical: usize, max_high: usi
     ];
     let res = crate::run_tool_with_runner(runner, "vuln-scan", "vulnscan", &args, Instant::now());
     if res.data.is_null() {
-        return crate::skipped_tool_check("vulnscan", "vuln_limit", max_critical, res.error.clone());
+        return crate::skipped_tool_check(
+            "vulnscan",
+            "vuln_limit",
+            max_critical,
+            res.error.clone(),
+        );
     }
-    let critical = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("critical"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let high = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("high"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let total = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let critical = summary_u64(&res.data, "critical");
+    let high = summary_u64(&res.data, "high");
+    let total = summary_u64(&res.data, "total");
     let passed = critical <= max_critical && high <= max_high;
+    let message = vulnscan_message(critical, high, total, max_critical, max_high, passed);
     CheckResult {
         name: "vulnscan".into(),
         passed,
         score: Some(total as f64),
         threshold: Some(max_critical as f64),
-        message: if passed {
-            if total == 0 {
-                "No known vulnerabilities".into()
-            } else {
-                format!(
-                    "{} vulnerabilities ({} critical, {} high) within allowed thresholds",
-                    total, critical, high
-                )
-            }
-        } else {
-            format!(
-                "{} critical + {} high CVEs exceed allowed thresholds ({}/{})",
-                critical, high, max_critical, max_high
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("high".into())
-        },
+        severity: Some(if passed { "info" } else { "high" }.into()),
         help: Some(
             "Update vulnerable dependencies. Run cargo audit / npm audit for details.".into(),
         ),
@@ -1518,52 +1643,52 @@ pub fn check_cohesion(path: &str, recursive: bool, max_violations: usize) -> Che
     check_cohesion_with_runner(path, recursive, max_violations, &crate::DefaultToolRunner)
 }
 
-pub fn check_cohesion_with_runner(path: &str, recursive: bool, max_violations: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+fn cohesion_message(
+    violations: usize,
+    max_violations: usize,
+    avg_lcom: f64,
+    passed: bool,
+) -> String {
+    if !passed {
+        return format!(
+            "{} structs exceed LCOM4 threshold of {}",
+            violations, max_violations
+        );
+    }
+    if violations == 0 {
+        format!("All structs cohesive (avg LCOM4 {:.2})", avg_lcom)
+    } else {
+        format!(
+            "{} cohesion violations <= allowed {} (avg LCOM4 {:.2})",
+            violations, max_violations, avg_lcom
+        )
+    }
+}
+
+pub fn check_cohesion_with_runner(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let adjusted_path = adjust_path_for_workspace(path);
     let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
     let res = crate::run_tool_with_runner(runner, "cohesion", "cohesion", &args, Instant::now());
-    let violations = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("violations"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let avg_lcom = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("avg_lcom"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(1.0);
+    let violations = summary_u64(&res.data, "violations");
+    let avg_lcom = summary_f64_or(&res.data, "avg_lcom", 1.0);
     let passed = violations <= max_violations;
+    let message = cohesion_message(violations, max_violations, avg_lcom, passed);
     CheckResult {
         name: "cohesion".into(),
         passed,
         score: Some(avg_lcom),
         threshold: Some(max_violations as f64),
-        message: if passed {
-            if violations == 0 {
-                format!("All structs cohesive (avg LCOM4 {:.2})", avg_lcom)
-            } else {
-                format!(
-                    "{} cohesion violations <= allowed {} (avg LCOM4 {:.2})",
-                    violations, max_violations, avg_lcom
-                )
-            }
-        } else {
-            format!(
-                "{} structs exceed LCOM4 threshold of {}",
-                violations, max_violations
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("warning".into())
-        },
+        severity: Some(if passed { "info" } else { "warning" }.into()),
         help: Some("High LCOM4 means a struct does too many unrelated things. Split it.".into()),
         findings: crate::extract_findings_from_details(&res.data, "cohesion_lcom4", "warning"),
         rule_id: Some("cohesion_lcom4".into()),
@@ -1573,39 +1698,54 @@ pub fn check_comments(path: &str, recursive: bool, min_ratio: f64) -> CheckResul
     check_comments_with_runner(path, recursive, min_ratio, &crate::DefaultToolRunner)
 }
 
-pub fn check_comments_with_runner(path: &str, recursive: bool, min_ratio: f64, runner: &dyn crate::ToolRunner) -> CheckResult {
+fn comments_message(overall: f64, min_ratio: f64, below: usize, passed: bool) -> String {
+    if passed {
+        format!(
+            "Overall comment ratio {:.1}% >= {:.0}%",
+            overall * 100.0,
+            min_ratio * 100.0
+        )
+    } else {
+        format!(
+            "{} files below comment ratio threshold of {:.0}%",
+            below,
+            min_ratio * 100.0
+        )
+    }
+}
+
+pub fn check_comments_with_runner(
+    path: &str,
+    recursive: bool,
+    min_ratio: f64,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let min_ratio_str = format!("{}", min_ratio);
     let adjusted_path = adjust_path_for_workspace(path);
-    let mut args = vec![adjusted_path.as_str(), "--format", "json", "--min-ratio", &min_ratio_str];
+    let mut args = vec![
+        adjusted_path.as_str(),
+        "--format",
+        "json",
+        "--min-ratio",
+        &min_ratio_str,
+    ];
     if recursive {
         args.push("--recursive");
     }
-    let res = crate::run_tool_with_runner(runner, "comment-ratio", "comments", &args, Instant::now());
-    let below = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("files_below_threshold"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
-    let overall = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("overall_comment_ratio"))
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0);
+    let res =
+        crate::run_tool_with_runner(runner, "comment-ratio", "comments", &args, Instant::now());
+    let below = summary_u64(&res.data, "files_below_threshold");
+    let overall = summary_f64(&res.data, "overall_comment_ratio");
     let passed = below == 0;
+    let message = comments_message(overall, min_ratio, below, passed);
     CheckResult {
         name: "comments".into(),
         passed,
         score: Some(overall * 100.0),
         threshold: Some(min_ratio * 100.0),
-        message: if passed {
-            format!("Overall comment ratio {:.1}% >= {:.0}%", overall * 100.0, min_ratio * 100.0)
-        } else {
-            format!("{} files below comment ratio threshold of {:.0}%", below, min_ratio * 100.0)
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed { Some("info".into()) } else { Some("low".into()) },
+        severity: Some(if passed { "info" } else { "low" }.into()),
         help: Some("Add inline comments explaining non-obvious logic. Doc comments are tracked separately by doccov.".into()),
         findings: crate::extract_findings_from_details(&res.data, "comment_ratio", "low"),
         rule_id: Some("comment_ratio".into()),
@@ -1615,46 +1755,47 @@ pub fn check_errhandle(path: &str, recursive: bool, max_violations: usize) -> Ch
     check_errhandle_with_runner(path, recursive, max_violations, &crate::DefaultToolRunner)
 }
 
-pub fn check_errhandle_with_runner(path: &str, recursive: bool, max_violations: usize, runner: &dyn crate::ToolRunner) -> CheckResult {
+fn errhandle_message(total: usize, max_violations: usize, passed: bool) -> String {
+    if !passed {
+        return format!(
+            "{} error handling violations > allowed {}",
+            total, max_violations
+        );
+    }
+    if total == 0 {
+        "No error handling issues detected".into()
+    } else {
+        format!(
+            "{} error handling findings <= allowed {}",
+            total, max_violations
+        )
+    }
+}
+
+pub fn check_errhandle_with_runner(
+    path: &str,
+    recursive: bool,
+    max_violations: usize,
+    runner: &dyn crate::ToolRunner,
+) -> CheckResult {
     let adjusted_path = adjust_path_for_workspace(path);
     let mut args = vec![adjusted_path.as_str(), "--format", "json"];
     if recursive {
         args.push("--recursive");
     }
-    let res = crate::run_tool_with_runner(runner, "error-handling", "errhandle", &args, Instant::now());
-    let total = res
-        .data
-        .get("summary")
-        .and_then(|s| s.get("total_findings"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0) as usize;
+    let res =
+        crate::run_tool_with_runner(runner, "error-handling", "errhandle", &args, Instant::now());
+    let total = summary_u64(&res.data, "total_findings");
     let passed = total <= max_violations;
+    let message = errhandle_message(total, max_violations, passed);
     CheckResult {
         name: "errhandle".into(),
         passed,
         score: Some(total as f64),
         threshold: Some(max_violations as f64),
-        message: if passed {
-            if total == 0 {
-                "No error handling issues detected".into()
-            } else {
-                format!(
-                    "{} error handling findings <= allowed {}",
-                    total, max_violations
-                )
-            }
-        } else {
-            format!(
-                "{} error handling violations > allowed {}",
-                total, max_violations
-            )
-        },
+        message,
         details: res.data.clone(),
-        severity: if passed {
-            Some("info".into())
-        } else {
-            Some("medium".into())
-        },
+        severity: Some(if passed { "info" } else { "medium" }.into()),
         help: Some(
             "Replace .unwrap()/.expect() with proper error propagation using `?` or match.".into(),
         ),
@@ -1665,11 +1806,7 @@ pub fn check_errhandle_with_runner(path: &str, recursive: bool, max_violations: 
 
 /// HQSE §Support/Debug: detects raw unstructured logging in non-test source files
 /// and checks for structured log crate imports.
-pub fn check_observability(
-    path: &str,
-    recursive: bool,
-    max_violations: usize,
-) -> CheckResult {
+pub fn check_observability(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
     let extensions = [
         "rs", "py", "js", "ts", "go", "java", "cs", "rb", "php", "swift",
     ];
@@ -1725,7 +1862,8 @@ pub fn check_observability(
         };
         if structured_log_imports
             .iter()
-            .any(|pat| source.contains(pat)) {
+            .any(|pat| source.contains(pat))
+        {
             files_with_structured_log += 1;
         }
         for (line_num, line) in source.lines().enumerate() {
@@ -1825,11 +1963,7 @@ pub fn check_observability(
 
 /// HQSE §6 Test: detects non-deterministic patterns in test files
 /// and optionally reports mutation testing score.
-pub fn check_test_quality(
-    path: &str,
-    recursive: bool,
-    max_nondeterminism: usize,
-) -> CheckResult {
+pub fn check_test_quality(path: &str, recursive: bool, max_nondeterminism: usize) -> CheckResult {
     let extensions = ["rs", "py", "js", "ts", "go", "java", "cs", "rb"];
     let files = find_source_files(path, recursive, &extensions);
     let nondeterminism_patterns: &[&str] = &[
@@ -1901,7 +2035,11 @@ pub fn check_test_quality(
     let count = violations.len();
     let passed = count <= max_nondeterminism;
     let (severity, rule_id, help) = if passed {
-        ("info", "test-quality-pass", "Non-determinism patterns are within acceptable limits.")
+        (
+            "info",
+            "test-quality-pass",
+            "Non-determinism patterns are within acceptable limits.",
+        )
     } else {
         ("warning", "test-quality-nondeterminism",
          "Non-deterministic patterns in tests cause flaky tests. Replace with mocks, fixed seeds, or deterministic alternatives.")
@@ -1929,7 +2067,8 @@ pub fn check_test_quality(
                 severity: severity.to_string(),
                 message: format!("Non-deterministic pattern '{}' in test file {}", pat, f),
                 rule_id: "test-quality-nondeterminism".to_string(),
-                fix_hint: "Replace with a mock, fixed seed, or deterministic alternative.".to_string(),
+                fix_hint: "Replace with a mock, fixed seed, or deterministic alternative."
+                    .to_string(),
                 evidence: None,
                 suggested_fix: None,
                 controls: None,
@@ -2105,11 +2244,7 @@ pub fn check_design_docs(path: &str) -> CheckResult {
 
 /// HQSE Support/Debug: detects raw unstructured .unwrap()/.expect() calls
 /// without SAFETY comments or .context() in non-test Rust files.
-pub fn check_debuggability(
-    path: &str,
-    recursive: bool,
-    max_violations: usize,
-) -> CheckResult {
+pub fn check_debuggability(path: &str, recursive: bool, max_violations: usize) -> CheckResult {
     let files = find_source_files(path, recursive, &["rs"]);
     let mut violations = Vec::new();
     for file in &files {

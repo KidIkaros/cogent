@@ -7,17 +7,8 @@ use std::collections::HashMap;
 /// Gather diagnostic information: versions, config, PATH, available binaries, OS info.
 pub fn collect_diagnostics() -> serde_json::Value {
     let mut binaries = HashMap::new();
-    for bin in &[
-        "cogent",
-        "cargo",
-        "rustc",
-        "git",
-        "clippy-driver",
-    ] {
-        binaries.insert(
-            *bin,
-            which(bin).unwrap_or_else(|| "not found".to_string()),
-        );
+    for bin in &["cogent", "cargo", "rustc", "git", "clippy-driver"] {
+        binaries.insert(*bin, which(bin).unwrap_or_else(|| "not found".to_string()));
     }
 
     let mut config = json!({});
@@ -53,7 +44,10 @@ pub fn doctor_command(format: &str) -> i32 {
             if !warnings.is_empty() {
                 output["threshold_warnings"] = serde_json::to_value(&warnings).unwrap_or_default();
             }
-            println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&output).unwrap_or_default()
+            );
         }
         _ => {
             // Pretty human-readable output
@@ -176,11 +170,10 @@ const DEFAULT_BASELINES: &[(&str, f64, &str)] = &[
 /// fall back to [`DEFAULT_BASELINES`].
 fn load_baselines() -> Vec<(&'static str, f64, &'static str)> {
     if let Ok(content) = std::fs::read_to_string(".cogent-baselines.json") {
-        if let Ok(map) = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content) {
-            let mut result: Vec<(&str, f64, &str)> = DEFAULT_BASELINES
-                .iter()
-                .copied()
-                .collect();
+        if let Ok(map) =
+            serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content)
+        {
+            let mut result: Vec<(&str, f64, &str)> = DEFAULT_BASELINES.to_vec();
             // Override baseline values from JSON
             for &(key, _, label) in DEFAULT_BASELINES.iter() {
                 if let Some(val) = map.get(key).and_then(|v| v.as_f64()) {
@@ -199,9 +192,19 @@ fn load_baselines() -> Vec<(&'static str, f64, &'static str)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// Serializes tests that mutate the process-global current directory.
+    ///
+    /// `std::env::set_current_dir` affects the whole process, so these tests
+    /// race with each other under parallel execution (`RUST_TEST_THREADS > 1`)
+    /// and read each other's `.cogent-baselines.json`. Holding this lock makes
+    /// them run one at a time.
+    static CWD_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_load_baselines_defaults_when_no_file() {
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // In a temp dir with no .cogent-baselines.json, should return defaults
         let original = std::env::current_dir().unwrap();
         let tmp = tempfile::tempdir().unwrap();
@@ -217,6 +220,7 @@ mod tests {
 
     #[test]
     fn test_load_baselines_overrides_from_json() {
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().unwrap();
         let original = std::env::current_dir().unwrap();
         let _ = std::env::set_current_dir(tmp.path());
@@ -226,25 +230,36 @@ mod tests {
             "max_secrets": 50.0,
             "max_avg": 99.0
         });
-        std::fs::write(".cogent-baselines.json", serde_json::to_string_pretty(&json).unwrap()).unwrap();
+        std::fs::write(
+            ".cogent-baselines.json",
+            serde_json::to_string_pretty(&json).unwrap(),
+        )
+        .unwrap();
 
         let baselines = load_baselines();
         let _ = std::env::set_current_dir(&original);
 
         // Overridden values
-        let secrets = baselines.iter().find(|(k, _, _)| *k == "max_secrets").unwrap();
+        let secrets = baselines
+            .iter()
+            .find(|(k, _, _)| *k == "max_secrets")
+            .unwrap();
         assert_eq!(secrets.1, 50.0, "max_secrets should be overridden to 50");
 
         let crap = baselines.iter().find(|(k, _, _)| *k == "max_avg").unwrap();
         assert_eq!(crap.1, 99.0, "max_avg should be overridden to 99");
 
         // Non-overridden values stay default
-        let markers = baselines.iter().find(|(k, _, _)| *k == "max_markers").unwrap();
+        let markers = baselines
+            .iter()
+            .find(|(k, _, _)| *k == "max_markers")
+            .unwrap();
         assert_eq!(markers.1, 16.0, "max_markers should stay at default 16");
     }
 
     #[test]
     fn test_load_baselines_invalid_json_falls_back() {
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().unwrap();
         let original = std::env::current_dir().unwrap();
         let _ = std::env::set_current_dir(tmp.path());
@@ -260,12 +275,16 @@ mod tests {
 
     #[test]
     fn test_check_threshold_health_no_config_returns_empty() {
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let original = std::env::current_dir().unwrap();
         let tmp = tempfile::tempdir().unwrap();
         let _ = std::env::set_current_dir(tmp.path());
         let warnings = check_threshold_health();
         let _ = std::env::set_current_dir(&original);
-        assert!(warnings.is_empty(), "no .quality.toml should mean no warnings");
+        assert!(
+            warnings.is_empty(),
+            "no .quality.toml should mean no warnings"
+        );
     }
 
     #[test]
@@ -322,7 +341,9 @@ fn git_repo_info() -> Option<String> {
         .ok()
         .and_then(|o| {
             if o.status.success() {
-                String::from_utf8(o.stdout).ok().map(|s| s.trim().to_string())
+                String::from_utf8(o.stdout)
+                    .ok()
+                    .map(|s| s.trim().to_string())
             } else {
                 None
             }

@@ -9,10 +9,9 @@ use serde::Serialize;
 
 use crate::html_escape;
 use cogent_common::{
-    CheckReport, CheckResult,
-    SarifArtifactLocation, SarifDriver, SarifInvocation, SarifLocation, SarifLog, SarifMessage,
-    SarifPhysicalLocation, SarifRegion, SarifResult, SarifRule, SarifRuleConfig, SarifRun,
-    SarifTool,
+    CheckReport, CheckResult, SarifArtifactLocation, SarifDriver, SarifInvocation, SarifLocation,
+    SarifLog, SarifMessage, SarifPhysicalLocation, SarifRegion, SarifResult, SarifRule,
+    SarifRuleConfig, SarifRun, SarifTool,
 };
 use tracing::info;
 
@@ -77,16 +76,19 @@ pub fn format_ndjson(report: &CheckReport) -> String {
                 .cloned()
                 .unwrap_or_default();
             if items.is_empty() {
-                lines.push(serde_json::json!({
-                    "tool": check.name,
-                    "severity": severity,
-                    "rule_id": rule_id,
-                    "message": check.message,
-                    "help": help,
-                    "file": report.path,
-                    "line": null,
-                    "col": null,
-                }).to_string());
+                lines.push(
+                    serde_json::json!({
+                        "tool": check.name,
+                        "severity": severity,
+                        "rule_id": rule_id,
+                        "message": check.message,
+                        "help": help,
+                        "file": report.path,
+                        "line": null,
+                        "col": null,
+                    })
+                    .to_string(),
+                );
             } else {
                 for item in &items {
                     lines.push(serde_json::json!({
@@ -185,7 +187,9 @@ pub fn build_sarif_log(report: &CheckReport) -> SarifLog {
         invocations: Some(vec![SarifInvocation {
             execution_successful: report.passed,
             exit_code: Some(if report.passed { 0 } else { 1 }),
-            end_time_utc: Some(chrono::Utc::now().to_rfc3339()),
+            end_time_utc: Some(
+                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            ),
         }]),
         results: all_results,
     };
@@ -269,7 +273,10 @@ pub fn format_junit(report: &CheckReport) -> String {
 }
 
 pub fn output_junit(report: &CheckReport) {
-    info!(checks = report.checks.len(), "formatting report as JUnit XML");
+    info!(
+        checks = report.checks.len(),
+        "formatting report as JUnit XML"
+    );
     println!("{}", format_junit(report));
 }
 
@@ -285,7 +292,10 @@ pub fn format_findings_ndjson(report: &CheckReport) -> String {
 }
 
 pub fn output_findings_ndjson(report: &CheckReport) {
-    info!(checks = report.checks.len(), "formatting findings as NDJSON");
+    info!(
+        checks = report.checks.len(),
+        "formatting findings as NDJSON"
+    );
     let output = format_findings_ndjson(report);
     if !output.is_empty() {
         println!("{}", output);

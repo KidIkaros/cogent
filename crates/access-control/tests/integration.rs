@@ -1,7 +1,6 @@
 use assert_cmd::Command;
 use predicates::str::contains;
 use std::fs;
-use std::path::Path;
 
 #[test]
 fn test_help() {

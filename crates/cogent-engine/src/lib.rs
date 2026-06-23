@@ -3,18 +3,18 @@
 
 #![deny(clippy::all)]
 
-pub mod checks;
 pub mod bridge;
+pub mod checks;
 pub mod registry;
 pub mod runner;
 
 #[cfg(test)]
 mod tests;
 
-pub use runner::{DefaultToolRunner, MockToolRunner, ToolRunner};
 pub use registry::{AuditTool, ToolRegistry};
+pub use runner::{DefaultToolRunner, MockToolRunner, ToolRunner};
 
-use cogent_common::{CheckResult, Finding, FileSummary, ToolResult};
+use cogent_common::{CheckResult, FileSummary, Finding, ToolResult};
 pub use registry::registry;
 use std::time::Instant;
 use tracing::{info, warn};
@@ -28,8 +28,17 @@ use tracing::{info, warn};
 /// This is the backward-compatible free-function wrapper around
 /// [`DefaultToolRunner::run`]. For testability, prefer using the [`ToolRunner`]
 /// trait directly so a [`MockToolRunner`] can be substituted.
-pub fn run_tool(crate_name: &str, bin_name: &str, args: &[&str], tool_start: Instant) -> ToolResult {
-    info!(tool = bin_name, crate = crate_name, "running tool via DefaultToolRunner");
+pub fn run_tool(
+    crate_name: &str,
+    bin_name: &str,
+    args: &[&str],
+    tool_start: Instant,
+) -> ToolResult {
+    info!(
+        tool = bin_name,
+        crate = crate_name,
+        "running tool via DefaultToolRunner"
+    );
     let runner = DefaultToolRunner;
     match runner.run(crate_name, bin_name, args, tool_start) {
         Ok(result) => result,
@@ -114,7 +123,10 @@ pub fn extract_findings_from_details(
     default_rule_id: &str,
     default_severity: &str,
 ) -> Vec<Finding> {
-    info!(default_rule_id, default_severity, "extracting findings from tool output");
+    info!(
+        default_rule_id,
+        default_severity, "extracting findings from tool output"
+    );
     let mut findings = Vec::new();
     let arrays = [
         "findings",
@@ -315,13 +327,6 @@ fn parse_config_f64(line: &str, key: &str) -> Option<f64> {
 fn parse_config_usize(line: &str, key: &str) -> Option<usize> {
     parse_config_f64(line, key).map(|v| v as usize)
 }
-
-/// Parse a `key = value` line for u32 values.
-fn parse_config_u32(line: &str, key: &str) -> Option<u32> {
-    parse_config_f64(line, key).map(|v| v as u32)
-}
-
-
 
 impl Default for CheckThresholds {
     fn default() -> Self {

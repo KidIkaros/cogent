@@ -499,19 +499,28 @@ mod tests {
     #[test]
     fn test_is_marker_in_string_escaped_quote_before_marker() {
         // The quote is escaped so it shouldn't toggle string state
-        assert!(!is_marker_in_string("\\\" // TODO: not in a string now", "TODO"));
+        assert!(!is_marker_in_string(
+            "\\\" // TODO: not in a string now",
+            "TODO"
+        ));
     }
 
     #[test]
     fn test_is_marker_in_string_marker_after_quoted_section() {
         // Marker after closing quote — not in string
-        assert!(!is_marker_in_string("let s = \"hello\"; // TODO: fix", "TODO"));
+        assert!(!is_marker_in_string(
+            "let s = \"hello\"; // TODO: fix",
+            "TODO"
+        ));
     }
 
     #[test]
     fn test_is_marker_in_string_multiple_strings() {
         // Marker in second string literal
-        assert!(is_marker_in_string("let a = \"hello\"; let b = \"TODO: fixme\";", "TODO"));
+        assert!(is_marker_in_string(
+            "let a = \"hello\"; let b = \"TODO: fixme\";",
+            "TODO"
+        ));
     }
 
     #[test]
@@ -522,7 +531,10 @@ mod tests {
     #[test]
     fn test_is_marker_in_string_all_marker_types() {
         for (name, _) in MARKERS {
-            assert!(is_marker_in_string(&format!("let s = \"{}: hidden\";", name), name));
+            assert!(is_marker_in_string(
+                &format!("let s = \"{}: hidden\";", name),
+                name
+            ));
         }
     }
 
@@ -530,33 +542,51 @@ mod tests {
 
     #[test]
     fn test_extract_comment_text_with_colon() {
-        assert_eq!(extract_comment_text("// TODO: implement this", "TODO"), "implement this");
+        assert_eq!(
+            extract_comment_text("// TODO: implement this", "TODO"),
+            "implement this"
+        );
     }
 
     #[test]
     fn test_extract_comment_text_with_parenthesis() {
-        assert_eq!(extract_comment_text("// FIXME(urgent): fix now", "FIXME"), "urgent): fix now");
+        assert_eq!(
+            extract_comment_text("// FIXME(urgent): fix now", "FIXME"),
+            "urgent): fix now"
+        );
     }
 
     #[test]
     fn test_extract_comment_text_with_space() {
-        assert_eq!(extract_comment_text("// HACK make it work", "HACK"), "make it work");
+        assert_eq!(
+            extract_comment_text("// HACK make it work", "HACK"),
+            "make it work"
+        );
     }
 
     #[test]
     fn test_extract_comment_text_removes_trailing_star_slash() {
-        assert_eq!(extract_comment_text("/* TODO: fix this */", "TODO"), "fix this");
+        assert_eq!(
+            extract_comment_text("/* TODO: fix this */", "TODO"),
+            "fix this"
+        );
     }
 
     #[test]
     fn test_extract_comment_text_removes_trailing_paren() {
         // After TODO, ': ' is stripped, then '(' is left, then trailing ')' is stripped
-        assert_eq!(extract_comment_text("// TODO: (do something)", "TODO"), "(do something");
+        assert_eq!(
+            extract_comment_text("// TODO: (do something)", "TODO"),
+            "(do something"
+        );
     }
 
     #[test]
     fn test_extract_comment_text_marker_not_found() {
-        assert_eq!(extract_comment_text("// no marker here", "TODO"), "// no marker here");
+        assert_eq!(
+            extract_comment_text("// no marker here", "TODO"),
+            "// no marker here"
+        );
     }
 
     #[test]
@@ -566,7 +596,10 @@ mod tests {
 
     #[test]
     fn test_extract_comment_text_marker_with_leading_text() {
-        assert_eq!(extract_comment_text("x = 1; // TODO: clean up", "TODO"), "clean up");
+        assert_eq!(
+            extract_comment_text("x = 1; // TODO: clean up", "TODO"),
+            "clean up"
+        );
     }
 
     #[test]
@@ -577,7 +610,10 @@ mod tests {
     #[test]
     fn test_extract_comment_text_marker_with_mixed_case() {
         // extract_comment_text does case-sensitive search
-        assert_eq!(extract_comment_text("// todo: lowercase", "TODO"), "// todo: lowercase");
+        assert_eq!(
+            extract_comment_text("// todo: lowercase", "TODO"),
+            "// todo: lowercase"
+        );
     }
 
     // ── sort_items ──
@@ -736,7 +772,11 @@ mod tests {
     #[test]
     fn test_get_suggested_fix_all_marker_types_return_some() {
         for (_, marker_type) in MARKERS {
-            assert!(get_suggested_fix(marker_type).is_some(), "marker_type '{}' returned None", marker_type);
+            assert!(
+                get_suggested_fix(marker_type).is_some(),
+                "marker_type '{}' returned None",
+                marker_type
+            );
         }
     }
 
@@ -785,7 +825,10 @@ mod tests {
         let source = "let msg = \"TODO: implement this\";\n";
         let mut items = Vec::new();
         scan_source("/tmp/test.rs", source, &None, &mut items);
-        assert!(items.is_empty(), "markers inside string literals should be skipped");
+        assert!(
+            items.is_empty(),
+            "markers inside string literals should be skipped"
+        );
     }
 
     #[test]
@@ -900,7 +943,11 @@ mod tests {
         // Verify each marker type appears exactly once
         let types: Vec<&str> = items.iter().map(|i| i.marker_type.as_str()).collect();
         for (_, marker_type) in MARKERS {
-            assert!(types.contains(marker_type), "marker_type '{}' not found in results", marker_type);
+            assert!(
+                types.contains(marker_type),
+                "marker_type '{}' not found in results",
+                marker_type
+            );
         }
     }
 
@@ -947,13 +994,21 @@ mod tests {
         let mut sorted = names.clone();
         sorted.sort();
         sorted.dedup();
-        assert_eq!(names.len(), sorted.len(), "MARKERS contains duplicate names");
+        assert_eq!(
+            names.len(),
+            sorted.len(),
+            "MARKERS contains duplicate names"
+        );
 
         let types: Vec<&str> = MARKERS.iter().map(|(_, t)| *t).collect();
         let mut sorted_types = types.clone();
         sorted_types.sort();
         sorted_types.dedup();
-        assert_eq!(types.len(), sorted_types.len(), "MARKERS contains duplicate types");
+        assert_eq!(
+            types.len(),
+            sorted_types.len(),
+            "MARKERS contains duplicate types"
+        );
     }
 
     #[test]
@@ -961,7 +1016,13 @@ mod tests {
         for (name, marker_type) in MARKERS {
             assert!(!name.is_empty(), "MARKERS contains empty name");
             assert!(!marker_type.is_empty(), "MARKERS contains empty type");
-            assert_eq!(name.to_lowercase(), *marker_type, "MARKERS entry '{}' has mismatched type '{}'", name, marker_type);
+            assert_eq!(
+                name.to_lowercase(),
+                *marker_type,
+                "MARKERS entry '{}' has mismatched type '{}'",
+                name,
+                marker_type
+            );
         }
     }
 }

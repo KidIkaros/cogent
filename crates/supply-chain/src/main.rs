@@ -781,7 +781,10 @@ mod tests {
         )
         .unwrap();
         let findings = check_cargo_lock(dir.path());
-        let typos: Vec<_> = findings.iter().filter(|f| f.risk_type == "typosquatting").collect();
+        let typos: Vec<_> = findings
+            .iter()
+            .filter(|f| f.risk_type == "typosquatting")
+            .collect();
         assert_eq!(typos.len(), 1);
         assert_eq!(typos[0].severity, "critical");
         assert_eq!(typos[0].rule_id, "SUPPLY-TYPO-001");
@@ -798,7 +801,10 @@ mod tests {
         )
         .unwrap();
         let findings = check_cargo_lock(dir.path());
-        let typos: Vec<_> = findings.iter().filter(|f| f.risk_type == "typosquatting").collect();
+        let typos: Vec<_> = findings
+            .iter()
+            .filter(|f| f.risk_type == "typosquatting")
+            .collect();
         assert!(typos.is_empty());
     }
 
@@ -835,7 +841,11 @@ mod tests {
         let mut sorted = POPULAR_PACKAGES.to_vec();
         sorted.sort();
         sorted.dedup();
-        assert_eq!(sorted.len(), POPULAR_PACKAGES.len(), "POPULAR_PACKAGES contains duplicates");
+        assert_eq!(
+            sorted.len(),
+            POPULAR_PACKAGES.len(),
+            "POPULAR_PACKAGES contains duplicates"
+        );
     }
 
     #[test]

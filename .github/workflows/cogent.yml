@@ -21,6 +21,9 @@ jobs:
       - name: Build workspace
         run: cargo build --release --workspace
 
+      - name: Install cargo-audit (vulnscan dependency)
+        run: cargo install cargo-audit --locked
+
       - name: Run Cogent check (fresh, no cache)
         run: cogent check . --no-cache --format json
 

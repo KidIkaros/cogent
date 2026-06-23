@@ -431,211 +431,215 @@ mod tests {
         let ts = 1718409600; // 2024-06-15 00:00 UTC
         let yymm = chrono_yymm(ts);
         let fmt = format_ts(ts);
-        assert!(fmt.starts_with(&format!("{}-", yymm)),
-            "chrono_yymm({})={} should match format_ts prefix", ts, yymm);
+        assert!(
+            fmt.starts_with(&format!("{}-", yymm)),
+            "chrono_yymm({})={} should match format_ts prefix",
+            ts,
+            yymm
+        );
     }
 }
 
-    // ── history_record ──
+// ── history_record ──
 
-    #[test]
-    fn test_history_record_writes_file() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let report_json = serde_json::json!({
-            "run_id": "test-run",
-            "summary": {"passed": 5, "failed": 1},
-            "tools": [],
-        });
-        let report_path = dir.path().join("report.json");
-        std::fs::write(&report_path, report_json.to_string()).expect("write");
+#[test]
+fn test_history_record_writes_file() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let report_json = serde_json::json!({
+        "run_id": "test-run",
+        "summary": {"passed": 5, "failed": 1},
+        "tools": [],
+    });
+    let report_path = dir.path().join("report.json");
+    std::fs::write(&report_path, report_json.to_string()).expect("write");
 
-        let code = history_record(
-            dir.path().to_str().unwrap(),
-            Some(report_path.to_str().unwrap()),
-        );
-        assert_eq!(code, 0, "history_record should succeed");
+    let code = history_record(
+        dir.path().to_str().unwrap(),
+        Some(report_path.to_str().unwrap()),
+    );
+    assert_eq!(code, 0, "history_record should succeed");
 
-        // Should have created a .jsonl file
-        let entries: Vec<_> = std::fs::read_dir(dir.path())
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().is_some_and(|x| x == "jsonl"))
-            .collect();
-        assert!(!entries.is_empty(), "should create a .jsonl file");
+    // Should have created a .jsonl file
+    let entries: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().is_some_and(|x| x == "jsonl"))
+        .collect();
+    assert!(!entries.is_empty(), "should create a .jsonl file");
 
-        // The JSONL file should contain valid JSON
-        let content = std::fs::read_to_string(entries[0].path()).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
-        assert_eq!(parsed["passed"], 5);
-        assert_eq!(parsed["failed"], 1);
-    }
+    // The JSONL file should contain valid JSON
+    let content = std::fs::read_to_string(entries[0].path()).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(content.trim()).unwrap();
+    assert_eq!(parsed["passed"], 5);
+    assert_eq!(parsed["failed"], 1);
+}
 
-    #[test]
-    fn test_history_record_missing_file_returns_1() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let code = history_record(
-            dir.path().to_str().unwrap(),
-            Some("/tmp/nonexistent-report-12345.json"),
-        );
-        assert_eq!(code, 1, "missing file should return 1");
-    }
+#[test]
+fn test_history_record_missing_file_returns_1() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let code = history_record(
+        dir.path().to_str().unwrap(),
+        Some("/tmp/nonexistent-report-12345.json"),
+    );
+    assert_eq!(code, 1, "missing file should return 1");
+}
 
-    #[test]
-    fn test_history_record_invalid_json_returns_1() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let bad_path = dir.path().join("bad.json");
-        std::fs::write(&bad_path, "not valid json").unwrap();
-        let code = history_record(
-            dir.path().to_str().unwrap(),
-            Some(bad_path.to_str().unwrap()),
-        );
-        assert_eq!(code, 1, "invalid JSON should return 1");
-    }
+#[test]
+fn test_history_record_invalid_json_returns_1() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let bad_path = dir.path().join("bad.json");
+    std::fs::write(&bad_path, "not valid json").unwrap();
+    let code = history_record(
+        dir.path().to_str().unwrap(),
+        Some(bad_path.to_str().unwrap()),
+    );
+    assert_eq!(code, 1, "invalid JSON should return 1");
+}
 
-    // ── history_show ──
+// ── history_show ──
 
-    #[test]
-    fn test_history_show_empty_dir() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let code = history_show(dir.path().to_str().unwrap(), 10);
-        assert_eq!(code, 0, "empty dir should return 0");
-    }
+#[test]
+fn test_history_show_empty_dir() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let code = history_show(dir.path().to_str().unwrap(), 10);
+    assert_eq!(code, 0, "empty dir should return 0");
+}
 
-    #[test]
-    fn test_history_show_with_records() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        // Create a mock history file
+#[test]
+fn test_history_show_with_records() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // Create a mock history file
+    let record = serde_json::json!({
+        "ts": 1718409600,
+        "passed": 10,
+        "failed": 2,
+        "tools": {}
+    });
+    let history_path = dir.path().join("2024-06.jsonl");
+    std::fs::write(&history_path, format!("{}\n", record)).unwrap();
+
+    let code = history_show(dir.path().to_str().unwrap(), 10);
+    assert_eq!(code, 0, "history_show should return 0");
+}
+
+#[test]
+fn test_history_show_filters_non_jsonl() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // Create a .txt file — should be ignored
+    std::fs::write(dir.path().join("notes.txt"), "hello").unwrap();
+    let code = history_show(dir.path().to_str().unwrap(), 10);
+    assert_eq!(code, 0, "should handle non-jsonl files gracefully");
+}
+
+#[test]
+fn test_history_show_respects_last_param() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    // Create 5 records in the file
+    let mut content = String::new();
+    for i in 0..5u64 {
         let record = serde_json::json!({
-            "ts": 1718409600,
+            "ts": 1718409600 + i * 86400,
             "passed": 10,
-            "failed": 2,
+            "failed": i,
             "tools": {}
         });
-        let history_path = dir.path().join("2024-06.jsonl");
-        std::fs::write(&history_path, format!("{}\n", record)).unwrap();
-
-        let code = history_show(dir.path().to_str().unwrap(), 10);
-        assert_eq!(code, 0, "history_show should return 0");
+        content.push_str(&format!("{}\n", record));
     }
+    let history_path = dir.path().join("2024-06.jsonl");
+    std::fs::write(&history_path, content).unwrap();
 
-    #[test]
-    fn test_history_show_filters_non_jsonl() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        // Create a .txt file — should be ignored
-        std::fs::write(dir.path().join("notes.txt"), "hello").unwrap();
-        let code = history_show(dir.path().to_str().unwrap(), 10);
-        assert_eq!(code, 0, "should handle non-jsonl files gracefully");
-    }
+    // Should not crash with any last value
+    assert_eq!(history_show(dir.path().to_str().unwrap(), 3), 0);
+    assert_eq!(history_show(dir.path().to_str().unwrap(), 0), 0);
+}
 
-    #[test]
-    fn test_history_show_respects_last_param() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        // Create 5 records in the file
-        let mut content = String::new();
-        for i in 0..5u64 {
-            let record = serde_json::json!({
-                "ts": 1718409600 + i * 86400,
-                "passed": 10,
-                "failed": i,
-                "tools": {}
-            });
-            content.push_str(&format!("{}\n", record));
+// ── history_html ──
+
+#[test]
+fn test_history_html_empty_dir_returns_0() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let code = history_html(dir.path().to_str().unwrap(), 10);
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn test_history_html_with_records() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let record = serde_json::json!({
+        "ts": 1718409600,
+        "passed": 8,
+        "failed": 2,
+        "tools": {
+            "crap": {"success": true, "duration_ms": 1500},
+            "debt": {"success": false, "duration_ms": 800},
         }
-        let history_path = dir.path().join("2024-06.jsonl");
-        std::fs::write(&history_path, content).unwrap();
+    });
+    let history_path = dir.path().join("2024-06.jsonl");
+    std::fs::write(&history_path, format!("{}\n", record)).unwrap();
 
-        // Should not crash with any last value
-        assert_eq!(history_show(dir.path().to_str().unwrap(), 3), 0);
-        assert_eq!(history_show(dir.path().to_str().unwrap(), 0), 0);
-    }
+    let code = history_html(dir.path().to_str().unwrap(), 10);
+    assert_eq!(code, 0, "history_html should succeed");
+}
 
-    // ── history_html ──
-
-    #[test]
-    fn test_history_html_empty_dir_returns_0() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let code = history_html(dir.path().to_str().unwrap(), 10);
-        assert_eq!(code, 0);
-    }
-
-    #[test]
-    fn test_history_html_with_records() {
-        let dir = tempfile::tempdir().expect("tempdir");
+#[test]
+fn test_history_html_multiple_records() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut content = String::new();
+    for i in 0..3u64 {
         let record = serde_json::json!({
-            "ts": 1718409600,
-            "passed": 8,
-            "failed": 2,
-            "tools": {
-                "crap": {"success": true, "duration_ms": 1500},
-                "debt": {"success": false, "duration_ms": 800},
-            }
+            "ts": 1718409600 + i * 86400,
+            "passed": 10,
+            "failed": i,
+            "tools": {}
         });
-        let history_path = dir.path().join("2024-06.jsonl");
-        std::fs::write(&history_path, format!("{}\n", record)).unwrap();
-
-        let code = history_html(dir.path().to_str().unwrap(), 10);
-        assert_eq!(code, 0, "history_html should succeed");
+        content.push_str(&format!("{}\n", record));
     }
+    std::fs::write(dir.path().join("2024-06.jsonl"), content).unwrap();
 
-    #[test]
-    fn test_history_html_multiple_records() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let mut content = String::new();
-        for i in 0..3u64 {
-            let record = serde_json::json!({
-                "ts": 1718409600 + i * 86400,
-                "passed": 10,
-                "failed": i,
-                "tools": {}
-            });
-            content.push_str(&format!("{}\n", record));
-        }
-        std::fs::write(dir.path().join("2024-06.jsonl"), content).unwrap();
+    let code = history_html(dir.path().to_str().unwrap(), 5);
+    assert_eq!(code, 0);
+}
 
-        let code = history_html(dir.path().to_str().unwrap(), 5);
-        assert_eq!(code, 0);
+#[test]
+fn test_history_html_respects_last_param() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let mut content = String::new();
+    for i in 0..10u64 {
+        let record = serde_json::json!({
+            "ts": 1718409600 + i * 86400,
+            "passed": 10,
+            "failed": 0,
+            "tools": {}
+        });
+        content.push_str(&format!("{}\n", record));
     }
+    std::fs::write(dir.path().join("2024-06.jsonl"), content).unwrap();
 
-    #[test]
-    fn test_history_html_respects_last_param() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let mut content = String::new();
-        for i in 0..10u64 {
-            let record = serde_json::json!({
-                "ts": 1718409600 + i * 86400,
-                "passed": 10,
-                "failed": 0,
-                "tools": {}
-            });
-            content.push_str(&format!("{}\n", record));
-        }
-        std::fs::write(dir.path().join("2024-06.jsonl"), content).unwrap();
+    // last=3 should work without issues
+    let code = history_html(dir.path().to_str().unwrap(), 3);
+    assert_eq!(code, 0);
+}
 
-        // last=3 should work without issues
-        let code = history_html(dir.path().to_str().unwrap(), 3);
-        assert_eq!(code, 0);
-    }
+// ── history_command ──
 
-    // ── history_command ──
+#[test]
+fn test_history_command_unknown_action_defaults_to_show() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let code = history_command("foobar", dir.path().to_str().unwrap(), 10, None, "text");
+    assert_eq!(code, 0);
+}
 
-    #[test]
-    fn test_history_command_unknown_action_defaults_to_show() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let code = history_command("foobar", dir.path().to_str().unwrap(), 10, None, "text");
-        assert_eq!(code, 0);
-    }
+#[test]
+fn test_history_command_html_format() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let code = history_command("show", dir.path().to_str().unwrap(), 10, None, "html");
+    assert_eq!(code, 0);
+}
 
-    #[test]
-    fn test_history_command_html_format() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let code = history_command("show", dir.path().to_str().unwrap(), 10, None, "html");
-        assert_eq!(code, 0);
-    }
-
-    #[test]
-    fn test_history_command_record_without_report() {
-        // No report_path and stdin not available → will fail
-        let dir = tempfile::tempdir().expect("tempdir");
-        let code = history_command("record", dir.path().to_str().unwrap(), 10, None, "text");
-        assert_eq!(code, 1, "record without stdin should fail");
-    }
+#[test]
+fn test_history_command_record_without_report() {
+    // No report_path and stdin not available → will fail
+    let dir = tempfile::tempdir().expect("tempdir");
+    let code = history_command("record", dir.path().to_str().unwrap(), 10, None, "text");
+    assert_eq!(code, 1, "record without stdin should fail");
+}

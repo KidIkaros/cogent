@@ -6,7 +6,7 @@ use cogent_common::find_source_files;
 use rayon::prelude::*;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[command(
@@ -59,18 +59,22 @@ struct CouplingSummary {
     modules_with_implicit: Vec<String>,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
-
-    let src_dir = Path::new(&cli.path);
-    let src_path = if src_dir.join("src").is_dir() {
+fn resolve_src_path(path: &str) -> PathBuf {
+    let src_dir = Path::new(path);
+    if src_dir.join("src").is_dir() {
         src_dir.join("src")
     } else if src_dir.is_dir() {
         src_dir.to_path_buf()
     } else {
-        eprintln!("No source directory found at {}", cli.path);
+        eprintln!("No source directory found at {}", path);
         std::process::exit(1);
-    };
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
+
+    let src_path = resolve_src_path(&cli.path);
 
     // Scan ALL source files via tree-sitter (language-agnostic, bounded parallelism)
     let dependencies = scan_all_imports(&src_path);

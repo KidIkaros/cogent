@@ -4,7 +4,7 @@
 #![deny(clippy::all)]
 
 use crate::html_escape;
-use cogent_common::{CheckReport, CheckResult, health_score};
+use cogent_common::{health_score, CheckReport, CheckResult};
 use tracing::info;
 
 fn severity_color_html(sev: &str) -> &'static str {
@@ -329,7 +329,10 @@ pub fn render_html_report(
     quality_tools: &[&str],
     compliance_tools: &[&str],
 ) -> String {
-    info!(checks = report.checks.len(), project, "rendering HTML report");
+    info!(
+        checks = report.checks.len(),
+        project, "rendering HTML report"
+    );
     let (health, grade) = health_score(&report.checks);
     let overall_color = if report.passed { "#22c55e" } else { "#ef4444" };
     let overall_label = if report.passed { "PASSED" } else { "FAILED" };
@@ -797,7 +800,10 @@ pub fn render_markdown_report(
     quality_tools: &[&str],
     compliance_tools: &[&str],
 ) -> String {
-    info!(checks = report.checks.len(), project, "rendering Markdown report");
+    info!(
+        checks = report.checks.len(),
+        project, "rendering Markdown report"
+    );
     let overall = if report.passed {
         "✅ PASSED"
     } else {
@@ -1116,7 +1122,10 @@ mod html_tests {
         let svg = sparkline_svg(&[30, 50, 80, 100, 95, 70], 200, 60);
         assert!(svg.contains("<polyline"));
         assert!(svg.contains("<circle"));
-        assert!(svg.contains("stroke-dasharray=\"3,3\""), "should have grid line at 50%");
+        assert!(
+            svg.contains("stroke-dasharray=\"3,3\""),
+            "should have grid line at 50%"
+        );
     }
 
     #[test]
@@ -1176,7 +1185,10 @@ mod html_tests {
         }
         let c = make_check_result_with_items(serde_json::json!({"items": items_json}));
         let html = offender_rows_html(&c);
-        assert!(html.contains("5 more findings"), "should indicate remaining findings");
+        assert!(
+            html.contains("5 more findings"),
+            "should indicate remaining findings"
+        );
     }
 
     // ── check_row_html ──────────────────────────────────────────────
@@ -1196,7 +1208,7 @@ mod html_tests {
             findings: vec![],
         };
         let row = check_row_html(&c);
-        assert!(row.contains("&#10003;"));  // checkmark
+        assert!(row.contains("&#10003;")); // checkmark
         assert!(row.contains("12.5"));
         assert!(row.contains("15.0"));
         assert!(row.contains("crap"));
@@ -1217,7 +1229,7 @@ mod html_tests {
             findings: vec![],
         };
         let row = check_row_html(&c);
-        assert!(row.contains("&#10007;"));  // x mark
+        assert!(row.contains("&#10007;")); // x mark
         assert!(row.contains("secrets"));
         assert!(row.contains("use env vars"));
         assert!(row.contains("high"));
@@ -1231,20 +1243,38 @@ mod html_tests {
             passed: true,
             path: ".".into(),
             checks: vec![CheckResult {
-                name: "crap".into(), passed: true, score: None, threshold: None,
-                message: "ok".into(), details: serde_json::Value::Null,
-                severity: None, help: None, rule_id: None, findings: vec![],
+                name: "crap".into(),
+                passed: true,
+                score: None,
+                threshold: None,
+                message: "ok".into(),
+                details: serde_json::Value::Null,
+                severity: None,
+                help: None,
+                rule_id: None,
+                findings: vec![],
             }],
             summary: CheckSummary {
-                total_checks: 1, passed_checks: 1, failed_checks: 0,
-                functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
+                total_checks: 1,
+                passed_checks: 1,
+                failed_checks: 0,
+                functions_analyzed: 0,
+                avg_complexity: 0.0,
+                avg_crap: 0.0,
             },
             health_score: 100,
             grade: "A".into(),
             audit: None,
             file_summary: vec![],
         };
-        let html = render_html_report(&report, "testproj", "2024-01-01", &["secrets"], &["crap"], &["licenses"]);
+        let html = render_html_report(
+            &report,
+            "testproj",
+            "2024-01-01",
+            &["secrets"],
+            &["crap"],
+            &["licenses"],
+        );
         assert!(html.contains("<html"));
         assert!(html.contains("testproj"));
         assert!(html.contains("PASSED"));
@@ -1259,20 +1289,38 @@ mod html_tests {
             passed: true,
             path: ".".into(),
             checks: vec![CheckResult {
-                name: "crap".into(), passed: true, score: None, threshold: None,
-                message: "ok".into(), details: serde_json::Value::Null,
-                severity: None, help: None, rule_id: None, findings: vec![],
+                name: "crap".into(),
+                passed: true,
+                score: None,
+                threshold: None,
+                message: "ok".into(),
+                details: serde_json::Value::Null,
+                severity: None,
+                help: None,
+                rule_id: None,
+                findings: vec![],
             }],
             summary: CheckSummary {
-                total_checks: 1, passed_checks: 1, failed_checks: 0,
-                functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
+                total_checks: 1,
+                passed_checks: 1,
+                failed_checks: 0,
+                functions_analyzed: 0,
+                avg_complexity: 0.0,
+                avg_crap: 0.0,
             },
             health_score: 100,
             grade: "A".into(),
             audit: None,
             file_summary: vec![],
         };
-        let md = render_markdown_report(&report, "testproj", "2024-01-01", &["secrets"], &["crap"], &["licenses"]);
+        let md = render_markdown_report(
+            &report,
+            "testproj",
+            "2024-01-01",
+            &["secrets"],
+            &["crap"],
+            &["licenses"],
+        );
         assert!(md.contains("Cogent Audit Report"));
         assert!(md.contains("✅"));
     }
@@ -1284,20 +1332,22 @@ mod html_tests {
             path: ".".into(),
             checks: vec![],
             summary: CheckSummary {
-                total_checks: 0, passed_checks: 0, failed_checks: 0,
-                functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
+                total_checks: 0,
+                passed_checks: 0,
+                failed_checks: 0,
+                functions_analyzed: 0,
+                avg_complexity: 0.0,
+                avg_crap: 0.0,
             },
             health_score: 0,
             grade: "F".into(),
             audit: None,
-            file_summary: vec![
-                cogent_common::FileSummary {
-                    file: "src/main.rs".into(),
-                    issue_count: 5,
-                    severity_score: 12,
-                    findings_by_severity: std::collections::HashMap::new(),
-                },
-            ],
+            file_summary: vec![cogent_common::FileSummary {
+                file: "src/main.rs".into(),
+                issue_count: 5,
+                severity_score: 12,
+                findings_by_severity: std::collections::HashMap::new(),
+            }],
         };
         let md = render_markdown_report(&report, "testproj", "2024-01-01", &[], &[], &[]);
         assert!(md.contains("File Heatmap"));
@@ -1311,19 +1361,35 @@ mod html_tests {
             passed: false,
             path: ".".into(),
             checks: vec![CheckResult {
-                name: "secrets".into(), passed: false, score: None, threshold: None,
-                message: "found secret".into(), details: serde_json::Value::Null,
-                severity: Some("high".into()), help: None, rule_id: None,
+                name: "secrets".into(),
+                passed: false,
+                score: None,
+                threshold: None,
+                message: "found secret".into(),
+                details: serde_json::Value::Null,
+                severity: Some("high".into()),
+                help: None,
+                rule_id: None,
                 findings: vec![Finding {
-                    file: "src/main.rs".into(), line: Some(42), column: None,
-                    severity: "high".into(), message: "API key hardcoded".into(),
-                    rule_id: "SEC-001".into(), fix_hint: "use env var".into(),
-                    evidence: None, suggested_fix: None, controls: None,
+                    file: "src/main.rs".into(),
+                    line: Some(42),
+                    column: None,
+                    severity: "high".into(),
+                    message: "API key hardcoded".into(),
+                    rule_id: "SEC-001".into(),
+                    fix_hint: "use env var".into(),
+                    evidence: None,
+                    suggested_fix: None,
+                    controls: None,
                 }],
             }],
             summary: CheckSummary {
-                total_checks: 1, passed_checks: 0, failed_checks: 1,
-                functions_analyzed: 0, avg_complexity: 0.0, avg_crap: 0.0,
+                total_checks: 1,
+                passed_checks: 0,
+                failed_checks: 1,
+                functions_analyzed: 0,
+                avg_complexity: 0.0,
+                avg_crap: 0.0,
             },
             health_score: 0,
             grade: "F".into(),
@@ -1336,4 +1402,3 @@ mod html_tests {
         assert!(md.contains("SEC-001"));
     }
 }
-

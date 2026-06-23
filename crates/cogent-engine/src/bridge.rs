@@ -127,12 +127,20 @@ pub fn finding_to_proto(f: &cogent_common::Finding) -> proto::Finding {
 /// struct's simpler field set. `compliance_controls` maps to `controls`.
 pub fn finding_from_proto(f: &proto::Finding) -> cogent_common::Finding {
     let evidence = f.code_snippet.as_ref().map(|s| {
-        let (file_hash, context) = f.metadata.as_ref().and_then(|m| m.as_object()).map_or((None, None), |obj| {
-            (
-                obj.get("file_hash").and_then(|v| v.as_str()).map(String::from),
-                obj.get("context").and_then(|v| v.as_str()).map(String::from),
-            )
-        });
+        let (file_hash, context) =
+            f.metadata
+                .as_ref()
+                .and_then(|m| m.as_object())
+                .map_or((None, None), |obj| {
+                    (
+                        obj.get("file_hash")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                        obj.get("context")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                    )
+                });
         cogent_common::Evidence {
             snippet: s.clone(),
             file_hash,

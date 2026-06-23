@@ -512,7 +512,8 @@ pub fn load_secrets_exclude(config_path: &str) -> Vec<String> {
     // Environment variable overrides config file
     if let Ok(val) = std::env::var("COGENT_SECRETS_EXCLUDE") {
         if !val.is_empty() {
-            return val.split(',')
+            return val
+                .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
@@ -627,7 +628,10 @@ mod tests {
 
     #[test]
     fn test_parse_usize_max_markers() {
-        assert_eq!(parse_toml_usize("max_markers = 50", "max_markers"), Some(50));
+        assert_eq!(
+            parse_toml_usize("max_markers = 50", "max_markers"),
+            Some(50)
+        );
     }
 
     #[test]
@@ -637,12 +641,18 @@ mod tests {
 
     #[test]
     fn test_parse_usize_float_truncates() {
-        assert_eq!(parse_toml_usize("max_markers = 42.9", "max_markers"), Some(42));
+        assert_eq!(
+            parse_toml_usize("max_markers = 42.9", "max_markers"),
+            Some(42)
+        );
     }
 
     #[test]
     fn test_parse_usize_no_spaces() {
-        assert_eq!(parse_toml_usize("max_violations=10", "max_violations"), Some(10));
+        assert_eq!(
+            parse_toml_usize("max_violations=10", "max_violations"),
+            Some(10)
+        );
     }
 
     #[test]
@@ -775,7 +785,10 @@ mod tests {
         // trim() strips outer whitespace; trim_matches strips quotes;
         // inner spaces inside quotes are preserved (consistent with engine parser)
         assert_eq!(
-            parse_toml_string_list("secrets_exclude = [  \" a \" , \" b \"  ]", "secrets_exclude"),
+            parse_toml_string_list(
+                "secrets_exclude = [  \" a \" , \" b \"  ]",
+                "secrets_exclude"
+            ),
             Some(vec![" a ".to_string(), " b ".to_string()])
         );
     }
@@ -784,7 +797,10 @@ mod tests {
     fn test_string_list_filters_empty_strings() {
         // Empty quoted strings should be filtered out
         assert_eq!(
-            parse_toml_string_list("secrets_exclude = [\"valid\", \"\", \"also_valid\"]", "secrets_exclude"),
+            parse_toml_string_list(
+                "secrets_exclude = [\"valid\", \"\", \"also_valid\"]",
+                "secrets_exclude"
+            ),
             Some(vec!["valid".to_string(), "also_valid".to_string()])
         );
     }
@@ -793,7 +809,10 @@ mod tests {
 
     #[test]
     fn test_load_secrets_exclude_missing_file() {
-        assert_eq!(load_secrets_exclude("nonexistent.toml"), Vec::<String>::new());
+        assert_eq!(
+            load_secrets_exclude("nonexistent.toml"),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
@@ -805,10 +824,17 @@ mod tests {
         {
             let mut f = std::fs::File::create(&path).unwrap();
             writeln!(f, "max_secrets = 100").unwrap();
-            writeln!(f, "secrets_exclude = [\"crates/engine\", \"tests/fixtures\"]").unwrap();
+            writeln!(
+                f,
+                "secrets_exclude = [\"crates/engine\", \"tests/fixtures\"]"
+            )
+            .unwrap();
         }
         let result = load_secrets_exclude(path.to_str().unwrap());
-        assert_eq!(result, vec!["crates/engine".to_string(), "tests/fixtures".to_string()]);
+        assert_eq!(
+            result,
+            vec!["crates/engine".to_string(), "tests/fixtures".to_string()]
+        );
         let _ = std::fs::remove_file(&path);
     }
 
@@ -837,7 +863,14 @@ mod tests {
             writeln!(f, "secrets_exclude = [\"vendor\", \"tests\", \"target\"]").unwrap();
         }
         let result = load_secrets_exclude(path.to_str().unwrap());
-        assert_eq!(result, vec!["vendor".to_string(), "tests".to_string(), "target".to_string()]);
+        assert_eq!(
+            result,
+            vec![
+                "vendor".to_string(),
+                "tests".to_string(),
+                "target".to_string()
+            ]
+        );
         // Now verify it round-trips through the dispatcher's pattern:
         // load_secrets_exclude → Vec<String> → secrets binary --exclude arg
         let joined = result.join(",");
@@ -872,7 +905,14 @@ mod tests {
             writeln!(f, "]").unwrap();
         }
         let result = load_secrets_exclude(path.to_str().unwrap());
-        assert_eq!(result, vec!["vendor".to_string(), "tests".to_string(), "target".to_string()]);
+        assert_eq!(
+            result,
+            vec![
+                "vendor".to_string(),
+                "tests".to_string(),
+                "target".to_string()
+            ]
+        );
         let _ = std::fs::remove_file(&path);
     }
 
@@ -890,7 +930,10 @@ mod tests {
         let result = load_secrets_exclude(path.to_str().unwrap());
         // Lines with comments are trimmed per-line; the comment text is part of the value
         // This is expected behavior for a line-by-line parser
-        assert!(!result.is_empty(), "should parse multiline array with comments");
+        assert!(
+            !result.is_empty(),
+            "should parse multiline array with comments"
+        );
         let _ = std::fs::remove_file(&path);
     }
 
@@ -972,8 +1015,8 @@ mod tests {
             writeln!(f, "max_fuzz_risk = 9999").unwrap();
         }
         let defaults: Thresholds = (
-            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0,
-            0.0, 0, 0.0, 0, 0, 0, 0, 0,
+            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0,
+            0,
         );
         let (max_secrets, max_deadcode, max_errhandle, max_linelen, max_fuzz_risk, max_debt) = {
             let t = load_config_thresholds(path.to_str().unwrap(), defaults);
@@ -999,8 +1042,8 @@ mod tests {
             writeln!(f, "max_secrets = 20").unwrap();
         }
         let defaults: Thresholds = (
-            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0,
-            0.0, 0, 0.0, 0, 0, 0, 0, 0,
+            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0,
+            0,
         );
         let t = load_config_thresholds(path.to_str().unwrap(), defaults);
         assert_eq!(t.12, 20, "last top-level value should win");
@@ -1022,8 +1065,8 @@ mod tests {
             writeln!(f, "max_secrets = 9999").unwrap();
         }
         let defaults: Thresholds = (
-            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0,
-            0.0, 0, 0.0, 0, 0, 0, 0, 0,
+            30.0, 95.0, 0, 0, 0.0, 0, 75.0, 10, 0.0, 0, 0, 15.0, 0, 0, 0, 0.0, 0, 0.0, 0, 0, 0, 0,
+            0,
         );
         let t = load_config_thresholds(path.to_str().unwrap(), defaults);
         assert_eq!(t.12, 75, "section value should win over override");

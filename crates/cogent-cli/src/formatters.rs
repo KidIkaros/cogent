@@ -138,7 +138,7 @@ pub fn output_sarif(report: &CheckReport) {
         invocations: Some(vec![SarifInvocation {
             execution_successful: report.passed,
             exit_code: Some(if report.passed { 0 } else { 1 }),
-            end_time_utc: Some(chrono::Utc::now().to_rfc3339()),
+            end_time_utc: Some(chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
         }]),
         results: all_results,
     };

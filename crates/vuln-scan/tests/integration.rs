@@ -17,7 +17,6 @@ fn test_help() {
     cmd.assert().success();
 }
 
-
 #[test]
 fn test_unknown_ecosystem_exits_2_with_message() {
     let dir = tempfile::tempdir().unwrap();

@@ -95,19 +95,11 @@ fn classify_license(lic: &str) -> &'static str {
     "other"
 }
 
-/// Parse Cargo.lock — extracts (name, version, license) triples.
-/// Cargo.lock doesn't include license info directly; we parse `Cargo.toml` files in the registry
-/// or fall back to a best-effort approach from Cargo.lock package entries.
-fn parse_cargo_lock(path: &Path) -> Vec<(String, String, String)> {
-    let lock_path = path.join("Cargo.lock");
-    let Ok(content) = std::fs::read_to_string(&lock_path) else {
-        return vec![];
-    };
-
+/// Parse `[[package]]` entries from Cargo.lock contents into (name, version, license) triples.
+fn parse_lock_packages(content: &str) -> Vec<(String, String, String)> {
     let mut packages = Vec::new();
     let mut name = String::new();
     let mut version = String::new();
-
     for line in content.lines() {
         let t = line.trim();
         if t == "[[package]]" {
@@ -122,6 +114,19 @@ fn parse_cargo_lock(path: &Path) -> Vec<(String, String, String)> {
             }
         }
     }
+    packages
+}
+
+/// Parse Cargo.lock — extracts (name, version, license) triples.
+/// Cargo.lock doesn't include license info directly; we parse `Cargo.toml` files in the registry
+/// or fall back to a best-effort approach from Cargo.lock package entries.
+fn parse_cargo_lock(path: &Path) -> Vec<(String, String, String)> {
+    let lock_path = path.join("Cargo.lock");
+    let Ok(content) = std::fs::read_to_string(&lock_path) else {
+        return vec![];
+    };
+
+    let packages = parse_lock_packages(&content);
 
     // Try to read license from workspace Cargo.toml metadata for known packages
     // Best effort: scan all Cargo.toml files under the workspace for their license fields
@@ -474,7 +479,9 @@ mod tests {
     #[test]
     fn test_parse_cargo_lock_with_packages() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.lock"), r#"
+        std::fs::write(
+            dir.path().join("Cargo.lock"),
+            r#"
 [[package]]
 name = "serde"
 version = "1.0.0"
@@ -482,7 +489,9 @@ version = "1.0.0"
 [[package]]
 name = "tokio"
 version = "0.2.0"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let pkgs = parse_cargo_lock(dir.path());
         assert_eq!(pkgs.len(), 2);
         assert_eq!(pkgs[0].0, "serde");
@@ -501,7 +510,11 @@ version = "0.2.0"
     #[test]
     fn test_parse_python_requirements_with_packages() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("requirements.txt"), "requests>=2.0.0\nflask==1.0\n# comment\n").unwrap();
+        std::fs::write(
+            dir.path().join("requirements.txt"),
+            "requests>=2.0.0\nflask==1.0\n# comment\n",
+        )
+        .unwrap();
         let pkgs = parse_python_requirements(dir.path());
         assert_eq!(pkgs.len(), 2);
         assert_eq!(pkgs[0].0, "requests");
@@ -511,7 +524,11 @@ version = "0.2.0"
     #[test]
     fn test_parse_python_requirements_empty_lines() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("requirements.txt"), "pkg1\n\n# comment\npkg2\n").unwrap();
+        std::fs::write(
+            dir.path().join("requirements.txt"),
+            "pkg1\n\n# comment\npkg2\n",
+        )
+        .unwrap();
         let pkgs = parse_python_requirements(dir.path());
         assert_eq!(pkgs.len(), 2);
     }
@@ -529,11 +546,15 @@ version = "0.2.0"
     #[test]
     fn test_collect_workspace_licenses_with_cargo_toml() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("Cargo.toml"), r#"
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"
 [package]
 name = "my-crate"
 license = "MIT"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let mut map = std::collections::HashMap::new();
         collect_workspace_licenses(dir.path(), &mut map);
         assert_eq!(map.get("my-crate").map(|s| s.as_str()), Some("MIT"));
@@ -552,10 +573,14 @@ license = "MIT"
     #[test]
     fn test_parse_npm_licenses_from_package_json() {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("package.json"), r#"{
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{
   "dependencies": {"lodash": "^4.17.0"},
   "devDependencies": {"mocha": "^9.0.0"}
-}"#).unwrap();
+}"#,
+        )
+        .unwrap();
         let pkgs = parse_npm_licenses(dir.path());
         assert_eq!(pkgs.len(), 2);
         assert_eq!(pkgs[0].0, "lodash");

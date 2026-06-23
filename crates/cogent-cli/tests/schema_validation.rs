@@ -33,6 +33,7 @@ fn load_schema(name: &str) -> serde_json::Value {
 /// Run `cogent check <fixture> --format json` and return the parsed output.
 fn run_check_json(extra_args: &[&str]) -> serde_json::Value {
     let fixture = fixture_path();
+    eprintln!("  → schema check");
     let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
     cmd.arg("check")
         .arg(fixture.to_str().unwrap())
@@ -42,6 +43,7 @@ fn run_check_json(extra_args: &[&str]) -> serde_json::Value {
         .args(extra_args);
 
     let output = cmd.output().expect("failed to run cogent");
+    eprintln!("  ✓ schema check (exit {:?})", output.status.code());
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 

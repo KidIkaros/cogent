@@ -5,6 +5,18 @@
 //!
 //! These tests exercise the real binary with real tool binaries, verifying that
 //! the entire `cogent check` subsystem works as a cohesive unit.
+//!
+//! # Running tests efficiently
+//!
+//! These tests spawn many subprocesses. To see live progress, run with:
+//!   `cargo test -p cogent-cli -- --nocapture`
+//!
+//! To limit parallelism (reduces contention from subprocess spawning):
+//!   `cargo test -p cogent-cli -- --test-threads=4`
+//!
+//! Slow tests (full-project SIGPIPE checks) are marked `#[ignore]`:
+//!   `cargo test -p cogent-cli -- --ignored`  (run only slow tests)
+//!   `cargo test -p cogent-cli`               (skip slow tests)
 
 use assert_cmd::Command;
 use serde_json::Value;
@@ -19,6 +31,12 @@ fn fixture_path() -> std::path::PathBuf {
 /// Run `cogent check` with --force and --format json, return parsed JSON + exit code.
 fn run_check_json(args: &[&str]) -> (Value, Option<i32>, String) {
     let fixture = fixture_path();
+    let label = if args.is_empty() {
+        "check".to_string()
+    } else {
+        format!("check {}", args.join(" "))
+    };
+    eprintln!("  → {}", label);
     let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
     cmd.arg("check")
         .arg(fixture.to_str().unwrap())
@@ -28,6 +46,7 @@ fn run_check_json(args: &[&str]) -> (Value, Option<i32>, String) {
         .args(args);
 
     let output = cmd.output().expect("failed to run cogent check");
+    eprintln!("  ✓ {} (exit {:?})", label, output.status.code());
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
@@ -862,6 +881,7 @@ fn assert_cogent_piped_to_head_no_broken_pipe(
     let target = path_override
         .map(|p| p.to_path_buf())
         .unwrap_or_else(fixture_path);
+    eprintln!("  → sigpipe {} {} {}", subcommand, format, target.display());
     let mut cogent = StdCommand::new(env!("CARGO_BIN_EXE_cogent"));
     cogent
         .arg(subcommand)
@@ -979,12 +999,14 @@ fn test_e2e_audit_ndjson_piped_to_head_exits_cleanly() {
 
 #[test]
 #[cfg(unix)]
+#[ignore = "slow: runs full 31-tool audit against project root"]
 fn test_e2e_run_json_piped_to_head_exits_cleanly() {
     assert_cogent_piped_to_head_no_broken_pipe("run", "json", &[], Some(&project_root()));
 }
 
 #[test]
 #[cfg(unix)]
+#[ignore = "slow: runs full 31-tool audit against project root"]
 fn test_e2e_run_sarif_piped_to_head_exits_cleanly() {
     assert_cogent_piped_to_head_no_broken_pipe("run", "sarif", &[], Some(&project_root()));
 }
@@ -1131,6 +1153,7 @@ fn test_e2e_supply_chain_text_piped_to_head_exits_cleanly() {
 
 #[test]
 #[cfg(unix)]
+#[ignore = "slow: runs cargo-cyclonedx against project root"]
 fn test_e2e_sbom_json_piped_to_head_exits_cleanly() {
     assert_cogent_piped_to_head_no_broken_pipe("sbom", "json", &[], Some(&project_root()));
 }
@@ -1143,6 +1166,7 @@ fn test_e2e_typecov_text_piped_to_head_exits_cleanly() {
 
 #[test]
 #[cfg(unix)]
+#[ignore = "slow: runs mutation testing against project root"]
 fn test_e2e_mutate_json_piped_to_head_exits_cleanly() {
     assert_cogent_piped_to_head_no_broken_pipe("mutate", "json", &[], Some(&project_root()));
 }

@@ -20,8 +20,8 @@ use crate::doctor::doctor_command;
 use crate::history::history_command;
 use crate::hooks::{install_hooks, uninstall_hooks};
 use crate::progress::{
-    format_elapsed, print_audit_opinion, print_fix_summary, print_margin_summary, print_offenders,
-    print_severity_grouped, print_summary_box, run_with_spinner,
+    format_elapsed, print_audit_opinion, print_check_line, print_fix_summary, print_header,
+    print_margin_summary, print_severity_grouped, print_summary_box, run_with_spinner,
 };
 use crate::report::{render_html_report, report_command, setup_command};
 use crate::report_formatters::*;
@@ -1012,61 +1012,12 @@ fn run_check_subcommand(
     // Each check is an independent subprocess (spawned via run_tool),
     // so they can safely execute concurrently.
     if show_progress {
-        eprintln!(
-            "  {} Running {} checks in parallel...",
-            "▶".cyan().bold(),
-            check_defs.len()
-        );
+        print_header(check_defs.len(), &path);
     }
     let checks = run_parallel_checks(check_defs);
     if show_progress {
         for c in &checks {
-            let icon = if c.passed {
-                "✓".green().bold()
-            } else {
-                "✗".red().bold()
-            };
-            let name_col = if c.passed {
-                c.name.normal()
-            } else {
-                c.name.red()
-            };
-            let msg_col = if c.passed {
-                c.message.bright_black()
-            } else {
-                c.message.red()
-            };
-            let cached_tag = if c
-                .details
-                .get("__cached")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
-                " (cached)".bright_black().to_string()
-            } else {
-                String::new()
-            };
-            let timing_tag = c
-                .details
-                .get("duration_ms")
-                .and_then(|v| v.as_u64())
-                .map(|ms| {
-                    if ms < 1000 {
-                        format!(" {}ms", ms).bright_black().to_string()
-                    } else {
-                        format!(" {:.1}s", ms as f64 / 1000.0)
-                            .bright_black()
-                            .to_string()
-                    }
-                })
-                .unwrap_or_default();
-            eprintln!(
-                "  {} {:<18} {}{}{}",
-                icon, name_col, msg_col, cached_tag, timing_tag
-            );
-            if !c.passed || verbose {
-                print_offenders(c);
-            }
+            print_check_line(c, verbose);
         }
     }
 

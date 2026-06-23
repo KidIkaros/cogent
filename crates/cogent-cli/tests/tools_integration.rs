@@ -5,6 +5,11 @@
 //! - Produces valid JSON output with --format json
 //! - Validates against its JSON schema
 //! - Returns appropriate exit codes
+//!
+//! # Running tests efficiently
+//!
+//! To see live progress: `cargo test -p cogent-cli -- --nocapture`
+//! To limit parallelism:  `cargo test -p cogent-cli -- --test-threads=4`
 
 use assert_cmd::Command;
 use serde_json::Value;
@@ -37,6 +42,7 @@ fn load_schema(name: &str) -> serde_json::Value {
 /// Run a tool binary and return parsed JSON output.
 fn run_tool_json(tool: &str, args: &[&str]) -> Result<Value, String> {
     let fixture = fixture_path();
+    eprintln!("  → tool {}", tool);
     let mut cmd =
         Command::cargo_bin(tool).map_err(|e| format!("Binary '{}' not found: {}", tool, e))?;
 
@@ -835,10 +841,17 @@ const COMPLIANCE_CHECKS: [&str; 2] = ["licenses", "supply-chain"];
 /// Run `cogent audit` with the given extra args and return exit code + stdout.
 fn run_audit(args: &[&str]) -> (Option<i32>, String, String) {
     let fixture = fixture_path();
+    let label = if args.is_empty() {
+        "audit".to_string()
+    } else {
+        format!("audit {}", args.join(" "))
+    };
+    eprintln!("  → {}", label);
     let mut cmd = Command::cargo_bin("cogent").expect("cogent binary not found");
     cmd.arg("audit").arg(fixture.to_str().unwrap()).args(args);
 
     let output = cmd.output().expect("failed to run cogent audit");
+    eprintln!("  ✓ {} (exit {:?})", label, output.status.code());
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     (output.status.code(), stdout, stderr)

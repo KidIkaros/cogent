@@ -73,6 +73,118 @@ pub(crate) fn box_row(content: &str, inner_width: usize) {
     eprintln!("  ║ {}{} ║", content, " ".repeat(pad));
 }
 
+/// Render a mini progress bar of `width` cells from a 0–100 score.
+fn mini_bar(pct: f64, width: usize) -> String {
+    let filled = ((pct / 100.0) * width as f64).round() as usize;
+    let filled = filled.min(width);
+    "█".repeat(filled) + &"░".repeat(width - filled)
+}
+
+/// Print the branded Cogent header before check execution.
+/// Shows version, check count, and target path on a single line,
+/// followed by a thin separator.
+pub fn print_header(check_count: usize, path: &str) {
+    let version = env!("CARGO_PKG_VERSION");
+    let sep = "─".repeat(60);
+    eprintln!();
+    eprintln!(
+        "  {} v{}  ·  {} checks  ·  {}",
+        "Cogent".cyan().bold(),
+        version,
+        check_count,
+        path.bright_black()
+    );
+    eprintln!("  {}", sep.bright_black());
+}
+
+/// Print a single check result line with aligned columns.
+/// Columns: icon, name (padded 18), score/threshold, mini bar, timing, cached tag.
+pub fn print_check_line(check: &CheckResult, verbose: bool) {
+    let icon = if check.passed {
+        "✓".green().bold()
+    } else {
+        "✗".red().bold()
+    };
+    let name_col = if check.passed {
+        check.name.normal()
+    } else {
+        check.name.red()
+    };
+    let name_padded = format!("{:<18}", name_col);
+
+    // Score/threshold column
+    let score_str = match (check.score, check.threshold) {
+        (Some(s), Some(t)) => {
+            let inverted = matches!(
+                check.name.as_str(),
+                "doc_coverage" | "doccov" | "propcov" | "typecov"
+            );
+            let pct = if inverted {
+                (s / t * 100.0).clamp(0.0, 100.0)
+            } else if t > 0.0 {
+                ((1.0 - (s / t).clamp(0.0, 1.0)) * 100.0).clamp(0.0, 100.0)
+            } else {
+                if check.passed {
+                    100.0
+                } else {
+                    0.0
+                }
+            };
+            let bar = mini_bar(pct, 8);
+            let frac = format!("{:.1}/{:.1}", s, t);
+            let frac_col = if check.passed {
+                frac.bright_black().to_string()
+            } else {
+                frac.red().to_string()
+            };
+            format!("{:>10}  {}", frac_col, bar.bright_black())
+        }
+        _ => String::new(),
+    };
+
+    // Timing tag
+    let timing = check
+        .details
+        .get("duration_ms")
+        .and_then(|v| v.as_u64())
+        .map(format_ms)
+        .unwrap_or_default();
+    let timing_col = if timing.is_empty() {
+        String::new()
+    } else {
+        format!("  {}", timing.bright_black())
+    };
+
+    // Cached tag
+    let cached = check
+        .details
+        .get("__cached")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let cached_tag = if cached {
+        " (cached)".bright_black().to_string()
+    } else {
+        String::new()
+    };
+
+    let msg_col = if check.passed {
+        check.message.bright_black().to_string()
+    } else {
+        check.message.red().to_string()
+    };
+
+    eprintln!(
+        "  {} {}{}{}{}",
+        icon, name_padded, score_str, timing_col, cached_tag
+    );
+    if !check.passed || verbose {
+        if !msg_col.is_empty() {
+            eprintln!("    {}", msg_col.bright_black());
+        }
+        print_offenders(check);
+    }
+}
+
 // health_score is now the single source of truth in cogent_common::health_score.
 // It applies category-weighted scoring: security ×3, compliance ×2, quality ×1.
 // Re-exported here for callers that import from progress.
@@ -164,7 +276,8 @@ pub(crate) fn print_offenders(check: &CheckResult) {
     }
 }
 
-/// Render the full audit opinion box with gate killers, category scores, and margin risks.
+/// Render the audit opinion panel with gate killers, category scores, and margin risks.
+/// Uses clean line-based design instead of Unicode box-drawing characters.
 pub fn print_audit_opinion(
     kind: &str,
     audit: &cogent_common::AuditResult,
@@ -173,6 +286,7 @@ pub fn print_audit_opinion(
     elapsed: std::time::Duration,
     path: &str,
 ) {
+    let sep = "─".repeat(60);
     let status_str = audit.opinion.to_string();
     let status = match audit.opinion {
         cogent_common::AuditOpinion::UnqualifiedPass => {
@@ -189,59 +303,51 @@ pub fn print_audit_opinion(
         }
     };
     let grade_col = match audit.grade {
-        'A' => audit.grade.to_string().green().bold().to_string(),
-        'B' => audit.grade.to_string().cyan().bold().to_string(),
-        'C' => audit.grade.to_string().yellow().bold().to_string(),
-        _ => audit.grade.to_string().red().bold().to_string(),
+        'A' => format!("Grade {}", audit.grade).green().bold().to_string(),
+        'B' => format!("Grade {}", audit.grade).cyan().bold().to_string(),
+        'C' => format!("Grade {}", audit.grade).yellow().bold().to_string(),
+        _ => format!("Grade {}", audit.grade).red().bold().to_string(),
     };
-    let checks_str = format!(
-        "{}/{} checks passed  ·  {} total",
+
+    eprintln!();
+    eprintln!("  {}", sep.bright_black());
+    eprintln!("  {}  ·  {}", kind.bold(), status);
+    eprintln!("  {}", sep.bright_black());
+    eprintln!(
+        "  Risk Score {}/100  ·  {}  ·  {}/{} checks  ·  {}",
+        audit.overall_score,
+        grade_col,
         passed_count,
         total,
         format_elapsed(elapsed)
     );
-    let inner = 56usize;
-    let border = "═".repeat(inner + 2);
-    eprintln!();
-    eprintln!("  ╔{}╗", border);
-    box_row(&format!("{}  ·  {}", kind, status), inner);
-    eprintln!("  ╠{}╣", border);
-    let score_line = format!(
-        "Risk Score: {}/100  Grade: {}",
-        audit.overall_score, grade_col
-    );
-    box_row(&score_line, inner);
-    box_row(&checks_str, inner);
-    box_row(&format!("Path: {}", path), inner);
+    eprintln!("  {}", path.bright_black());
 
     // Gate Killers
     let gk_total = audit.gate_killer_names.len();
     let gk_passed = audit.gate_killer_passed_names.len();
     let gk_icon = if audit.gate_killers_passed {
-        "✓".green()
+        "✓".green().to_string()
     } else {
-        "✗".red()
+        "✗".red().bold().to_string()
     };
-    let gk_line = format!("{} Gate Killers ({}/{})", gk_icon, gk_passed, gk_total);
-    eprintln!("  ╠{}╣", border);
-    box_row(&gk_line, inner);
+    eprintln!("  {}", sep.bright_black());
+    eprintln!("  {} Gate Killers ({}/{})", gk_icon, gk_passed, gk_total);
     for gk in &audit.gate_killer_names {
         let icon = if audit.gate_killer_passed_names.contains(gk) {
             "✓".green().to_string()
         } else {
             "✗".red().bold().to_string()
         };
-        box_row(&format!("  {} {}", icon, gk), inner);
+        eprintln!("    {} {}", icon, gk);
     }
 
     // Category Scores
     if !audit.categories.is_empty() {
-        eprintln!("  ╠{}╣", border);
+        eprintln!("  {}", sep.bright_black());
         for cat in &audit.categories {
             let pct = cat.score as u32;
-            let bar_len = 10;
-            let filled = (cat.score / 100.0 * bar_len as f64) as usize;
-            let bar: String = "█".repeat(filled) + &"░".repeat(bar_len - filled);
+            let bar = mini_bar(cat.score, 10);
             let score_col = if pct >= 80 {
                 format!("{}/100", pct).green().to_string()
             } else if pct >= 60 {
@@ -249,29 +355,29 @@ pub fn print_audit_opinion(
             } else {
                 format!("{}/100", pct).red().to_string()
             };
-            let line = format!("{} ({}) {}  {}", cat.name, cat.weight, bar, score_col);
-            box_row(&line, inner);
+            eprintln!(
+                "  {:<14} (×{}) {}  {}",
+                cat.name,
+                cat.weight,
+                bar.bright_black(),
+                score_col
+            );
         }
     }
 
     // Margin Risks
     if !audit.margin_risks.is_empty() {
-        eprintln!("  ╠{}╣", border);
+        eprintln!("  {}", sep.bright_black());
         for (name, margin) in &audit.margin_risks {
-            let margin_str = if *margin < 10.0 {
-                format!("⚠ {} at threshold ({:.0}%)", name, margin)
-                    .red()
-                    .to_string()
+            if *margin < 10.0 {
+                eprintln!("  ⚠ {} at threshold ({:.0}%)", name.red(), margin);
             } else {
-                format!("⚠ {} {:.0}% headroom", name, margin)
-                    .yellow()
-                    .to_string()
-            };
-            box_row(&margin_str, inner);
+                eprintln!("  ⚠ {} {:.0}% headroom", name.yellow(), margin);
+            }
         }
     }
 
-    eprintln!("  ╚{}╝", border);
+    eprintln!("  {}", sep.bright_black());
     eprintln!();
 }
 
@@ -292,34 +398,96 @@ pub fn print_summary_box(
         status_plain.red().bold().to_string()
     };
     let grade_col = match grade {
-        'A' => grade.to_string().green().bold().to_string(),
-        'B' => grade.to_string().cyan().bold().to_string(),
-        'C' => grade.to_string().yellow().bold().to_string(),
-        _ => grade.to_string().red().bold().to_string(),
+        'A' => format!("Grade {}", grade).green().bold().to_string(),
+        'B' => format!("Grade {}", grade).cyan().bold().to_string(),
+        'C' => format!("Grade {}", grade).yellow().bold().to_string(),
+        _ => format!("Grade {}", grade).red().bold().to_string(),
     };
-    let score_str = format!("Score: {}/100  {}", score, grade_col);
-    let checks_str = format!(
-        "{}/{} checks passed  ·  {} total",
+
+    // Category breakdown
+    let security = [
+        "secrets",
+        "vulnscan",
+        "sast",
+        "crypto",
+        "taint",
+        "access-control",
+        "supply-chain",
+        "errhandle",
+    ];
+    let compliance = ["licenses", "sbom", "outdated"];
+    let mut s_pass = 0usize;
+    let mut s_total = 0usize;
+    let mut q_pass = 0usize;
+    let mut q_total = 0usize;
+    let mut c_pass = 0usize;
+    let mut c_total = 0usize;
+    for ch in checks {
+        let n = ch.name.as_str();
+        if security.contains(&n) {
+            s_total += 1;
+            if ch.passed {
+                s_pass += 1;
+            }
+        } else if compliance.contains(&n) {
+            c_total += 1;
+            if ch.passed {
+                c_pass += 1;
+            }
+        } else {
+            q_total += 1;
+            if ch.passed {
+                q_pass += 1;
+            }
+        }
+    }
+
+    let sep = "─".repeat(60);
+    eprintln!();
+    eprintln!("  {}", sep.bright_black());
+    eprintln!("  {}  ·  {}", kind.bold(), status);
+    eprintln!("  {}", sep.bright_black());
+    eprintln!(
+        "  Score {}/100  ·  {}  ·  {}/{} checks  ·  {}",
+        score,
+        grade_col,
         passed_count,
         total,
         format_elapsed(elapsed)
     );
-    let checks_col = if passed {
-        checks_str.green().to_string()
-    } else {
-        checks_str.red().to_string()
-    };
-    let inner = 50usize;
-    let border = "═".repeat(inner + 2);
-    let title = format!("{}  ·  {}", kind, status);
-    eprintln!();
-    eprintln!("  ╔{}╗", border);
-    box_row(&title, inner);
-    eprintln!("  ╠{}╣", border);
-    box_row(&checks_col, inner);
-    box_row(&score_str, inner);
-    box_row(&format!("Path: {}", path), inner);
-    eprintln!("  ╚{}╝", border);
+
+    // Category line
+    let mut cat_parts: Vec<String> = Vec::new();
+    if s_total > 0 {
+        let col = if s_pass == s_total {
+            format!("{}/{}", s_pass, s_total).green()
+        } else {
+            format!("{}/{}", s_pass, s_total).red()
+        };
+        cat_parts.push(format!("🔒 Sec {}", col));
+    }
+    if q_total > 0 {
+        let col = if q_pass == q_total {
+            format!("{}/{}", q_pass, q_total).green()
+        } else {
+            format!("{}/{}", q_pass, q_total).red()
+        };
+        cat_parts.push(format!("📊 Qual {}", col));
+    }
+    if c_total > 0 {
+        let col = if c_pass == c_total {
+            format!("{}/{}", c_pass, c_total).green()
+        } else {
+            format!("{}/{}", c_pass, c_total).red()
+        };
+        cat_parts.push(format!("📋 Comp {}", col));
+    }
+    if !cat_parts.is_empty() {
+        eprintln!("  {}", cat_parts.join("    "));
+    }
+
+    eprintln!("  {}", path.bright_black());
+    eprintln!("  {}", sep.bright_black());
     eprintln!();
 }
 
@@ -361,16 +529,14 @@ pub fn print_fix_summary(checks: &[CheckResult]) {
         };
         rows.push((check.name.clone(), fix));
     }
-    let inner = 52usize;
-    let border = "═".repeat(inner + 2);
-    eprintln!("  ╔{}╗", border);
-    box_row("Quick Fixes", inner);
-    eprintln!("  ╠{}╣", border);
+    let sep = "─".repeat(60);
+    eprintln!("  {}", sep.bright_black());
+    eprintln!("  {}", "Quick Fixes".bold());
+    eprintln!("  {}", sep.bright_black());
     for (name, fix) in rows {
-        let line = format!("{} → {}", name.cyan(), fix);
-        box_row(&line, inner);
+        eprintln!("  {} → {}", name.cyan(), fix.bright_black());
     }
-    eprintln!("  ╚{}╝", border);
+    eprintln!("  {}", sep.bright_black());
     eprintln!();
 }
 
@@ -495,16 +661,12 @@ pub fn print_margin_summary(checks: &[CheckResult]) {
         return; // All checks have comfortable margins
     }
 
-    let inner = 50usize;
-    let border = "═".repeat(inner + 2);
-    eprintln!("  ╔{}╗", border);
-    box_row("Closest to Failing", inner);
-    eprintln!("  ╠{}╣", border);
+    let sep = "─".repeat(60);
+    eprintln!("  {}", sep.bright_black());
+    eprintln!("  {}", "Closest to Failing".bold());
+    eprintln!("  {}", sep.bright_black());
     for (margin, name, score, threshold) in &worst {
-        let bar_width = 12;
-        let filled = ((100.0 - margin) / 100.0 * bar_width as f64) as usize;
-        let filled = filled.min(bar_width);
-        let bar = "█".repeat(filled) + &"░".repeat(bar_width - filled);
+        let bar = mini_bar(100.0 - margin, 12);
         let margin_str = if *margin < 10.0 {
             format!("{:.0}%", margin).red().bold().to_string()
         } else if *margin < 25.0 {
@@ -512,18 +674,16 @@ pub fn print_margin_summary(checks: &[CheckResult]) {
         } else {
             format!("{:.0}%", margin).green().to_string()
         };
-        let line = format!(
-            "{} {} {:.1}/{:.1}  {}  {}",
+        eprintln!(
+            "  {}  {:.1}/{:.1}  {}  {}",
             name.cyan(),
-            "│",
             score,
             threshold,
-            bar,
+            bar.bright_black(),
             margin_str
         );
-        box_row(&line, inner);
     }
-    eprintln!("  ╚{}╝", border);
+    eprintln!("  {}", sep.bright_black());
     eprintln!();
 }
 

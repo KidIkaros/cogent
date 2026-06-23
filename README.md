@@ -11,11 +11,32 @@
 
 **The unified security audit & compliance platform** — 31 audit tools across 5 categories that replace SonarQube, CodeQL, Snyk, and Slither with a single, zero-config CLI. Designed for CI/CD gatekeeping, compliance reporting, and autonomous AI agent integration.
 
+📖 **[Website & Docs](https://kidikaros.github.io/cogent/)** · 🗺️ **[Roadmap](ROADMAP.md)** · 📋 **[Changelog](CHANGELOG.md)** · 🤖 **[Agent Integration](AGENTS.md)**
+
 ---
 
-## Problem
+## Contents
 
-Modern security auditing is fragmented:
+- [Why Cogent](#why-cogent)
+- [Cogent vs. Incumbents](#cogent-vs-incumbents)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [The 31-Tool Engine Suite](#the-31-tool-engine-suite)
+- [Understanding Your Score](#understanding-your-score)
+- [Fixing Failures](#fixing-failures)
+- [CI/CD Integration](#cicd-integration)
+- [AI Agents & Headless Audit](#ai-agents--headless-audit)
+- [Output Formats](#output-formats)
+- [Typical Workflows](#typical-workflows)
+- [Documentation](#documentation)
+- [Project Status](#project-status)
+- [Contributing](#contributing)
+
+---
+
+## Why Cogent
+
+Modern security auditing is fragmented. Each tool requires its own CI job, its own config file, and its own dashboard — the result is **pipeline sprawl**, inconsistent thresholds, and blind spots between quality and security.
 
 | Incumbent | What it does | What it costs you |
 |---|---|---|
@@ -25,17 +46,7 @@ Modern security auditing is fragmented:
 | **Slither** | Smart contract static analysis | Python-only, no CI-native output formats |
 | **Semgrep** | Lightweight pattern matching | Rules are YAML regex, no coverage-aware scoring |
 
-Each tool requires its own CI job, its own config file, its own dashboard. The result: **pipeline sprawl**, inconsistent thresholds, and blind spots between quality and security.
-
-Cogent replaces the entire stack with one CLI that speaks JSON, NDJSON, and SARIF natively.
-
----
-
-## Solution
-
-**One CLI. 31 tools. Zero config.**
-
-Cogent unifies code quality, security, and compliance under a single tool that runs locally in seconds:
+**Cogent replaces the entire stack with one CLI** that speaks JSON, NDJSON, and SARIF natively:
 
 ```
 Quality        —  crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate
@@ -45,9 +56,7 @@ Supply Chain   —  supply-chain · outdated
 Operations     —  observability · test-quality · design-docs · debuggability
 ```
 
-No JVM. No cloud token. No per-seat pricing. Install the binary, run `cogent check .`, and get a deterministic pass/fail gate with structured JSON, SARIF for GitHub Security, or an HTML audit report.
-
-Built in Rust with zero external runtime dependencies, designed from the start for **AI agent consumption** and **CI/CD integration**.
+No JVM. No cloud token. No per-seat pricing. Install the binary, run `cogent check .`, and get a deterministic pass/fail gate with structured JSON, SARIF for GitHub Security, or an HTML audit report. Built in Rust with zero external runtime dependencies, designed from the start for **AI agent consumption** and **CI/CD integration**.
 
 ---
 
@@ -64,6 +73,8 @@ Built in Rust with zero external runtime dependencies, designed from the start f
 | **Output Formats** | JSON, NDJSON, SARIF, HTML, Markdown | SARIF, SonarQube format | SARIF | SARIF, JSON | JSON, markdown |
 | **Agent Integration** | ✅ Hermes skills + MCP server | ❌ | ❌ | ❌ | ❌ |
 | **Coverage-aware** | ✅ CRAP, mutation testing | Partial | ❌ | ❌ | ❌ |
+
+---
 
 ## Installation
 
@@ -85,99 +96,80 @@ sudo cp cogent-linux-x86_64/cogent /usr/local/bin/
 git clone https://github.com/KidIkaros/cogent.git
 cd cogent
 cargo build --release --workspace
+export PATH="$PWD/target/release:$PATH"
+```
+
+Optionally install the binaries directly:
+```bash
+cargo install --path crates/cogent-cli
+cargo install --path crates/cogent-server   # optional MCP server
 ```
 
 ### Shell Completions
 ```bash
 cogent completions bash > /etc/bash_completion.d/cogent
-cogent completions zsh > /usr/local/share/zsh/site-functions/_cogent
+cogent completions zsh  > /usr/local/share/zsh/site-functions/_cogent
 cogent completions fish > ~/.config/fish/completions/cogent.fish
 ```
+
+---
 
 ## Quick Start
 
 ```bash
-# Run all checks on current directory
+# 1. Auto-detect your ecosystem and write .quality.toml
+cogent init
+
+# 2. Run all 31 checks (auto-loads thresholds from .quality.toml)
 cogent check .
 
-# Force run without .quality.toml (uses defaults)
-cogent check . --force
+# 3. Generate a visual HTML audit report
+cogent report . --open
 
-# Generate HTML report
-cogent check . --format html
-
-# CI-friendly JSON with exit codes
-cogent check . --format json --ci
-
-# Generate SARIF for GitHub Security tab
-cogent check . --format sarif
-
-# Serve historical reports
-cogent history show
-cogent serve --port 8080
+# 4. Wire up GitHub Actions + a pre-commit hook (one-time)
+cogent init --ci
 ```
 
-## AI Agents / Headless Audit
-
-Cogent is designed for autonomous agent integration with structured output and deterministic exit codes.
+Other handy invocations:
 
 ```bash
-# NDJSON stream for agent consumption
-cogent audit . --format ndjson
-
-# Auto-close resolved findings
-cogent audit . --verify
-
-# Compliance workflow
-cogent policy .           # view policy
-cogent exception add ...  # request deviation
-cogent remediate .        # auto-fix where possible
+cogent check . --force            # ignore .quality.toml, use defaults
+cogent check . --format json --ci # CI-friendly JSON, no color/progress, exits 1 on failure
+cogent check . --format sarif     # SARIF for the GitHub Security tab
+cogent check . --no-cache         # bypass the cache for a fresh gate
+cogent <tool> ./src               # run a single tool, e.g. `cogent crap ./src`
 ```
 
-**Agent consumption pattern:**
+**Sample output:**
 
-```bash
-# Stream critical findings for triage
-cogent audit . --format ndjson | \
-  jq -c 'select(.severity=="critical")' | \
-  while read finding; do
-    echo "$finding" | jq -r '.file + ":" + (.line|tostring)'
-  done
+```
+  ✓ detected: Rust  (Cargo.toml found)  test: cargo test
+  ✓ wrote .quality.toml  (0.8ms)
+
+  ▶ Key thresholds chosen:
+    · max_crap    = 15.0
+    · min_doc     = 95%
+    · max_debt    = 0
+    · max_complexity_violations = 0
+
+  ... (checks run with live progress) ...
+
+  ╔══════════════════════════════════════════════════════╗
+  ║  COGENT CHECK  ·  PASSED ✓                          ║
+  ╠══════════════════════════════════════════════════════╣
+  ║  31/31 checks passed  ·  5.1s total                  ║
+  ║  Score: 100/100  A                                   ║
+  ║  Path: .                                             ║
+  ╚══════════════════════════════════════════════════════╝
 ```
 
-See [`AGENTS.md`](AGENTS.md) for the complete skill catalog and integration patterns.
+If anything fails, Cogent prints a **Quick Fixes** box and groups failures by category (Security 🔴, Quality 🟡, Compliance 🔵) so you know what to tackle first.
 
-## CI/CD Integration
+---
 
-### GitHub Actions
-```yaml
-- name: Cogent Security Audit
-  run: |
-    cogent check . --format json --ci
-    cogent check . --format sarif --output cogent.sarif
-- name: Upload SARIF
-  uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: cogent.sarif
-```
+## The 31-Tool Engine Suite
 
-### GitLab CI
-```yaml
-cogent-audit:
-  script:
-    - cogent check . --format json --ci
-  artifacts:
-    reports:
-      junit: cogent-junit.xml
-```
-
-### Pre-commit Hook
-```bash
-# .git/hooks/pre-commit
-cogent check . --format json || exit 1
-```
-
-## 31-Tool Engine Suite
+Invoke any tool individually (`cogent crap src/`) or run the full battery (`cogent check .`).
 
 **Quality (16)** — crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate
 
@@ -209,108 +201,23 @@ cogent check . --format json || exit 1
 | **dupfind** | AST-based duplication detection | Duplicate blocks |
 | **propcov** | Property test coverage | Coverage % |
 | **deadcode** | Unused symbols and unreachable branches | Finding count |
-| **linelen** | Line length violations | Violation count |
+| **linelen** | Long-function / long-file violations | Violation count |
 | **complexity** | Cyclomatic complexity violations | Function list |
 | **halstead** | Halstead complexity metrics (bugs estimated) | Per-file estimates |
 | **cohesion** | LCOM4 cohesion analysis | Module cohesion scores |
 | **comments** | Comment-to-code ratio analysis | Per-file ratios |
 | **typecov** | Type annotation coverage (Python/JS/TS) | Coverage % |
-| **outdated** | Direct deps ≥1 major version behind latest (via cargo-outdated) | Stale package list |
-| **access-control** | Missing auth guards, hardcoded credentials, IAM policies, CORS | Finding count + remediation |
+| **outdated** | Direct deps ≥1 major version behind latest | Stale package list |
+| **access-control** | Missing auth guards, hardcoded creds, IAM policies, CORS | Finding count + remediation |
 | **supply-chain** | Dependency integrity, typosquatting, unpinned deps, lockfile checks | Package risk list |
-| **observability** | Structured logging coverage (tracing/logging framework detection) | Violation count |
-| **test-quality** | Non-determinism in tests (time-dependent, random, order-dependent) | Score % |
-| **design-docs** | Design documentation pillar check (CHANGELOG, README, architecture docs) | Pillar count |
-| **debuggability** | Contextless unwrap/panic detection (unwrap without error context) | Violation count |
-
-Invoke individually (`cogent crap src/`) or run the full battery (`cogent check .`).
+| **observability** | Structured logging coverage (tracing/logging detection) | Violation count |
+| **test-quality** | Non-determinism in tests (time/random/order-dependent) | Score % |
+| **design-docs** | Design documentation pillar check (CHANGELOG, README, architecture) | Pillar count |
+| **debuggability** | Contextless unwrap/panic detection | Violation count |
 
 ---
 
-## Why Cogent
-
-### AI-Native Architecture
-- Structured JSON/NDJSON output — consumable by agents without text parsing
-- Deterministic exit codes signal pass/fail for autonomous decision-making
-- First-class Hermes Agent skills included under `hermes/`
-
-### Production-Ready Rigor
-- CI-validated on its own codebase (self-hosting)
-- Output schemas available in `schemas/` for validation
-- SARIF support for GitHub Security tab integration
-
-### Audit-First Design
-- Zero configuration — auto-detects 8+ languages and ecosystems out of the box
-- No cloud services — fully local analysis, no API tokens or data exfiltration
-- Single dependency chain (Rust toolchain only)
-- Smart contract security — reentrancy, access control, unchecked send detection for Solidity
-
----
-
-## Getting Started
-
-```bash
-# Clone and build
-git clone https://github.com/KidIkaros/cogent.git
-cd cogent
-cargo build --release
-export PATH="$PWD/target/release:$PATH"
-
-# 1. Auto-detect your ecosystem and write .quality.toml
-cogent init
-
-# 2. Run all 31 checks against your project (auto-loads thresholds)
-cogent check .
-
-# 3. Generate a visual HTML audit report
-cogent report . --open
-
-# 4. Wire GitHub Actions + pre-commit hook (optional, one-time)
-cogent init --ci
-```
-
-Or install directly:
-```bash
-cargo install --path crates/cogent-cli
-cargo install --path crates/cogent-server  # optional MCP server
-```
-
----
-
-## First time? Run this
-
-```bash
-cogent init && cogent check . --format text
-```
-
-**Sample output:**
-
-```
-  ✓ detected: Rust  (Cargo.toml found)  test: cargo test
-  ✓ wrote .quality.toml  (0.8ms)
-
-  ▶ Key thresholds chosen:
-    · max_crap    = 15.0
-    · min_doc     = 95%
-    · max_debt    = 0
-    · max_complexity_violations = 0
-
-  ... (checks run with live progress) ...
-
-  ╔══════════════════════════════════════════════════════╗
-  ║  COGENT CHECK  ·  PASSED ✓                          ║
-  ╠══════════════════════════════════════════════════════╣
-  ║  31/31 checks passed  ·  5.1s total                  ║
-  ║  Score: 100/100  A                                   ║
-  ║  Path: .                                             ║
-  ╚══════════════════════════════════════════════════════╝
-```
-
-If anything fails, Cogent prints a **Quick Fixes** box and groups failures by category (Security 🔴, Quality 🟡, Compliance 🔵) so you know what to tackle first.
-
----
-
-## Understanding your score
+## Understanding Your Score
 
 Cogent computes a **weighted health score (0–100)** and a letter grade:
 
@@ -322,46 +229,84 @@ Cogent computes a **weighted health score (0–100)** and a letter grade:
 | 60–69  | **D** | Poor — major issues need attention |
 | < 60   | **F** | Critical — security or compliance failures |
 
-**Security checks are weighted 3×** (secrets, vulnscan, sast, crypto, taint, errhandle)  
-**Compliance checks are weighted 2×** (licenses, sbom)  
+**Security checks are weighted 3×** (secrets, vulnscan, sast, crypto, taint, errhandle)
+**Compliance checks are weighted 2×** (licenses, sbom)
 **Quality checks are weighted 1×** (everything else)
 
 This weighting ensures a single exposed secret or critical CVE fails the gate even if every quality check passes.
 
 ---
 
-## Fixing failures
+## Fixing Failures
 
 When a check fails, you have three ways to learn what to do:
 
 1. **`cogent explain <tool>`** — instant terminal documentation. Run `cogent explain crap`, `cogent explain debt`, etc. Each prints what the tool measures, how to read the output, and 3 concrete fixes.
-
-2. **`cogent <tool> ./src --format json`** — see the full list of offenders with file paths and line numbers.
-
+2. **`cogent <tool> ./src --format json`** — the full list of offenders with file paths and line numbers.
 3. **`docs/tools/<tool>.md`** — deep-dive guides with before/after code examples for the most common checks.
 
 ---
 
-## Typical Workflows
+## CI/CD Integration
 
-- **Pre-commit quality gate** — fail PRs if `crap` threshold exceeded or mutation score drops
-- **Refactoring prioritization** — `riskmap` pinpoints files with highest change-complexity risk
-- **Security audit** — `--only sast,secrets,crypto,taint,vulnscan` runs the security subset in seconds
-- **Smart contract audit** — `cogent sast ./contracts --recursive` scans Solidity for reentrancy, access control, and timestamp issues
-- **Access control audit** — `cogent access-control ./src --recursive` finds missing auth guards, hardcoded credentials, and overly permissive IAM policies
-- **Supply chain audit** — `cogent supply-chain .` checks lockfile integrity, typosquatting, and unpinned dependencies
-- **Documentation audit** — `doccov` surfaces undocumented public APIs before release
-- **Test strength assessment** — `mutate` measures defect detection capability beyond coverage numbers
-- **Snapshot comparison** — `cogent diff before.json after.json` shows regressions and fixes between any two check runs
-- **CI integration** — `cogent check . --ci` outputs JSON, disables colors/progress, exits 1 on failure
+### GitHub Actions
+```yaml
+- name: Cogent Security Audit
+  run: |
+    cogent check . --format json --ci
+    cogent check . --format sarif --output cogent.sarif
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: cogent.sarif
+```
+
+### GitLab CI
+```yaml
+cogent-audit:
+  script:
+    - cogent check . --format json --ci
+  artifacts:
+    reports:
+      junit: cogent-junit.xml
+```
+
+### Pre-commit Hook
+```bash
+# .git/hooks/pre-commit
+cogent check . --format json || exit 1
+```
 
 ---
 
-## AI Agent Integration
+## AI Agents & Headless Audit
 
-Cogent ships with **Hermes Agent skill definitions** under `hermes/`. Each skill wraps a tool, parses structured results, and exposes thresholds for autonomous operation.
+Cogent is designed for autonomous agent integration with structured output and deterministic exit codes. It ships with **Hermes Agent skill definitions** under `hermes/` and an MCP server (`cogent-server`) compatible with Claude Desktop, Cursor, and Windsurf.
 
-See [`AGENTS.md`](AGENTS.md) for the skill catalog and usage patterns.
+```bash
+# NDJSON stream for agent consumption
+cogent audit . --format ndjson
+
+# Auto-close resolved findings
+cogent audit . --verify
+
+# Compliance workflow
+cogent policy .           # view policy
+cogent exception add ...  # request a deviation
+cogent remediate .        # auto-fix where possible
+```
+
+**Agent consumption pattern** — stream critical findings for triage:
+
+```bash
+cogent audit . --format ndjson | \
+  jq -c 'select(.severity=="critical")' | \
+  while read finding; do
+    echo "$finding" | jq -r '.file + ":" + (.line|tostring)'
+  done
+```
+
+See [`AGENTS.md`](AGENTS.md) for the complete skill catalog and integration patterns.
 
 ---
 
@@ -377,34 +322,52 @@ See [`AGENTS.md`](AGENTS.md) for the skill catalog and usage patterns.
 | **PDF** | Printable report via headless Chrome/Chromium |
 | **Human** | Terminal review (default) |
 
-All tools accept `--format <json|ndjson|sarif|text>`.  
+All tools accept `--format <json|ndjson|sarif|text>`.
 Reports: `cogent report . --format <html|markdown|pdf> [--open]`.
 
 ---
 
-## Project Health
+## Typical Workflows
 
-| Status | Detail |
-|---|---|
-| Current Release | Stable v1.0.0 |
-| CI Pipeline | ✅ All 31 checks green (30 run, 1 optional — outdated) |
-| Schema Validation | ✅ JSON schemas published in `schemas/` |
-| Test Suite | `cargo test` — workspace-wide passing (2 known flaky edge cases ignored) |
-| Self-Hosting | Runs on its own codebase continuously |
-
-See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for roadmap and known limitations.
+- **Pre-commit quality gate** — fail PRs if `crap` threshold exceeded or mutation score drops
+- **Refactoring prioritization** — `riskmap` pinpoints files with highest change-complexity risk
+- **Security audit** — `--only sast,secrets,crypto,taint,vulnscan` runs the security subset in seconds
+- **Smart contract audit** — `cogent sast ./contracts --recursive` scans Solidity for reentrancy, access control, and timestamp issues
+- **Access control audit** — `cogent access-control ./src --recursive` finds missing auth guards, hardcoded credentials, and overly permissive IAM policies
+- **Supply chain audit** — `cogent supply-chain .` checks lockfile integrity, typosquatting, and unpinned dependencies
+- **Documentation audit** — `doccov` surfaces undocumented public APIs before release
+- **Test strength assessment** — `mutate` measures defect detection capability beyond coverage numbers
+- **Snapshot comparison** — `cogent diff before.json after.json` shows regressions and fixes between any two check runs
 
 ---
 
 ## Documentation
 
+- [Website](https://kidikaros.github.io/cogent/) — project landing page and overview
 - [User Guide](./docs/user-guide.md) — CLI reference and output interpretation
 - [Developer Guide](./docs/developer-guide.md) — crate architecture and extending the suite
+- [Metrics Explained](./docs/metrics-explained.md) — how each score is computed
 - [Hermes Integration](./docs/utcp-integration.md) — wiring Cogent into AI agent workflows
+- [Tool Guides](./docs/tools/) — per-tool deep dives with before/after examples
 - [Schema Reference](./schemas/) — JSON/NDJSON/SARIF output contracts
+- [Roadmap](./ROADMAP.md) · [Changelog](./CHANGELOG.md) · [Project Status](./PROJECT_STATUS.md)
+
+---
+
+## Project Status
+
+| Status | Detail |
+|---|---|
+| Current Release | Stable **v1.2.0** |
+| CI Pipeline | Lint → build → test → audit across Linux/macOS/Windows |
+| Self-Hosting | Runs `cogent check .` on its own codebase every commit |
+| Schema Validation | JSON schemas published in `schemas/` |
+| Test Suite | `cargo test --workspace` — workspace-wide passing |
+
+See [`ROADMAP.md`](ROADMAP.md) for what's next and [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for the detailed health snapshot and known limitations.
 
 ---
 
 ## Contributing
 
-Cogent is open source under **Apache-2.0 / OPL-1.1** dual licensing. Contributions welcome — see `docs/developer-guide.md` for development setup and contribution guidelines.
+Cogent is open source under **Apache-2.0 / OPL-1.1** dual licensing. Contributions are welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md) and the [Developer Guide](./docs/developer-guide.md) for development setup and guidelines.

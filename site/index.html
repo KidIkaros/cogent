@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cogent — The unified security audit & compliance platform</title>
+  <meta name="description" content="One CLI. 31 audit tools. Zero config. Cogent replaces SonarQube, CodeQL, Snyk, and Slither with a single Rust binary that speaks JSON, NDJSON, and SARIF natively." />
+
+  <!-- Open Graph / social -->
+  <meta property="og:title" content="Cogent — The unified security audit & compliance platform" />
+  <meta property="og:description" content="One CLI. 31 audit tools. Zero config. Replaces SonarQube, CodeQL, Snyk, and Slither." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://kidikaros.github.io/cogent/" />
+  <meta property="og:image" content="https://kidikaros.github.io/cogent/social-preview.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%234f46e5'/><stop offset='1' stop-color='%230ea5e9'/></linearGradient></defs><polygon points='22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5' fill='none' stroke='url(%23g)' stroke-width='3' stroke-linejoin='round'/><polyline points='29,12 16,22 29,32' fill='none' stroke='url(%23g)' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="#top" aria-label="Cogent home">
+      <svg class="brand-mark" viewBox="0 0 44 44" aria-hidden="true">
+        <defs>
+          <linearGradient id="navg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#818cf8" />
+            <stop offset="1" stop-color="#38bdf8" />
+          </linearGradient>
+        </defs>
+        <polygon points="22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5" fill="none" stroke="url(#navg)" stroke-width="3" stroke-linejoin="round" />
+        <polyline points="29,12 16,22 29,32" fill="none" stroke="url(#navg)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span>Cogent</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#tools">Tools</a>
+      <a href="#install">Install</a>
+      <a href="#compare">Compare</a>
+      <a href="https://github.com/KidIkaros/cogent/blob/master/ROADMAP.md">Roadmap</a>
+      <a href="https://github.com/KidIkaros/cogent/blob/master/docs/user-guide.md">Docs</a>
+      <a class="nav-cta" href="https://github.com/KidIkaros/cogent">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">Security · Quality · Compliance</p>
+        <h1>One CLI. <span class="grad">31 audit tools.</span> Zero config.</h1>
+        <p class="lede">
+          Cogent is the unified security audit &amp; compliance platform — a single Rust binary
+          that replaces SonarQube, CodeQL, Snyk, and Slither. It speaks JSON, NDJSON, and SARIF
+          natively, and is built for CI/CD gatekeeping and autonomous AI agents.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#install">Get started</a>
+          <a class="btn btn-ghost" href="https://github.com/KidIkaros/cogent">View on GitHub</a>
+        </div>
+        <div class="terminal" role="img" aria-label="Example Cogent terminal output">
+          <div class="term-bar"><span></span><span></span><span></span></div>
+          <pre><code><span class="c-dim">$</span> <span class="c-cmd">cogent check .</span>
+  <span class="c-ok">✓</span> detected: Rust  (Cargo.toml found)
+  <span class="c-ok">✓</span> wrote .quality.toml  (0.8ms)
+
+  ╔══════════════════════════════════════════╗
+  ║  COGENT CHECK  ·  <span class="c-ok">PASSED ✓</span>                ║
+  ╠══════════════════════════════════════════╣
+  ║  31/31 checks passed  ·  5.1s total       ║
+  ║  Score: <span class="c-ok">100/100  A</span>                       ║
+  ╚══════════════════════════════════════════╝</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats">
+      <div class="stat"><span class="num">31</span><span class="label">Audit tools</span></div>
+      <div class="stat"><span class="num">5</span><span class="label">Categories</span></div>
+      <div class="stat"><span class="num">10+</span><span class="label">Languages</span></div>
+      <div class="stat"><span class="num">0</span><span class="label">Runtime deps</span></div>
+    </section>
+
+    <!-- Why -->
+    <section class="section" id="why">
+      <h2>Why Cogent</h2>
+      <p class="section-sub">Modern security auditing is fragmented — every tool brings its own CI job, config file, and dashboard. Cogent collapses the whole stack into one deterministic gate.</p>
+      <div class="cards">
+        <article class="card">
+          <h3>Single binary</h3>
+          <p>No JVM, no cloud token, no per-seat pricing. Drop one Rust binary into CI and run <code>cogent check .</code>.</p>
+        </article>
+        <article class="card">
+          <h3>Machine-first output</h3>
+          <p>Everything a human sees, an agent or CI job can parse — JSON, NDJSON, and SARIF for the GitHub Security tab.</p>
+        </article>
+        <article class="card">
+          <h3>Deterministic gates</h3>
+          <p>Same input, same exit code. <code>0</code> pass, <code>1</code> fail, <code>2</code> error — built for hard CI gatekeeping.</p>
+        </article>
+        <article class="card">
+          <h3>Zero config</h3>
+          <p><code>cogent init</code> auto-detects 10+ languages and writes tuned thresholds. Everything works on defaults first.</p>
+        </article>
+        <article class="card">
+          <h3>Coverage-aware</h3>
+          <p>CRAP scoring and mutation testing measure real defect-detection capability, not just line counts.</p>
+        </article>
+        <article class="card">
+          <h3>AI-native</h3>
+          <p>Ships with Hermes agent skills and an MCP server for Claude Desktop, Cursor, and Windsurf.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Tools -->
+    <section class="section" id="tools">
+      <h2>The 31-tool engine suite</h2>
+      <p class="section-sub">Invoke any tool individually (<code>cogent crap src/</code>) or run the full battery with <code>cogent check .</code>.</p>
+      <div class="tool-cats">
+        <div class="tool-cat">
+          <h3>Quality <span>16</span></h3>
+          <p>crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate</p>
+        </div>
+        <div class="tool-cat">
+          <h3>Security <span>7</span></h3>
+          <p>secrets · taint · errhandle · vulnscan · sast · crypto · access-control</p>
+        </div>
+        <div class="tool-cat">
+          <h3>Compliance <span>2</span></h3>
+          <p>licenses · sbom</p>
+        </div>
+        <div class="tool-cat">
+          <h3>Supply Chain <span>2</span></h3>
+          <p>supply-chain · outdated</p>
+        </div>
+        <div class="tool-cat">
+          <h3>Operations <span>4</span></h3>
+          <p>observability · test-quality · design-docs · debuggability</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Compare -->
+    <section class="section" id="compare">
+      <h2>Cogent vs. the incumbents</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Feature</th><th>Cogent</th><th>SonarQube</th><th>CodeQL</th><th>Snyk</th><th>Slither</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Installation</td><td class="yes">Single binary</td><td>JVM + DB + server</td><td>GitHub only</td><td>Cloud SaaS</td><td>Python + pip</td></tr>
+            <tr><td>Smart contracts</td><td class="yes">✓ Built-in</td><td>—</td><td>—</td><td>—</td><td class="yes">✓</td></tr>
+            <tr><td>Local / air-gapped</td><td class="yes">✓ Fully offline</td><td>Enterprise only</td><td>—</td><td>—</td><td class="yes">✓</td></tr>
+            <tr><td>Pricing</td><td class="yes">Free / OSS</td><td>Per-line or seat</td><td>Public repos</td><td>Per-seat</td><td>Free</td></tr>
+            <tr><td>Output formats</td><td class="yes">JSON·NDJSON·SARIF·HTML·MD</td><td>SARIF + own</td><td>SARIF</td><td>SARIF·JSON</td><td>JSON·MD</td></tr>
+            <tr><td>Agent integration</td><td class="yes">✓ Hermes + MCP</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr><td>Coverage-aware</td><td class="yes">✓ CRAP + mutation</td><td>Partial</td><td>—</td><td>—</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Install -->
+    <section class="section" id="install">
+      <h2>Install &amp; run in 60 seconds</h2>
+      <div class="install-grid">
+        <div class="install-card">
+          <h3>macOS (Homebrew)</h3>
+          <pre><code>brew tap kidikaros/cogent
+brew install cogent</code></pre>
+        </div>
+        <div class="install-card">
+          <h3>Linux (binary)</h3>
+          <pre><code>curl -LO https://github.com/KidIkaros/cogent/releases/latest/download/cogent-linux-x86_64.tar.gz
+tar xzf cogent-linux-x86_64.tar.gz
+sudo cp cogent-linux-x86_64/cogent /usr/local/bin/</code></pre>
+        </div>
+        <div class="install-card">
+          <h3>From source</h3>
+          <pre><code>git clone https://github.com/KidIkaros/cogent.git
+cd cogent
+cargo build --release --workspace</code></pre>
+        </div>
+        <div class="install-card">
+          <h3>First run</h3>
+          <pre><code>cogent init          # detect ecosystem
+cogent check .       # run all 31 checks
+cogent report . --open   # HTML report</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="final-cta">
+      <h2>Ready to unify your audit pipeline?</h2>
+      <p>Star the repo, read the roadmap, and wire Cogent into your CI today.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://github.com/KidIkaros/cogent">Star on GitHub</a>
+        <a class="btn btn-ghost" href="https://github.com/KidIkaros/cogent/blob/master/ROADMAP.md">Read the roadmap</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div>
+        <strong>Cogent</strong>
+        <p>The unified security audit &amp; compliance platform.</p>
+      </div>
+      <nav class="footer-links">
+        <a href="https://github.com/KidIkaros/cogent">GitHub</a>
+        <a href="https://github.com/KidIkaros/cogent/blob/master/docs/user-guide.md">User Guide</a>
+        <a href="https://github.com/KidIkaros/cogent/blob/master/AGENTS.md">Agents</a>
+        <a href="https://github.com/KidIkaros/cogent/blob/master/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/KidIkaros/cogent/blob/master/LICENSE">License</a>
+      </nav>
+    </div>
+    <p class="copyright">Open source under Apache-2.0 / OPL-1.1 dual licensing.</p>
+  </footer>
+</body>
+</html>

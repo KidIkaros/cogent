@@ -1,0 +1,27 @@
+<svg width="400" height="100" viewBox="0 0 400 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brand-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Geometric mark: hexagonal frame with angular C negative space -->
+  <g transform="translate(30,50)" filter="url(#glow)">
+    <!-- Outer hexagon -->
+    <polygon points="0,-22 19,-11 19,11 0,22 -19,11 -19,-11"
+             fill="none" stroke="url(#brand-gradient)" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- Inner angular C stroke -->
+    <polyline points="8,-14 -6,0 8,14" fill="none" stroke="url(#brand-gradient)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="70" y="62" font-family="Inter, system-ui, sans-serif" font-size="36" font-weight="700" fill="#f8fafc" letter-spacing="-0.02em">Cogent</text>
+
+  <!-- Subtle accent dot -->
+  <circle cx="70" cy="74" r="2.5" fill="url(#brand-gradient)"/>
+</svg>

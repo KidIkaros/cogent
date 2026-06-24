@@ -14,25 +14,23 @@
   <meta property="og:image" content="https://kidikaros.github.io/cogent/social-preview.png" />
   <meta name="twitter:card" content="summary_large_image" />
 
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%234f46e5'/><stop offset='1' stop-color='%230ea5e9'/></linearGradient></defs><polygon points='22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5' fill='none' stroke='url(%23g)' stroke-width='3' stroke-linejoin='round'/><polyline points='29,12 16,22 29,32' fill='none' stroke='url(%23g)' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'><polygon points='22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5' fill='none' stroke='%23e4f222' stroke-width='3' stroke-linejoin='round'/><polyline points='29,12 16,22 29,32' fill='none' stroke='%23e4f222' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3/dist/asciinema-player.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/asciinema-player@3/dist/bundle.min.js"></script>
 </head>
 <body>
   <header class="nav">
     <a class="brand" href="#top" aria-label="Cogent home">
       <svg class="brand-mark" viewBox="0 0 44 44" aria-hidden="true">
-        <defs>
-          <linearGradient id="navg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#818cf8" />
-            <stop offset="1" stop-color="#38bdf8" />
-          </linearGradient>
-        </defs>
-        <polygon points="22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5" fill="none" stroke="url(#navg)" stroke-width="3" stroke-linejoin="round" />
-        <polyline points="29,12 16,22 29,32" fill="none" stroke="url(#navg)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+        <polygon points="22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5" fill="none" stroke="#e4f222" stroke-width="3" stroke-linejoin="round" />
+        <polyline points="29,12 16,22 29,32" fill="none" stroke="#e4f222" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
       <span>Cogent</span>
     </a>
     <nav class="nav-links">
+      <a href="#demo">Demo</a>
+      <a href="#how">How</a>
       <a href="#tools">Tools</a>
       <a href="#install">Install</a>
       <a href="#compare">Compare</a>
@@ -45,6 +43,7 @@
   <main id="top">
     <!-- Hero -->
     <section class="hero">
+      <div class="hero-glow"></div>
       <div class="hero-inner">
         <p class="eyebrow">Security · Quality · Compliance</p>
         <h1>One CLI. <span class="grad">31 audit tools.</span> Zero config.</h1>
@@ -57,24 +56,60 @@
           <a class="btn btn-primary" href="#install">Get started</a>
           <a class="btn btn-ghost" href="https://github.com/KidIkaros/cogent">View on GitHub</a>
         </div>
-        <div class="terminal" role="img" aria-label="Example Cogent terminal output">
+        <div class="terminal-demo" role="region" aria-label="Cogent CLI demo">
           <div class="term-bar"><span></span><span></span><span></span></div>
-          <pre><code><span class="c-dim">$</span> <span class="c-cmd">cogent check .</span>
-  <span class="c-ok">✓</span> detected: Rust  (Cargo.toml found)
-  <span class="c-ok">✓</span> wrote .quality.toml  (0.8ms)
+          <div class="asciinema-player-container">
+            <asciinema-player src="demo-short.cast" autoplay="true" loop="true" preload="true" size="small" theme="nord"></asciinema-player>
+          </div>
+          <noscript>
+            <div class="terminal-static">
+              <pre><code>$ cogent check crates/fixtures/ --force --format text
+    Finished release [optimized] target(s) in 0.28s
+     Running `target/release/cogent check crates/fixtures/ --force --format text`
 
-  ╔══════════════════════════════════════════╗
-  ║  COGENT CHECK  ·  <span class="c-ok">PASSED ✓</span>                ║
-  ╠══════════════════════════════════════════╣
-  ║  31/31 checks passed  ·  5.1s total       ║
-  ║  Score: <span class="c-ok">100/100  A</span>                       ║
-  ╚══════════════════════════════════════════╝</code></pre>
+  <span style="color:#34d399">✓</span> ecosystem detected (Rust)
+  <span style="color:#34d399">✓</span> 31/31 checks passed · 5.1s
+  <span style="color:#34d399">✓</span> Score: 100/100 A</code></pre>
+            </div>
+          </noscript>
         </div>
       </div>
     </section>
 
+    <!-- Demo Section -->
+    <section class="section demo-section" id="demo">
+      <h2>See it in action</h2>
+      <p class="section-sub">A full tour: <code>cogent init</code> &rarr; <code>cogent check .</code> &rarr; <code>cogent audit</code> &rarr; <code>cogent explain crap</code>. Real output from the Cogent codebase itself.</p>
+      <div class="terminal-demo terminal-tour" role="region" aria-label="Cogent CLI tour demo">
+        <div class="term-bar"><span></span><span></span><span></span></div>
+        <div class="asciinema-player-container">
+          <asciinema-player src="demo-tour.cast" autoplay="true" loop="true" preload="true" size="small" theme="nord"></asciinema-player>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="section reveal" id="how">
+      <h2>How it works</h2>
+      <p class="section-sub">Three commands. One deterministic pipeline.</p>
+      <div class="steps">
+        <article class="step">
+          <h3>Initialize</h3>
+          <p>Run <code>cogent init</code> to auto-detect your languages and frameworks. It writes a tuned <code>.quality.toml</code> with sensible thresholds.</p>
+        </article>
+        <article class="step">
+          <h3>Check</h3>
+          <p>Run <code>cogent check .</code> to execute all 31 audit engines in parallel. Exit code 0 means the gate passed.</p>
+        </article>
+        <article class="step">
+          <h3>Report</h3>
+          <p>Run <code>cogent report . --open</code> for an HTML breakdown, or pipe JSON/SARIF into your CI or agent.</p>
+        </article>
+      </div>
+    </section>
+
     <!-- Stats -->
-    <section class="stats">
+    <section class="stats reveal">
       <div class="stat"><span class="num">31</span><span class="label">Audit tools</span></div>
       <div class="stat"><span class="num">5</span><span class="label">Categories</span></div>
       <div class="stat"><span class="num">10+</span><span class="label">Languages</span></div>
@@ -82,11 +117,11 @@
     </section>
 
     <!-- Why -->
-    <section class="section" id="why">
+    <section class="section reveal" id="why">
       <h2>Why Cogent</h2>
       <p class="section-sub">Modern security auditing is fragmented — every tool brings its own CI job, config file, and dashboard. Cogent collapses the whole stack into one deterministic gate.</p>
       <div class="cards">
-        <article class="card">
+        <article class="card span-2">
           <h3>Single binary</h3>
           <p>No JVM, no cloud token, no per-seat pricing. Drop one Rust binary into CI and run <code>cogent check .</code>.</p>
         </article>
@@ -102,7 +137,7 @@
           <h3>Zero config</h3>
           <p><code>cogent init</code> auto-detects 10+ languages and writes tuned thresholds. Everything works on defaults first.</p>
         </article>
-        <article class="card">
+        <article class="card span-2">
           <h3>Coverage-aware</h3>
           <p>CRAP scoring and mutation testing measure real defect-detection capability, not just line counts.</p>
         </article>
@@ -114,11 +149,11 @@
     </section>
 
     <!-- Tools -->
-    <section class="section" id="tools">
+    <section class="section reveal" id="tools">
       <h2>The 31-tool engine suite</h2>
       <p class="section-sub">Invoke any tool individually (<code>cogent crap src/</code>) or run the full battery with <code>cogent check .</code>.</p>
       <div class="tool-cats">
-        <div class="tool-cat">
+        <div class="tool-cat span-2">
           <h3>Quality <span>16</span></h3>
           <p>crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate</p>
         </div>
@@ -142,7 +177,7 @@
     </section>
 
     <!-- Compare -->
-    <section class="section" id="compare">
+    <section class="section reveal" id="compare">
       <h2>Cogent vs. the incumbents</h2>
       <div class="table-wrap">
         <table>
@@ -150,41 +185,41 @@
             <tr><th>Feature</th><th>Cogent</th><th>SonarQube</th><th>CodeQL</th><th>Snyk</th><th>Slither</th></tr>
           </thead>
           <tbody>
-            <tr><td>Installation</td><td class="yes">Single binary</td><td>JVM + DB + server</td><td>GitHub only</td><td>Cloud SaaS</td><td>Python + pip</td></tr>
-            <tr><td>Smart contracts</td><td class="yes">✓ Built-in</td><td>—</td><td>—</td><td>—</td><td class="yes">✓</td></tr>
-            <tr><td>Local / air-gapped</td><td class="yes">✓ Fully offline</td><td>Enterprise only</td><td>—</td><td>—</td><td class="yes">✓</td></tr>
-            <tr><td>Pricing</td><td class="yes">Free / OSS</td><td>Per-line or seat</td><td>Public repos</td><td>Per-seat</td><td>Free</td></tr>
-            <tr><td>Output formats</td><td class="yes">JSON·NDJSON·SARIF·HTML·MD</td><td>SARIF + own</td><td>SARIF</td><td>SARIF·JSON</td><td>JSON·MD</td></tr>
-            <tr><td>Agent integration</td><td class="yes">✓ Hermes + MCP</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
-            <tr><td>Coverage-aware</td><td class="yes">✓ CRAP + mutation</td><td>Partial</td><td>—</td><td>—</td><td>—</td></tr>
+            <tr><td>Installation</td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>Single binary</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>JVM + DB + server</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>GitHub only</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Cloud SaaS</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Python + pip</span></td></tr>
+            <tr><td>Smart contracts</td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>Built-in</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>Yes</span></td></tr>
+            <tr><td>Local / air-gapped</td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>Fully offline</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Enterprise only</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>Yes</span></td></tr>
+            <tr><td>Pricing</td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>Free / OSS</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Per-line or seat</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Public repos</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Per-seat</span></td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>Free</span></td></tr>
+            <tr><td>Output formats</td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>JSON · NDJSON · SARIF · HTML · MD</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>SARIF + own</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>SARIF</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>SARIF · JSON</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>JSON · MD</span></td></tr>
+            <tr><td>Agent integration</td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>Hermes + MCP</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td></tr>
+            <tr><td>Coverage-aware</td><td><span class="icon-check"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.5 7.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06L5.72 11.19l7-7a.75.75 0 0 1 1.06 0Z"/></svg>CRAP + mutation</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Partial</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td><td><span class="icon-cross"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3.5a.75.75 0 0 0-1.06 1.06l4.47 4.47-4.47 4.47a.75.75 0 1 0 1.06 1.06l4.47-4.47 4.47 4.47a.75.75 0 1 0 1.06-1.06L9.06 9.03l4.47-4.47a.75.75 0 0 0-1.06-1.06L8 7.97 3.5 3.5Z"/></svg>Not supported</span></td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
     <!-- Install -->
-    <section class="section" id="install">
+    <section class="section reveal" id="install">
       <h2>Install &amp; run in 60 seconds</h2>
       <div class="install-grid">
         <div class="install-card">
-          <h3>macOS (Homebrew)</h3>
+          <h3>macOS (Homebrew) <button class="copy-btn" type="button" aria-label="Copy Homebrew install command">Copy</button></h3>
           <pre><code>brew tap kidikaros/cogent
 brew install cogent</code></pre>
         </div>
         <div class="install-card">
-          <h3>Linux (binary)</h3>
+          <h3>Linux (binary) <button class="copy-btn" type="button" aria-label="Copy Linux install command">Copy</button></h3>
           <pre><code>curl -LO https://github.com/KidIkaros/cogent/releases/latest/download/cogent-linux-x86_64.tar.gz
 tar xzf cogent-linux-x86_64.tar.gz
 sudo cp cogent-linux-x86_64/cogent /usr/local/bin/</code></pre>
         </div>
         <div class="install-card">
-          <h3>From source</h3>
+          <h3>From source <button class="copy-btn" type="button" aria-label="Copy source install command">Copy</button></h3>
           <pre><code>git clone https://github.com/KidIkaros/cogent.git
 cd cogent
 cargo build --release --workspace</code></pre>
         </div>
         <div class="install-card">
-          <h3>First run</h3>
+          <h3>First run <button class="copy-btn" type="button" aria-label="Copy first run commands">Copy</button></h3>
           <pre><code>cogent init          # detect ecosystem
 cogent check .       # run all 31 checks
 cogent report . --open   # HTML report</code></pre>
@@ -193,7 +228,7 @@ cogent report . --open   # HTML report</code></pre>
     </section>
 
     <!-- CTA -->
-    <section class="final-cta">
+    <section class="final-cta reveal">
       <h2>Ready to unify your audit pipeline?</h2>
       <p>Star the repo, read the roadmap, and wire Cogent into your CI today.</p>
       <div class="cta-row">
@@ -203,21 +238,83 @@ cogent report . --open   # HTML report</code></pre>
     </section>
   </main>
 
+  <script>
+    // Nav border on scroll
+    const nav = document.querySelector('.nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 8);
+    }, { passive: true });
+
+    // Scroll reveal
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+    // Install copy buttons
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const code = btn.closest('.install-card').querySelector('pre code').innerText;
+        try {
+          await navigator.clipboard.writeText(code);
+          const original = btn.textContent;
+          btn.textContent = 'Copied';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove('copied');
+          }, 1500);
+        } catch (err) {
+          btn.textContent = 'Failed';
+          setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+        }
+      });
+    });
+  </script>
+
   <footer class="footer">
-    <div class="footer-inner">
-      <div>
+    <div class="footer-grid">
+      <div class="footer-col footer-brand">
         <strong>Cogent</strong>
-        <p>The unified security audit &amp; compliance platform.</p>
+        <p>The unified security audit &amp; compliance platform — one Rust binary that replaces SonarQube, CodeQL, Snyk, and Slither.</p>
       </div>
-      <nav class="footer-links">
-        <a href="https://github.com/KidIkaros/cogent">GitHub</a>
-        <a href="https://github.com/KidIkaros/cogent/blob/master/docs/user-guide.md">User Guide</a>
-        <a href="https://github.com/KidIkaros/cogent/blob/master/AGENTS.md">Agents</a>
-        <a href="https://github.com/KidIkaros/cogent/blob/master/CHANGELOG.md">Changelog</a>
-        <a href="https://github.com/KidIkaros/cogent/blob/master/LICENSE">License</a>
-      </nav>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#why">Features</a></li>
+          <li><a href="#tools">Tools</a></li>
+          <li><a href="#compare">Compare</a></li>
+          <li><a href="#install">Install</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="https://github.com/KidIkaros/cogent/blob/master/docs/user-guide.md">User Guide</a></li>
+          <li><a href="https://github.com/KidIkaros/cogent/blob/master/AGENTS.md">Agents</a></li>
+          <li><a href="https://github.com/KidIkaros/cogent/blob/master/ROADMAP.md">Roadmap</a></li>
+          <li><a href="https://github.com/KidIkaros/cogent/blob/master/CHANGELOG.md">Changelog</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Community</h4>
+        <ul>
+          <li><a href="https://github.com/KidIkaros/cogent">GitHub</a></li>
+          <li><a href="https://github.com/KidIkaros/cogent/issues">Issues</a></li>
+          <li><a href="https://github.com/KidIkaros/cogent/blob/master/CONTRIBUTING.md">Contribute</a></li>
+          <li><a href="https://github.com/KidIkaros/cogent/blob/master/LICENSE">License</a></li>
+        </ul>
+      </div>
     </div>
-    <p class="copyright">Open source under Apache-2.0 / OPL-1.1 dual licensing.</p>
+    <div class="footer-bottom">
+      <span>Open source under Apache-2.0 / OPL-1.1 dual licensing.</span>
+      <span>Built with Rust.</span>
+    </div>
   </footer>
 </body>
 </html>

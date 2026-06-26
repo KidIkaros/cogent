@@ -120,13 +120,16 @@ cogent completions fish > ~/.config/fish/completions/cogent.fish
 # 1. Auto-detect your ecosystem and write .quality.toml
 cogent init
 
-# 2. Run all 31 checks (auto-loads thresholds from .quality.toml)
+# 2. Verify your environment (optional)
+cogent setup
+
+# 3. Run all 31 checks (auto-loads thresholds from .quality.toml)
 cogent check .
 
-# 3. Generate a visual HTML audit report
+# 4. Generate a visual HTML audit report
 cogent report . --open
 
-# 4. Wire up GitHub Actions + a pre-commit hook (one-time)
+# 5. Wire up GitHub Actions + a pre-commit hook (one-time)
 cogent init --ci
 ```
 

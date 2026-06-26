@@ -7,29 +7,34 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+  contents: write
 
 jobs:
-  deploy:
+  create-gh-pages:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
         with:
-          path: './site'
+          fetch-depth: 0
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Create gh-pages branch from site/
+        run: |
+          # Create a new orphan branch
+          git checkout --orphan gh-pages
+
+          # Remove all files
+          git rm -rf .
+
+          # Copy site/ contents
+          cp -r site/* .
+          cp site/.nojekyll .
+
+          # Add and commit
+          git add .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "Deploy site to gh-pages"
+
+          # Push to origin
+          git push origin gh-pages --force

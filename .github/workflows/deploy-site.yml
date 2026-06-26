@@ -26,12 +26,15 @@ jobs:
           # Create orphan gh-pages branch
           git checkout --orphan gh-pages
 
-          # Remove all files except site/
+          # Backup site/ before removing everything
+          cp -r site /tmp/site-backup
+
+          # Remove all files
           git rm -rf .
 
           # Copy site/ contents to root
-          cp -r site/* .
-          cp site/.nojekyll .
+          cp -r /tmp/site-backup/* .
+          cp /tmp/site-backup/.nojekyll .
 
           # Add all files
           git add .

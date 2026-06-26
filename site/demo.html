@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cogent Demo — Try without installing</title>
+  <meta name="description" content="Try Cogent in your browser. No installation required." />
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'><polygon points='22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5' fill='none' stroke='%23e4f222' stroke-width='3' stroke-linejoin='round'/><polyline points='29,12 16,22 29,32' fill='none' stroke='%23e4f222' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="demo.css?v=5" />
+</head>
+<body>
+  <div class="demo-container">
+    <div class="demo-header">
+      <a href="index.html" class="back-link">← Back to homepage</a>
+      <div class="demo-title">Cogent Demo</div>
+      <div class="demo-badge">Try without installing</div>
+    </div>
+
+    <div class="terminal-demo" id="terminal-demo" tabindex="0">
+      <div class="terminal-header">
+        <div class="terminal-controls">
+          <span class="terminal-dot terminal-dot-red"></span>
+          <span class="terminal-dot terminal-dot-yellow"></span>
+          <span class="terminal-dot terminal-dot-green"></span>
+        </div>
+        <div class="terminal-title">cogent-demo</div>
+      </div>
+
+      <div class="terminal-output" id="terminal-output">
+        <div class="terminal-line terminal-line-welcome">
+          <pre>
+ ██████╗██╗  ██╗███████╗ █████╗ ███╗   ███╗███████╗██╗     ██╗███╗   ██╗ ██████╗
+ ██╔════╝██║  ██║██╔════╝██╔══██╗████╗ ████║██╔════╝██║     ██║████╗  ██║██╔════╝
+ ██║     ███████║█████╗  ███████║██╔████╔██║█████╗  ██║     ██║██╔██╗ ██║██║  ███╗
+ ██║     ██╔══██║██╔══╝  ██╔══██║██║╚██╔╝██║██╔══╝  ██║     ██║██║╚██╗██║██║   ██║
+ ╚██████╗██║  ██║███████╗██║  ██║██║ ╚═╝ ██║███████╗███████╗██║██║ ╚████║╚██████╔╝
+  ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝ ╚═════╝
+          </pre>
+          <div class="terminal-line">
+            <span class="terminal-text">Welcome to Cogent Demo! This is a simulated terminal running in your browser.</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">You have a pre-loaded Rust project with intentional bugs for demonstration.</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">Try these commands:</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">  <span class="terminal-code">cogent init</span>      — Initialize Cogent (auto-detect languages)</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">  <span class="terminal-code">cogent check .</span>    — Run all 31 audit tools</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">  <span class="terminal-code">cogent list</span>      — List all available tools</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">  <span class="terminal-code">cogent explain &lt;tool&gt;</span> — Explain a specific tool (e.g., <span class="terminal-code">cogent explain crap</span>)</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">  <span class="terminal-code">cogent help</span>       — Show help</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">  <span class="terminal-code">clear</span>            — Clear the terminal</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">  <span class="terminal-code">exit</span>             — Exit demo (return to homepage)</span>
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-text">Press <span class="terminal-code">Tab</span> for autocomplete. Use <span class="terminal-code">↑</span> <span class="terminal-code">↓</span> for command history.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="terminal-input-line">
+        <span class="terminal-prompt">$</span>
+        <input
+          type="text"
+          id="terminal-input"
+          class="terminal-input"
+          placeholder="Type a command..."
+          autocomplete="off"
+          spellcheck="false"
+          autofocus
+        />
+      </div>
+
+      <div class="terminal-status" id="terminal-status">
+        <span class="terminal-status-ready">Ready</span>
+      </div>
+    </div>
+
+    <div class="demo-tips">
+      <h3>💡 Tips</h3>
+      <ul>
+        <li>Click anywhere on the terminal to focus input</li>
+        <li>Use <kbd>Tab</kbd> to autocomplete commands and tool names</li>
+        <li>Use <kbd>↑</kbd> <kbd>↓</kbd> arrows to navigate command history</li>
+        <li>Type <kbd>exit</kbd> to return to the homepage</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Demo terminal state
+    const state = {
+      initialized: false,
+      checked: false,
+      commandHistory: [],
+      historyIndex: -1,
+      tools: [
+        { name: 'crap', category: 'Quality', desc: 'CRAP score: measures risk based on cyclomatic complexity and test coverage. Lower is better.' },
+        { name: 'debt', category: 'Quality', desc: 'Technical debt estimation: estimates effort to fix code smells and complexity.' },
+        { name: 'doccov', category: 'Quality', desc: 'Documentation coverage: measures percentage of documented functions and types.' },
+        { name: 'riskmap', category: 'Quality', desc: 'Risk heatmap: visualizes code risk across modules using complexity + coverage.' },
+        { name: 'dupfind', category: 'Quality', desc: 'Duplicate code detection: finds copy-pasted code blocks that should be extracted.' },
+        { name: 'coupling', category: 'Quality', desc: 'Coupling analysis: measures dependency between modules (tight coupling is bad).' },
+        { name: 'complexity', category: 'Quality', desc: 'Cyclomatic complexity: measures code paths. Higher = more complex = harder to test.' },
+        { name: 'linelen', category: 'Quality', desc: 'Line length: detects lines that exceed 100 characters (reduces readability).' },
+        { name: 'halstead', category: 'Quality', desc: 'Halstead metrics: measures program difficulty and effort using operator/operand counts.' },
+        { name: 'deadcode', category: 'Quality', desc: 'Dead code detection: finds unused functions, variables, and imports.' },
+        { name: 'cohesion', category: 'Quality', desc: 'Cohesion analysis: measures how closely related elements are within a module.' },
+        { name: 'comments', category: 'Quality', desc: 'Comment analysis: measures comment ratio and identifies uncommented public APIs.' },
+        { name: 'propcov', category: 'Quality', desc: 'Property-based test coverage: measures property test coverage (for QuickCheck/Hypothesis).' },
+        { name: 'typecov', category: 'Quality', desc: 'Type coverage: measures percentage of types explicitly annotated (vs inferred).' },
+        { name: 'fuzz', category: 'Quality', desc: 'Fuzzing coverage: measures fuzz test coverage for security-critical code.' },
+        { name: 'mutate', category: 'Quality', desc: 'Mutation testing: measures test effectiveness by introducing bugs and checking if tests fail.' },
+        { name: 'secrets', category: 'Security', desc: 'Secret detection: scans for hardcoded API keys, passwords, tokens, and credentials.' },
+        { name: 'taint', category: 'Security', desc: 'Taint analysis: tracks data flow from untrusted sources to sensitive sinks (SQLi, XSS, etc.).' },
+        { name: 'errhandle', category: 'Security', desc: 'Error handling: finds unhandled errors and panics that can crash services.' },
+        { name: 'vulnscan', category: 'Security', desc: 'Vulnerability scanner: checks for known CVEs and security advisories in dependencies.' },
+        { name: 'sast', category: 'Security', desc: 'Static application security testing: finds security bugs like SQLi, XSS, command injection.' },
+        { name: 'crypto', category: 'Security', desc: 'Cryptography: identifies weak crypto usage (MD5, SHA1, weak ciphers, hard-coded keys).' },
+        { name: 'access-control', category: 'Security', desc: 'Access control: finds authorization bypasses, privilege escalation, and ACL issues.' },
+        { name: 'licenses', category: 'Compliance', desc: 'License compliance: checks dependency licenses against policy (GPL, MIT, Apache, etc.).' },
+        { name: 'sbom', category: 'Compliance', desc: 'SBOM generation: creates Software Bill of Materials (CycloneDX, SPDX).' },
+        { name: 'supply-chain', category: 'Supply Chain', desc: 'Supply chain security: checks dependency provenance, maintainer trust, and repo health.' },
+        { name: 'outdated', category: 'Supply Chain', desc: 'Outdated dependencies: finds packages with newer versions (security patches, bug fixes).' },
+        { name: 'observability', category: 'Operations', desc: 'Observability: checks logging, metrics, and tracing instrumentation (Prometheus, OpenTelemetry).' },
+        { name: 'test-quality', category: 'Operations', desc: 'Test quality: measures test coverage, flakiness, and assertion quality.' },
+        { name: 'design-docs', category: 'Operations', desc: 'Design docs: ensures code has matching documentation (ADR, RFC, design docs).' },
+        { name: 'debuggability', category: 'Operations', desc: 'Debuggability: checks for debug symbols, stack traces, and error context.' }
+      ],
+      completions: ['init', 'check', 'list', 'explain', 'help', 'clear', 'exit']
+    };
+
+    // DOM elements
+    const terminalOutput = document.getElementById('terminal-output');
+    const terminalInput = document.getElementById('terminal-input');
+    const terminalDemo = document.getElementById('terminal-demo');
+    const terminalStatus = document.getElementById('terminal-status');
+
+    // Focus terminal on click
+    terminalDemo.addEventListener('click', () => {
+      terminalInput.focus();
+    });
+
+    // Handle command input
+    terminalInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const command = terminalInput.value.trim();
+        if (command) {
+          executeCommand(command);
+          state.commandHistory.push(command);
+          state.historyIndex = state.commandHistory.length;
+          terminalInput.value = '';
+        }
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        const current = terminalInput.value.trim();
+        const match = findCompletion(current);
+        if (match) {
+          terminalInput.value = match + (current.includes(' ') ? '' : ' ');
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (state.historyIndex > 0) {
+          state.historyIndex--;
+          terminalInput.value = state.commandHistory[state.historyIndex];
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (state.historyIndex < state.commandHistory.length - 1) {
+          state.historyIndex++;
+          terminalInput.value = state.commandHistory[state.historyIndex];
+        } else {
+          state.historyIndex = state.commandHistory.length;
+          terminalInput.value = '';
+        }
+      }
+    });
+
+    function findCompletion(partial) {
+      if (partial === '') return null;
+
+      const parts = partial.split(' ');
+      const command = parts[0];
+
+      if (parts.length === 1) {
+        // Autocomplete command
+        const match = state.completions.find(c => c.startsWith(command));
+        return match ? match : null;
+      } else if (command === 'explain' && parts.length === 2) {
+        // Autocomplete tool name
+        const tool = parts[1];
+        const match = state.tools.find(t => t.name.startsWith(tool));
+        return match ? `explain ${match.name}` : null;
+      }
+
+      return null;
+    }
+
+    function executeCommand(command) {
+      addOutputLine(`$ ${command}`, 'terminal-line-input');
+
+      const parts = command.split(' ');
+      const cmd = parts[0];
+      const arg = parts[1];
+
+      setStatus('Running...', 'running');
+
+      setTimeout(() => {
+        switch (cmd) {
+          case 'init':
+            handleInit();
+            break;
+          case 'check':
+            handleCheck();
+            break;
+          case 'list':
+            handleList();
+            break;
+          case 'explain':
+            handleExplain(arg);
+            break;
+          case 'help':
+            handleHelp();
+            break;
+          case 'clear':
+            clearTerminal();
+            break;
+          case 'exit':
+            window.location.href = 'index.html';
+            break;
+          default:
+            addOutputLine(`Unknown command: ${cmd}`, 'terminal-line-error');
+            addOutputLine('Type `cogent help` for available commands.', 'terminal-line-muted');
+        }
+        setStatus('Ready', 'ready');
+      }, 300);
+    }
+
+    function handleInit() {
+      if (state.initialized) {
+        addOutputLine('Cogent is already initialized. Run `cogent check .` to audit your code.', 'terminal-line-success');
+        return;
+      }
+
+      addOutputLine('Detecting project ecosystem...', 'terminal-line-muted');
+      setTimeout(() => {
+        addOutputLine('  ✓ detected: Rust  (Cargo.toml found)', 'terminal-line-success');
+        addOutputLine('  ✓ detected: 2 crates found (src/main.rs, src/lib.rs)', 'terminal-line-success');
+        addOutputLine('', 'terminal-line');
+        addOutputLine('Writing .quality.toml...', 'terminal-line-muted');
+        setTimeout(() => {
+          addOutputLine('  ✓ wrote .quality.toml', 'terminal-line-success');
+          addOutputLine('', 'terminal-line');
+          addOutputLine('Configuration summary:', 'terminal-line-muted');
+          addOutputLine('  - Languages: Rust', 'terminal-line');
+          addOutputLine('  - Thresholds: CRAP < 15, Complexity < 10, Coverage > 80%', 'terminal-line');
+          addOutputLine('  - Tools enabled: 31/31', 'terminal-line');
+          addOutputLine('', 'terminal-line');
+          addOutputLine('Run `cogent check .` to audit your code.', 'terminal-line-accent');
+          state.initialized = true;
+        }, 500);
+      }, 800);
+    }
+
+    function handleCheck() {
+      if (!state.initialized) {
+        addOutputLine('Error: Cogent not initialized. Run `cogent init` first.', 'terminal-line-error');
+        return;
+      }
+
+      if (state.checked) {
+        addOutputLine('Running audit (already initialized)...', 'terminal-line-muted');
+      } else {
+        addOutputLine('Running 31 audit tools in parallel...', 'terminal-line-muted');
+      }
+
+      setTimeout(() => {
+        const results = [
+          { tool: 'crap', status: 'FAIL', issue: 'CRAP score 18.5 in src/main.rs:42 (threshold: 15)' },
+          { tool: 'debt', status: 'WARN', issue: 'Estimated 2.5 hours of technical debt' },
+          { tool: 'doccov', status: 'FAIL', issue: 'Documentation coverage: 45% (threshold: 70%)' },
+          { tool: 'secrets', status: 'PASS', issue: 'No secrets detected' },
+          { tool: 'complexity', status: 'WARN', issue: 'Cyclomatic complexity 12 in src/lib.rs:28 (threshold: 10)' },
+          { tool: 'deadcode', status: 'PASS', issue: 'No dead code found' },
+          { tool: 'linelen', status: 'FAIL', issue: '3 lines exceed 100 characters' },
+          { tool: 'errhandle', status: 'PASS', issue: 'All errors are handled' },
+          { tool: 'vulnscan', status: 'WARN', issue: '2 packages have updates available' },
+          { tool: 'licenses', status: 'PASS', issue: 'All licenses approved (MIT, Apache-2.0, BSD-3-Clause)' }
+        ];
+
+        addOutputLine('', 'terminal-line');
+        addOutputLine('╔════════════════════════════════════════════════════════════════╗', 'terminal-line-box');
+        addOutputLine('║  COGENT CHECK  ·  PARTIAL                                      ║', 'terminal-line-box');
+        addOutputLine('╠════════════════════════════════════════════════════════════════╣', 'terminal-line-box');
+        addOutputLine('║  27/31 checks passed  ·  4 issues found  ·  5.2s total          ║', 'terminal-line-box');
+        addOutputLine('║  Score: 87/100  B+                                                ║', 'terminal-line-box');
+        addOutputLine('╚════════════════════════════════════════════════════════════════╝', 'terminal-line-box');
+        addOutputLine('', 'terminal-line');
+
+        addOutputLine('Issues found:', 'terminal-line-accent');
+
+        results.forEach((r, i) => {
+          const icon = r.status === 'PASS' ? '✓' : r.status === 'WARN' ? '⚠' : '✗';
+          const colorClass = r.status === 'PASS' ? 'terminal-line-success' : r.status === 'WARN' ? 'terminal-line-warning' : 'terminal-line-error';
+          addOutputLine(`  ${icon} ${r.tool.padEnd(10)} ${r.status.padEnd(4)} ${r.issue}`, colorClass);
+        });
+
+        addOutputLine('', 'terminal-line');
+        addOutputLine('Run `cogent explain <tool>` to learn more about a specific issue.', 'terminal-line-muted');
+        addOutputLine('Example: `cogent explain crap` or `cogent explain doccov`', 'terminal-line-muted');
+        state.checked = true;
+      }, 1500);
+    }
+
+    function handleList() {
+      addOutputLine('Available tools (31 total):', 'terminal-line-accent');
+      addOutputLine('', 'terminal-line');
+
+      const categories = {};
+      state.tools.forEach(tool => {
+        if (!categories[tool.category]) {
+          categories[tool.category] = [];
+        }
+        categories[tool.category].push(tool.name);
+      });
+
+      Object.entries(categories).forEach(([category, tools]) => {
+        addOutputLine(`${category} (${tools.length})`, 'terminal-line-bold');
+        addOutputLine(`  ${tools.join(' · ')}`, 'terminal-line-muted');
+        addOutputLine('', 'terminal-line');
+      });
+
+      addOutputLine('Run `cogent explain <tool>` to learn more about a specific tool.', 'terminal-line-muted');
+    }
+
+    function handleExplain(tool) {
+      if (!tool) {
+        addOutputLine('Error: No tool specified.', 'terminal-line-error');
+        addOutputLine('Usage: `cogent explain <tool>`', 'terminal-line-muted');
+        addOutputLine('Example: `cogent explain crap`', 'terminal-line-muted');
+        return;
+      }
+
+      const toolInfo = state.tools.find(t => t.name === tool);
+      if (!toolInfo) {
+        addOutputLine(`Error: Unknown tool: ${tool}`, 'terminal-line-error');
+        addOutputLine('Run `cogent list` to see all available tools.', 'terminal-line-muted');
+        return;
+      }
+
+      addOutputLine('', 'terminal-line');
+      addOutputLine(`Tool: ${toolInfo.name} (${toolInfo.category})`, 'terminal-line-bold');
+      addOutputLine('', 'terminal-line');
+      addOutputLine(`Description: ${toolInfo.desc}`, 'terminal-line');
+      addOutputLine('', 'terminal-line');
+      addOutputLine('Threshold: ' + getThreshold(toolInfo.name), 'terminal-line-muted');
+      addOutputLine('Severity: ' + getSeverity(toolInfo.name), 'terminal-line-muted');
+      addOutputLine('Fix time: ' + getFixTime(toolInfo.name), 'terminal-line-muted');
+      addOutputLine('', 'terminal-line');
+      addOutputLine('Run `cogent check .` to see if this tool finds any issues.', 'terminal-line-muted');
+    }
+
+    function getThreshold(tool) {
+      const thresholds = {
+        'crap': 'CRAP < 15',
+        'complexity': 'Cyclomatic complexity < 10',
+        'doccov': 'Documentation coverage > 70%',
+        'linelen': 'Line length < 100 characters',
+        'debt': 'Technical debt < 1 hour',
+        'coverage': 'Code coverage > 80%'
+      };
+      return thresholds[tool] || 'Configurable in .quality.toml';
+    }
+
+    function getSeverity(tool) {
+      const severities = {
+        'secrets': 'Critical',
+        'taint': 'High',
+        'sast': 'High',
+        'crypto': 'High',
+        'crap': 'Medium',
+        'complexity': 'Medium'
+      };
+      return severities[tool] || 'Low';
+    }
+
+    function getFixTime(tool) {
+      const times = {
+        'secrets': '5-15 minutes',
+        'linelen': '1-2 minutes',
+        'doccov': '1-2 hours',
+        'crap': '2-8 hours',
+        'complexity': '1-4 hours',
+        'debt': 'Depends on issues'
+      };
+      return times[tool] || 'Varies';
+    }
+
+    function handleHelp() {
+      addOutputLine('Cogent v1.2.0 — Unified security audit & compliance platform', 'terminal-line-bold');
+      addOutputLine('', 'terminal-line');
+      addOutputLine('Usage:', 'terminal-line-accent');
+      addOutputLine('  cogent init                    Initialize Cogent in current directory', 'terminal-line');
+      addOutputLine('  cogent check [path]            Run all 31 audit tools', 'terminal-line');
+      addOutputLine('  cogent list                    List all available tools', 'terminal-line');
+      addOutputLine('  cogent explain <tool>          Explain a specific tool', 'terminal-line');
+      addOutputLine('  cogent help                    Show this help message', 'terminal-line');
+      addOutputLine('  clear                          Clear the terminal', 'terminal-line');
+      addOutputLine('  exit                           Exit demo (return to homepage)', 'terminal-line');
+      addOutputLine('', 'terminal-line');
+      addOutputLine('Features:', 'terminal-line-accent');
+      addOutputLine('  - 31 audit tools (Quality, Security, Compliance, Supply Chain, Operations)', 'terminal-line');
+      addOutputLine('  - JSON, NDJSON, and SARIF output formats', 'terminal-line');
+      addOutputLine('  - Deterministic exit codes (0=pass, 1=fail, 2=error)', 'terminal-line');
+      addOutputLine('  - CI/CD ready (GitHub Actions, GitLab CI, Jenkins)', 'terminal-line');
+      addOutputLine('  - AI agent integration (Hermes, MCP)', 'terminal-line');
+      addOutputLine('', 'terminal-line');
+      addOutputLine('Learn more: https://github.com/KidIkaros/cogent', 'terminal-line-muted');
+    }
+
+    function clearTerminal() {
+      terminalOutput.innerHTML = '';
+    }
+
+    function addOutputLine(text, className = 'terminal-line') {
+      const line = document.createElement('div');
+      line.className = className;
+
+      if (text.includes('\n')) {
+        const pre = document.createElement('pre');
+        pre.textContent = text;
+        line.appendChild(pre);
+      } else {
+        line.textContent = text;
+      }
+
+      terminalOutput.appendChild(line);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      terminalOutput.scrollTop = terminalOutput.scrollHeight;
+    }
+
+    function setStatus(text, type) {
+      terminalStatus.innerHTML = `<span class="terminal-status-${type}">${text}</span>`;
+    }
+
+    // Focus input on page load
+    terminalInput.focus();
+  </script>
+</body>
+</html>

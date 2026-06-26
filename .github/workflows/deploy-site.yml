@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  create-gh-pages:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,18 +20,23 @@ jobs:
 
       - name: Create gh-pages branch from site/
         run: |
-          # Create a new orphan branch
+          # Switch to master
+          git checkout master
+
+          # Create orphan gh-pages branch
           git checkout --orphan gh-pages
 
-          # Remove all files
+          # Remove all files except site/
           git rm -rf .
 
-          # Copy site/ contents
+          # Copy site/ contents to root
           cp -r site/* .
           cp site/.nojekyll .
 
-          # Add and commit
+          # Add all files
           git add .
+
+          # Commit
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "Deploy site to gh-pages"

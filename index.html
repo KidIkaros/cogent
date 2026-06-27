@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cogent — The unified security audit & compliance platform</title>
+  <meta name="description" content="One CLI. 31 audit tools. Zero config. Cogent replaces SonarQube, CodeQL, Snyk, and Slither with a single Rust binary." />
+
+  <!-- Open Graph / social -->
+  <meta property="og:title" content="Cogent — The unified security audit & compliance platform" />
+  <meta property="og:description" content="One CLI. 31 audit tools. Zero config. Replaces SonarQube, CodeQL, Snyk, and Slither." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://kidikaros.github.io/cogent/" />
+  <meta property="og:image" content="https://kidikaros.github.io/cogent/social-preview.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'><polygon points='22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5' fill='none' stroke='%23e4f222' stroke-width='3' stroke-linejoin='round'/><polyline points='29,12 16,22 29,32' fill='none' stroke='%23e4f222' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
+  <link rel="stylesheet" href="styles.css?v=6" />
+</head>
+<body>
+  <!-- Scroll Progress -->
+  <div class="scroll-progress" id="scroll-progress"></div>
+
+  <header class="nav">
+    <a class="brand" href="#top" aria-label="Cogent home">
+      <svg class="brand-mark" viewBox="0 0 44 44" aria-hidden="true">
+        <polygon points="22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5" fill="none" stroke="#e4f222" stroke-width="3" stroke-linejoin="round" />
+        <polyline points="29,12 16,22 29,32" fill="none" stroke="#e4f222" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <span>Cogent</span>
+    </a>
+    <nav class="nav-links">
+      <a href="#tools">Tools</a>
+      <a href="#install">Install</a>
+      <a href="#compare">Compare</a>
+      <a class="nav-cta" href="https://github.com/KidIkaros/cogent">GitHub</a>
+    </nav>
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+      <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+      <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- Hero Section -->
+    <section class="hero" id="top">
+      <div class="hero-content">
+        <div class="hero-tagline">Security · Quality · Compliance</div>
+        <h1>One CLI.<br>31 audit tools.<br>Zero config.</h1>
+        <p class="hero-desc">
+          Cogent is the unified security audit & compliance platform — a single Rust binary that replaces SonarQube, CodeQL, Snyk, and Slither. It speaks JSON, NDJSON, and SARIF natively.
+        </p>
+        <div class="hero-cta">
+          <a href="#install" class="btn btn-primary">Get started</a>
+          <a href="https://github.com/KidIkaros/cogent" class="btn btn-secondary">View on GitHub</a>
+        </div>
+      </div>
+
+      <!-- Animated Terminal -->
+      <div class="terminal-window">
+        <div class="terminal-header">
+          <div class="terminal-controls">
+            <span class="terminal-dot terminal-dot-red"></span>
+            <span class="terminal-dot terminal-dot-yellow"></span>
+            <span class="terminal-dot terminal-dot-green"></span>
+          </div>
+          <div class="terminal-title">cogent</div>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+          <div class="terminal-line terminal-line-input">
+            <span class="terminal-prompt">$</span>
+            <span id="terminal-input"></span><span class="terminal-cursor">|</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats">
+      <div class="stat-item">
+        <div class="stat-number" data-target="31">0</div>
+        <div class="stat-label">Audit tools</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number" data-target="5">0</div>
+        <div class="stat-label">Categories</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number" data-target="10">0</div>
+        <div class="stat-label">Languages</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-number" data-target="0">0</div>
+        <div class="stat-label">Runtime deps</div>
+      </div>
+    </section>
+
+    <!-- Why Cogent Section -->
+    <section class="features">
+      <h2>Why Cogent?</h2>
+      <p class="section-desc">Modern security auditing is fragmented. Cogent collapses the whole stack into one deterministic gate.</p>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18" />
+              <path d="M9 21V9" />
+            </svg>
+          </div>
+          <h3>Single binary</h3>
+          <p>No JVM, no cloud token, no per-seat pricing. Drop one Rust binary into CI and run <code>cogent check .</code></p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+            </svg>
+          </div>
+          <h3>Machine-first output</h3>
+          <p>JSON · NDJSON · SARIF for CI and agents. Everything a human sees, an agent can parse.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </div>
+          <h3>Deterministic gates</h3>
+          <p>Same input, same exit code. <code>0</code> pass, <code>1</code> fail, <code>2</code> error — built for hard CI gatekeeping.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="2" y1="12" x2="22" y2="12" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+          </div>
+          <h3>Zero config</h3>
+          <p><code>cogent init</code> auto-detects 10+ languages and writes tuned thresholds. Everything works on defaults.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+          </div>
+          <h3>Coverage-aware</h3>
+          <p>CRAP scoring and mutation testing measure real defect-detection capability, not just line counts.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a10 10 0 1 0 10 10H12V2z" />
+              <path d="M12 2a10 10 0 0 1 10 10h-10z" />
+              <path d="M12 12l9-5" />
+            </svg>
+          </div>
+          <h3>AI-native</h3>
+          <p>Ships with Hermes agent skills and an MCP server for Claude Desktop, Cursor, and Windsurf.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tools Section (Enhanced) -->
+    <section class="tools" id="tools">
+      <h2>The 31-tool engine suite</h2>
+      <p class="section-desc">Search, filter, and explore all 31 audit tools. Click any tool for details.</p>
+
+      <!-- Search and Filter -->
+      <div class="tools-controls">
+        <div class="tools-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input type="text" id="tools-search" placeholder="Search tools..." />
+        </div>
+        <div class="tools-filters">
+          <button class="tool-filter active" data-category="all">All</button>
+          <button class="tool-filter" data-category="quality">Quality</button>
+          <button class="tool-filter" data-category="security">Security</button>
+          <button class="tool-filter" data-category="compliance">Compliance</button>
+          <button class="tool-filter" data-category="supply-chain">Supply Chain</button>
+          <button class="tool-filter" data-category="operations">Operations</button>
+        </div>
+      </div>
+
+      <!-- Tools Grid -->
+      <div class="tools-grid" id="tools-grid">
+        <!-- Tools will be rendered by JavaScript -->
+      </div>
+
+      <div class="tools-empty" id="tools-empty" style="display: none;">
+        <p>No tools match your search.</p>
+        <button class="btn btn-secondary" onclick="clearToolsSearch()">Clear search</button>
+      </div>
+    </section>
+
+    <!-- Installation Section -->
+    <section class="install" id="install">
+      <h2>Install in 60 seconds</h2>
+      <p class="section-desc">Choose your platform and copy the commands below.</p>
+      <div class="install-tabs">
+        <button class="install-tab active" data-platform="macos">macOS (Homebrew)</button>
+        <button class="install-tab" data-platform="linux">Linux (binary)</button>
+        <button class="install-tab" data-platform="windows">Windows</button>
+        <button class="install-tab" data-platform="docker">Docker</button>
+        <button class="install-tab" data-platform="cargo">Cargo</button>
+      </div>
+      <div class="install-content">
+        <div class="install-panel active" id="panel-macos">
+          <pre><code id="code-macos">brew tap kidikaros/cogent
+brew install cogent</code></pre>
+          <button class="copy-btn" data-target="code-macos">Copy</button>
+        </div>
+        <div class="install-panel" id="panel-linux">
+          <pre><code id="code-linux">curl -LO https://github.com/KidIkaros/cogent/releases/latest/download/cogent-linux-x86_64.tar.gz
+tar xzf cogent-linux-x86_64.tar.gz
+sudo cp cogent-linux-x86_64/cogent /usr/local/bin/</code></pre>
+          <button class="copy-btn" data-target="code-linux">Copy</button>
+        </div>
+        <div class="install-panel" id="panel-windows">
+          <pre><code id="code-windows">winget install cogent</code></pre>
+          <button class="copy-btn" data-target="code-windows">Copy</button>
+        </div>
+        <div class="install-panel" id="panel-docker">
+          <pre><code id="code-docker">docker pull ghcr.io/kidikaros/cogent:latest
+docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></pre>
+          <button class="copy-btn" data-target="code-docker">Copy</button>
+        </div>
+        <div class="install-panel" id="panel-cargo">
+          <pre><code id="code-cargo">cargo install --git https://github.com/KidIkaros/cogent.git</code></pre>
+          <button class="copy-btn" data-target="code-cargo">Copy</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Comparison Section -->
+    <section class="compare" id="compare">
+      <h2>Cogent vs. the incumbents</h2>
+      <p class="section-desc">See how Cogent stacks up against SonarQube, CodeQL, Snyk, and Slither.</p>
+      <div class="comparison-cards">
+        <div class="comparison-card">
+          <h3>Installation</h3>
+          <div class="comparison-value cogent">Single binary</div>
+          <div class="comparison-value other">JVM + DB + server</div>
+          <p>Others: SonarQube (JVM+DB), Snyk (cloud)</p>
+        </div>
+        <div class="comparison-card">
+          <h3>Pricing</h3>
+          <div class="comparison-value cogent">Free / OSS</div>
+          <div class="comparison-value other">Per-line or seat</div>
+          <p>Enterprise licenses cost thousands</p>
+        </div>
+        <div class="comparison-card">
+          <h3>Output formats</h3>
+          <div class="comparison-value cogent">JSON · NDJSON · SARIF</div>
+          <div class="comparison-value other">SARIF only</div>
+          <p>Multiple formats for different use cases</p>
+        </div>
+        <div class="comparison-card">
+          <h3>Agent integration</h3>
+          <div class="comparison-value cogent">Hermes + MCP</div>
+          <div class="comparison-value other">Not supported</div>
+          <p>Built for Claude Desktop, Cursor, Windsurf</p>
+        </div>
+        <div class="comparison-card">
+          <h3>Coverage-aware</h3>
+          <div class="comparison-value cogent">CRAP + mutation</div>
+          <div class="comparison-value other">Partial</div>
+          <p>Measures real defect-detection capability</p>
+        </div>
+        <div class="comparison-card">
+          <h3>Air-gapped</h3>
+          <div class="comparison-value cogent">Fully offline</div>
+          <div class="comparison-value other">Cloud required</div>
+          <p>Works in secure environments</p>
+        </div>
+      </div>
+      <div class="comparison-full">
+        <button class="btn btn-secondary" onclick="openComparisonModal()">View full comparison table →</button>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+      <h2>Ready to unify your audit pipeline?</h2>
+      <p>Get started in 60 seconds with zero config.</p>
+      <div class="cta-buttons">
+        <a href="#install" class="btn btn-primary">Get started</a>
+        <a href="https://github.com/KidIkaros/cogent" class="btn btn-secondary">View on GitHub</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-content">
+      <div class="footer-brand">
+        <svg class="brand-mark" viewBox="0 0 44 44" aria-hidden="true">
+          <polygon points="22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5" fill="none" stroke="#e4f222" stroke-width="3" stroke-linejoin="round" />
+          <polyline points="29,12 16,22 29,32" fill="none" stroke="#e4f222" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Cogent</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/KidIkaros/cogent">GitHub</a>
+        <a href="https://github.com/KidIkaros/cogent/issues">Issues</a>
+        <a href="https://github.com/KidIkaros/cogent/blob/master/docs">Documentation</a>
+      </div>
+    </div>
+    <div class="footer-legal">
+      <p>&copy; 2026 Ikaros Digital LLC. MIT License.</p>
+    </div>
+  </footer>
+
+  <!-- Tool Detail Modal -->
+  <div class="modal" id="tool-modal" role="dialog" aria-labelledby="modal-title">
+    <div class="modal-overlay" onclick="closeModal()"></div>
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()" aria-label="Close modal">&times;</button>
+      <h2 id="modal-title" class="modal-title">Tool Name</h2>
+      <div id="modal-body" class="modal-body">
+        <!-- Tool details will be rendered here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Modal -->
+  <div class="modal" id="comparison-modal" role="dialog" aria-labelledby="comparison-title">
+    <div class="modal-overlay" onclick="closeComparisonModal()"></div>
+    <div class="modal-content modal-content-wide">
+      <button class="modal-close" onclick="closeComparisonModal()" aria-label="Close modal">&times;</button>
+      <h2 id="comparison-title" class="modal-title">Full Comparison Table</h2>
+      <div id="comparison-body" class="modal-body">
+        <!-- Comparison table will be rendered here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tools data
+    const tools = [
+      { name: 'crap', category: 'quality', desc: 'CRAP score measures risk based on cyclomatic complexity and test coverage. Lower is better.', threshold: '< 15', severity: 'Medium', fixTime: '2-8 hours' },
+      { name: 'debt', category: 'quality', desc: 'Technical debt estimation measures effort to fix code smells and complexity.', threshold: '< 1 hour', severity: 'Low', fixTime: 'Varies' },
+      { name: 'doccov', category: 'quality', desc: 'Documentation coverage measures percentage of documented functions and types.', threshold: '> 70%', severity: 'Medium', fixTime: '1-2 hours' },
+      { name: 'riskmap', category: 'quality', desc: 'Risk heatmap visualizes code risk across modules using complexity + coverage.', threshold: 'Configurable', severity: 'High', fixTime: 'Varies' },
+      { name: 'dupfind', category: 'quality', desc: 'Duplicate code detection finds copy-pasted code blocks that should be extracted.', threshold: '0 blocks', severity: 'Low', fixTime: '1-4 hours' },
+      { name: 'coupling', category: 'quality', desc: 'Coupling analysis measures dependency between modules. Tight coupling is bad.', threshold: '< 10', severity: 'Medium', fixTime: '2-6 hours' },
+      { name: 'complexity', category: 'quality', desc: 'Cyclomatic complexity measures code paths. Higher = more complex = harder to test.', threshold: '< 10', severity: 'Medium', fixTime: '1-4 hours' },
+      { name: 'linelen', category: 'quality', desc: 'Line length detects lines that exceed 100 characters (reduces readability).', threshold: '< 100 chars', severity: 'Low', fixTime: '5-10 minutes' },
+      { name: 'halstead', category: 'quality', desc: 'Halstead metrics measure program difficulty and effort using operator/operand counts.', threshold: 'Configurable', severity: 'Medium', fixTime: 'N/A' },
+      { name: 'deadcode', category: 'quality', desc: 'Dead code detection finds unused functions, variables, and imports.', threshold: '0 items', severity: 'Low', fixTime: '10-30 minutes' },
+      { name: 'cohesion', category: 'quality', desc: 'Cohesion analysis measures how closely related elements are within a module.', threshold: '> 0.6', severity: 'Medium', fixTime: '2-6 hours' },
+      { name: 'comments', category: 'quality', desc: 'Comment analysis measures comment ratio and identifies uncommented public APIs.', threshold: '> 20%', severity: 'Low', fixTime: '1-2 hours' },
+      { name: 'propcov', category: 'quality', desc: 'Property-based test coverage measures property test coverage (QuickCheck, Hypothesis).', threshold: '> 50%', severity: 'Medium', fixTime: 'Varies' },
+      { name: 'typecov', category: 'quality', desc: 'Type coverage measures percentage of types explicitly annotated (vs inferred).', threshold: '> 80%', severity: 'Low', fixTime: '1-2 hours' },
+      { name: 'fuzz', category: 'quality', desc: 'Fuzzing coverage measures fuzz test coverage for security-critical code.', threshold: 'Configurable', severity: 'High', fixTime: 'Varies' },
+      { name: 'mutate', category: 'quality', desc: 'Mutation testing measures test effectiveness by introducing bugs and checking if tests fail.', threshold: '> 80%', severity: 'Medium', fixTime: 'Varies' },
+      { name: 'secrets', category: 'security', desc: 'Secret detection scans for hardcoded API keys, passwords, tokens, and credentials.', threshold: '0 secrets', severity: 'Critical', fixTime: '5-15 minutes' },
+      { name: 'taint', category: 'security', desc: 'Taint analysis tracks data flow from untrusted sources to sensitive sinks (SQLi, XSS, etc.).', threshold: '0 paths', severity: 'High', fixTime: '2-6 hours' },
+      { name: 'errhandle', category: 'security', desc: 'Error handling finds unhandled errors and panics that can crash services.', threshold: '0 unhandled', severity: 'High', fixTime: '1-4 hours' },
+      { name: 'vulnscan', category: 'security', desc: 'Vulnerability scanner checks for known CVEs and security advisories in dependencies.', threshold: '0 CVEs', severity: 'Critical', fixTime: 'Varies' },
+      { name: 'sast', category: 'security', desc: 'Static application security testing finds security bugs like SQLi, XSS, command injection.', threshold: '0 issues', severity: 'High', fixTime: '1-4 hours' },
+      { name: 'crypto', category: 'security', desc: 'Cryptography identifies weak crypto usage (MD5, SHA1, weak ciphers, hard-coded keys).', threshold: '0 weak', severity: 'Critical', fixTime: '1-4 hours' },
+      { name: 'access-control', category: 'security', desc: 'Access control finds authorization bypasses, privilege escalation, and ACL issues.', threshold: '0 issues', severity: 'High', fixTime: '2-8 hours' },
+      { name: 'licenses', category: 'compliance', desc: 'License compliance checks dependency licenses against policy (GPL, MIT, Apache, etc.).', threshold: 'Approved only', severity: 'Medium', fixTime: 'Varies' },
+      { name: 'sbom', category: 'compliance', desc: 'SBOM generation creates Software Bill of Materials (CycloneDX, SPDX).', threshold: 'N/A', severity: 'Low', fixTime: 'N/A' },
+      { name: 'supply-chain', category: 'supply-chain', desc: 'Supply chain security checks dependency provenance, maintainer trust, and repo health.', threshold: 'Score > 80', severity: 'High', fixTime: 'Varies' },
+      { name: 'outdated', category: 'supply-chain', desc: 'Outdated dependencies finds packages with newer versions (security patches, bug fixes).', threshold: '0 outdated', severity: 'Low', fixTime: 'Varies' },
+      { name: 'observability', category: 'operations', desc: 'Observability checks logging, metrics, and tracing instrumentation (Prometheus, OpenTelemetry).', threshold: 'Instrumented', severity: 'Medium', fixTime: '2-6 hours' },
+      { name: 'test-quality', category: 'operations', desc: 'Test quality measures test coverage, flakiness, and assertion quality.', threshold: '> 80%', severity: 'Medium', fixTime: 'Varies' },
+      { name: 'design-docs', category: 'operations', desc: 'Design docs ensures code has matching documentation (ADR, RFC, design docs).', threshold: 'Doc for all changes', severity: 'Low', fixTime: '1-2 hours' },
+      { name: 'debuggability', category: 'operations', desc: 'Debuggability checks for debug symbols, stack traces, and error context.', threshold: 'Full context', severity: 'Medium', fixTime: '1-4 hours' }
+    ];
+
+    // Render tools grid
+    const toolsGrid = document.getElementById('tools-grid');
+    const toolsSearch = document.getElementById('tools-search');
+    const toolsFilters = document.querySelectorAll('.tool-filter');
+    const toolsEmpty = document.getElementById('tools-empty');
+
+    function renderTools(filteredTools) {
+      toolsGrid.innerHTML = '';
+
+      if (filteredTools.length === 0) {
+        toolsEmpty.style.display = 'block';
+        return;
+      }
+
+      toolsEmpty.style.display = 'none';
+
+      filteredTools.forEach(tool => {
+        const card = document.createElement('div');
+        card.className = 'tool-card';
+        card.setAttribute('data-category', tool.category);
+        card.onclick = () => openToolModal(tool.name);
+
+        card.innerHTML = `
+          <div class="tool-card-header">
+            <span class="tool-card-name">${tool.name}</span>
+            <span class="tool-card-category">${tool.category}</span>
+          </div>
+          <p class="tool-card-desc">${tool.desc}</p>
+          <div class="tool-card-meta">
+            <span class="tool-card-severity severity-${tool.severity.toLowerCase()}">${tool.severity}</span>
+          </div>
+        `;
+
+        toolsGrid.appendChild(card);
+      });
+    }
+
+    function filterTools() {
+      const searchTerm = toolsSearch.value.toLowerCase();
+      const activeCategory = document.querySelector('.tool-filter.active').getAttribute('data-category');
+
+      let filtered = tools;
+
+      if (searchTerm) {
+        filtered = filtered.filter(tool =>
+          tool.name.toLowerCase().includes(searchTerm) ||
+          tool.desc.toLowerCase().includes(searchTerm)
+        );
+      }
+
+      if (activeCategory !== 'all') {
+        filtered = filtered.filter(tool => tool.category === activeCategory);
+      }
+
+      renderTools(filtered);
+    }
+
+    toolsSearch.addEventListener('input', filterTools);
+
+    toolsFilters.forEach(filter => {
+      filter.addEventListener('click', () => {
+        toolsFilters.forEach(f => f.classList.remove('active'));
+        filter.classList.add('active');
+        filterTools();
+      });
+    });
+
+    function clearToolsSearch() {
+      toolsSearch.value = '';
+      filterTools();
+    }
+
+    // Initial render
+    renderTools(tools);
+
+    // Modal functions
+    function openToolModal(toolName) {
+      const tool = tools.find(t => t.name === toolName);
+      if (!tool) return;
+
+      const modal = document.getElementById('tool-modal');
+      const modalTitle = document.getElementById('modal-title');
+      const modalBody = document.getElementById('modal-body');
+
+      modalTitle.textContent = `${tool.name} (${tool.category})`;
+
+      modalBody.innerHTML = `
+        <div class="modal-section">
+          <h3>Description</h3>
+          <p>${tool.desc}</p>
+        </div>
+        <div class="modal-meta">
+          <div class="modal-meta-item">
+            <span class="modal-meta-label">Threshold</span>
+            <span class="modal-meta-value">${tool.threshold}</span>
+          </div>
+          <div class="modal-meta-item">
+            <span class="modal-meta-label">Severity</span>
+            <span class="modal-meta-value severity-${tool.severity.toLowerCase()}">${tool.severity}</span>
+          </div>
+          <div class="modal-meta-item">
+            <span class="modal-meta-label">Fix time</span>
+            <span class="modal-meta-value">${tool.fixTime}</span>
+          </div>
+        </div>
+        <div class="modal-section">
+          <h3>Usage</h3>
+          <pre><code>cogent ${tool.name} .</code></pre>
+          <p>Or run all tools: <code>cogent check .</code></p>
+        </div>
+      `;
+
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('tool-modal');
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    function openComparisonModal() {
+      const modal = document.getElementById('comparison-modal');
+      const modalBody = document.getElementById('comparison-body');
+
+      modalBody.innerHTML = `
+        <div class="comparison-table-wrapper">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Cogent</th>
+                <th>SonarQube</th>
+                <th>CodeQL</th>
+                <th>Snyk</th>
+                <th>Slither</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Installation</strong></td>
+                <td class="cogent-cell">Single binary</td>
+                <td>JVM + DB + server</td>
+                <td>GitHub only</td>
+                <td>Cloud SaaS</td>
+                <td>Python + pip</td>
+              </tr>
+              <tr>
+                <td><strong>Local / air-gapped</strong></td>
+                <td class="cogent-cell">Fully offline</td>
+                <td>Enterprise only</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td><strong>Pricing</strong></td>
+                <td class="cogent-cell">Free / OSS</td>
+                <td>Per-line or seat</td>
+                <td>Public repos</td>
+                <td>Per-seat</td>
+                <td>Free</td>
+              </tr>
+              <tr>
+                <td><strong>Output formats</strong></td>
+                <td class="cogent-cell">JSON · NDJSON · SARIF · HTML · MD</td>
+                <td>SARIF + own</td>
+                <td>SARIF</td>
+                <td>SARIF · JSON</td>
+                <td>JSON · MD</td>
+              </tr>
+              <tr>
+                <td><strong>Agent integration</strong></td>
+                <td class="cogent-cell">Hermes + MCP</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+              </tr>
+              <tr>
+                <td><strong>Coverage-aware</strong></td>
+                <td class="cogent-cell">CRAP + mutation</td>
+                <td>Partial</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+              </tr>
+              <tr>
+                <td><strong>Built-in Not supported</strong></td>
+                <td class="cogent-cell">Yes</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td><strong>Runtime deps</strong></td>
+                <td class="cogent-cell">0</td>
+                <td>JVM + DB</td>
+                <td>GitHub CLI</td>
+                <td>Cloud token</td>
+                <td>Python</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeComparisonModal() {
+      const modal = document.getElementById('comparison-modal');
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        closeComparisonModal();
+      }
+    });
+
+    // Scroll progress
+    const scrollProgress = document.getElementById('scroll-progress');
+
+    window.addEventListener('scroll', () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrollPercent = (scrollTop / docHeight) * 100;
+      scrollProgress.style.width = `${scrollPercent}%`;
+    });
+
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+    });
+
+    // Terminal typing effect (from Phase 1)
+    const terminalCommands = [
+      'cogent init',
+      '… detecting project ecosystem',
+      '  ✓ detected: Rust  (Cargo.toml found)',
+      '  ✓ wrote .quality.toml',
+      '',
+      '$ cogent check .',
+      '  ╔════════════════════════════════════════╗',
+      '  ║  COGENT CHECK  ·  PASSED ✓             ║',
+      '  ╠════════════════════════════════════════╣',
+      '  ║  31/31 checks passed  ·  5.1s total     ║',
+      '  ║  Score: 100/100  A                       ║',
+      '  ╚════════════════════════════════════════╝'
+    ];
+
+    let commandIndex = 0;
+    let charIndex = 0;
+    const terminalInput = document.getElementById('terminal-input');
+    const terminalBody = document.getElementById('terminal-body');
+
+    function typeTerminal() {
+      if (commandIndex < terminalCommands.length) {
+        const currentCommand = terminalCommands[commandIndex];
+        if (charIndex < currentCommand.length) {
+          terminalInput.textContent += currentCommand[charIndex];
+          charIndex++;
+          setTimeout(typeTerminal, 30 + Math.random() * 50);
+        } else {
+          const line = document.createElement('div');
+          line.className = 'terminal-line';
+          line.textContent = currentCommand;
+          terminalBody.insertBefore(line, terminalBody.lastElementChild);
+          terminalInput.textContent = '';
+          charIndex = 0;
+          commandIndex++;
+          setTimeout(typeTerminal, 500);
+        }
+      } else {
+        setTimeout(() => {
+          commandIndex = 0;
+          charIndex = 0;
+          terminalBody.innerHTML = '<div class="terminal-line terminal-line-input"><span class="terminal-prompt">$</span><span id="terminal-input"></span><span class="terminal-cursor">|</span></div>';
+          const newTerminalInput = document.getElementById('terminal-input');
+          const newTerminalBody = document.getElementById('terminal-body');
+          terminalInput = newTerminalInput;
+          terminalBody = newTerminalBody;
+          typeTerminal();
+        }, 5000);
+      }
+    }
+
+    setTimeout(typeTerminal, 1000);
+
+    // Stats counter animation (from Phase 1)
+    const stats = document.querySelectorAll('.stat-number');
+    const observerOptions = { threshold: 0.5 };
+
+    const statsObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const target = parseInt(entry.target.getAttribute('data-target'));
+          animateCounter(entry.target, target);
+          statsObserver.unobserve(entry.target);
+        }
+      });
+    }, observerOptions);
+
+    stats.forEach(stat => statsObserver.observe(stat));
+
+    function animateCounter(element, target) {
+      let current = 0;
+      const increment = target / 50;
+      const duration = 1500;
+      const stepTime = duration / 50;
+
+      const counter = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+          element.textContent = target;
+          clearInterval(counter);
+        } else {
+          element.textContent = Math.floor(current);
+        }
+      }, stepTime);
+    }
+
+    // Installation tabs (from Phase 1)
+    const tabs = document.querySelectorAll('.install-tab');
+    const panels = document.querySelectorAll('.install-panel');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const platform = tab.getAttribute('data-platform');
+        tabs.forEach(t => t.classList.remove('active'));
+        panels.forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`panel-${platform}`).classList.add('active');
+      });
+    });
+
+    // Copy buttons (from Phase 1)
+    const copyButtons = document.querySelectorAll('.copy-btn');
+    copyButtons.forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const targetId = btn.getAttribute('data-target');
+        const code = document.getElementById(targetId).textContent;
+
+        try {
+          await navigator.clipboard.writeText(code);
+          btn.textContent = 'Copied!';
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+          }, 2000);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+        }
+      });
+    });
+
+    // Smooth scrolling (from Phase 1)
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

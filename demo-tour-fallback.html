@@ -1,0 +1,119 @@
+<div class="terminal-static">
+  <div class="term-bar"><span></span><span></span><span></span></div>
+  <pre><code>Script started on 2026-06-23 14:09:55-04:00 [COMMAND=&quot;bash site/demo-tour-script.sh&quot; TERM=&quot;xterm-256color&quot; TTY=&quot;/dev/pts/8&quot; COLUMNS=&quot;-1&quot; LINES=&quot;-1&quot;]
+$ cogent init
+  … detecting project ecosystem
+  ✓ detected: Rust  (Cargo.toml found)  test: cargo test
+  ✓ wrote .quality.toml  (0.0s)
+
+  ▶ Key thresholds chosen:
+    · max_crap    = 15
+    · min_doc     = 95%
+    · max_debt    = 0
+    · max_complexity_violations = 0
+
+  ▶ cogent check . runs 20+ checks and produces a 0-100 score + letter grade.
+
+  ▶ Next steps:
+    1. $ cogent check .          — run all checks now
+    2. $ cogent report .         — generate HTML audit report
+    3. $ cogent init --ci        — wire GitHub Actions + pre-commit hook
+    4. $ cogent watch .          — live re-check on file save
+
+  ℹ Tip: edit .quality.toml to tune thresholds for your project.
+
+$ cogent check . --force
+
+  Cogent v1.2.0  ·  29 checks  ·  .
+  ────────────────────────────────────────────────────────────
+  ✗ access-control       7.0/0.0  ░░░░░░░░
+    Access control failed (7 findings &gt; 0 threshold, 6 critical)
+  ✓ cohesion             2.3/5.0  ████░░░░ (cached)
+  ✗ comments             3.8/5.0  ██░░░░░░
+    89 files below comment ratio threshold of 5%
+  ✗ complexity         178.0/0.0  ░░░░░░░░ (cached)
+    178 functions with complexity &gt;= 10 &gt; allowed 0 (languages: python, ruby, rust)
+      ./crates/access-control/src/main.rs:530  has_inline_auth
+      ./crates/access-control/src/main.rs:604  scan_file
+      ./crates/access-control/src/main.rs:697  run
+      ./crates/ast-parse-ts/src/lib.rs:37  from_extension
+      ./crates/ast-parse-ts/src/lib.rs:60  ts_language
+      … 5 more
+  ✓ coupling             0.8/5.0  ███████░ (cached)
+  ✗ crap               60.7/15.0  ░░░░░░░░ (cached)
+    Average CRAP 60.7 &gt; 15 (329 functions above 30)
+  ✓ crypto               0.0/0.0  ████████ (cached)
+  ✗ deadcode          142.0/10.0  ░░░░░░░░
+    142 dead code findings &gt; allowed 10
+      ./crates/cogent-cli/src/audit.rs:313  let _ = save_remediation(&amp;log);
+      ./crates/cogent-cli/src/audit.rs:337  let _ = save_remediation(&amp;log);
+      ./crates/cogent-cli/src/audit.rs:408  let _ = std::fs::create_dir_all(TRAIL_DIR);
+      ./crates/cogent-cli/src/audit.rs:438  let _ = writeln!(file, &quot;{}&quot;, line);
+      ./crates/cogent-cli/src/audit.rs:604  …d code or add `#[allow(dead_code)]` with a comment explai…
+      … 137 more
+  ✗ debt                16.0/0.0  ░░░░░░░░ (cached)
+    16 debt markers &gt; 0
+      ./crates/cogent-cli/src/cli.rs:302  TODO
+      ./crates/cogent-cli/src/cli.rs:302  FIXME
+      ./crates/cogent-cli/src/cli.rs:302  HACK
+      ./crates/cogent-cli/src/cli.rs:302  XXX
+      ./crates/cogent-common/src/lib.rs:1629  XXX
+      … 11 more
+  ✓ debuggability     663.0/1000.0  ███░░░░░ (cached)
+  ✓ design-docs          1.0/1.0  ░░░░░░░░ (cached)
+  ✗ doc_coverage       76.1/95.0  ██████░░ (cached)
+    Doc coverage 76% &lt; 95% (langs: python, rust)
+  ✗ duplication         21.0/0.0  ░░░░░░░░ (cached)
+    21 duplicated groups &gt; allowed 0
+  ✗ errhandle         766.0/50.0  ░░░░░░░░
+    766 error handling violations &gt; allowed 50
+      ./crates/access-control/src/main.rs:764  println!(&quot;{}&quot;, serde_json::to_string_pretty(&amp;report).unwrap(…
+      ./crates/access-control/src/main.rs:768  println!(&quot;{}&quot;, serde_json::to_string(f).unwrap());
+      ./crates/access-control/tests/integration.rs:7  let mut cmd = Command::cargo_bin(&quot;access-control&quot;).unwrap();
+      ./crates/access-control/tests/integration.rs:15  let tmp = tempfile::tempdir().unwrap();
+      ./crates/access-control/tests/integration.rs:17  fs::write(&amp;src, &quot;password = \&quot;secret\&quot;\n&quot;).unwrap();
+      … 761 more
+  ✗ fuzz               476.0/0.0  ░░░░░░░░
+    476 fuzzable endpoints &gt; allowed 0
+      ./crates/cogent-cli/src/dispatcher.rs:655  run_check_subcommand
+      ./crates/mutation-test/src/main.rs:1132  generate_mutants
+      ./crates/cogent-report/src/html.rs:323  render_html_report
+      ./crates/taint-scan/src/main.rs:255  analyze_file_multilang
+      ./crates/cogent-engine/src/registry.rs:97  run_check
+      … 15 more
+  ✗ halstead           902.7/2.0  ░░░░░░░░
+    74 files exceed Halstead bugs threshold of 2.0
+
+$ cogent audit . --format json | jq .summary
+<span style="font-weight:bold;">{
+  </span><span style="font-weight:bold;;color:#61afef">&quot;total_checks&quot;</span><span style="font-weight:bold;">: </span>25<span style="font-weight:bold;">,
+  </span><span style="font-weight:bold;;color:#61afef">&quot;passed_checks&quot;</span><span style="font-weight:bold;">: </span>21<span style="font-weight:bold;">,
+  </span><span style="font-weight:bold;;color:#61afef">&quot;failed_checks&quot;</span><span style="font-weight:bold;">: </span>4<span style="font-weight:bold;">,
+  </span><span style="font-weight:bold;;color:#61afef">&quot;functions_analyzed&quot;</span><span style="font-weight:bold;">: </span>0<span style="font-weight:bold;">,
+  </span><span style="font-weight:bold;;color:#61afef">&quot;avg_complexity&quot;</span><span style="font-weight:bold;">: </span>0.0<span style="font-weight:bold;">,
+  </span><span style="font-weight:bold;;color:#61afef">&quot;avg_crap&quot;</span><span style="font-weight:bold;">: </span>0.0<span style="font-weight:bold;">
+</span><span style="font-weight:bold;">}</span>
+
+$ cogent explain crap
+  CRAP (Change Risk Anti-Pattern)
+  ───────────────────────────────
+
+  What it measures
+    Measures how risky a function is to change. Combines cyclomatic complexity and test coverage. A high-CRAP function is complex AND untested — the most dangerous kind.
+
+  Threshold
+    max_avg = 15.0  (average CRAP score across all functions)
+
+  How to read the output
+    Score 0-30 is good. Above 30 means many complex functions lack tests. Each function gets a CRAP score; the average is compared to the threshold.
+
+  Quick fixes
+    1. Add unit tests for complex functions (coverage drives CRAP down faster than simplification).
+    2. Refactor functions with cyclomatic complexity &gt; 10 into smaller helpers.
+    3. Focus on the top 5 offenders shown in the output.
+
+  ℹ See docs/tools/crap.md for deeper explanation and examples.
+
+
+Script done on 2026-06-23 14:10:10-04:00 [COMMAND_EXIT_CODE=&quot;0&quot;]</code></pre>
+</div>

@@ -1,0 +1,92 @@
+<div class="terminal-static">
+  <div class="term-bar"><span></span><span></span><span></span></div>
+  <pre><code>Script started on 2026-06-23 14:09:16-04:00 [COMMAND=&quot;RUST_LOG=error target/release/cogent check crates/fixtures/ --force --format text 2&gt;&amp;1 | grep -v &#x27;^[0-9]&#x27;&quot; TERM=&quot;xterm-256color&quot; TTY=&quot;/dev/pts/8&quot; COLUMNS=&quot;224&quot; LINES=&quot;30&quot;]
+
+  Cogent v1.2.0  ·  29 checks  ·  crates/fixtures/
+  ────────────────────────────────────────────────────────────
+  ✓ access-control       0.0/0.0  ████████ (cached)
+  ✓ cohesion             1.0/5.0  ██████░░ (cached)
+  ✗ comments             9.4/5.0  ░░░░░░░░
+    1 files below comment ratio threshold of 5%
+  ✓ complexity           0.0/0.0  ████████ (cached)
+  ✓ coupling             0.7/5.0  ███████░ (cached)
+  ✓ crap                3.5/15.0  ██████░░ (cached)
+  ✓ crypto               0.0/0.0  ████████ (cached)
+  ✓ deadcode            2.0/10.0  ██████░░
+  ✗ debt                 5.0/0.0  ░░░░░░░░ (cached)
+    5 debt markers &gt; 0
+      crates/fixtures/sample.c:10  FIXME
+      crates/fixtures/sample.go:12  TODO
+      crates/fixtures/sample.java:14  TODO
+      crates/fixtures/sample.js:15  FIXME
+      crates/fixtures/sample.ts:12  HACK
+  ✓ debuggability     0.0/1000.0  ████████ (cached)
+  ✗ design-docs          0.0/1.0  ████████ (cached)
+    0/3 design doc pillars present -- missing: ADR directory (docs/adr/ or doc/decisions/ with &gt;=1 .md), ARCHITECTURE.md or DESIGN.md, CHANGELOG.md or CHANGES.md
+  ✗ doc_coverage       58.3/95.0  █████░░░ (cached)
+    Doc coverage 58% &lt; 95% (langs: go, javascript, python, rust, typescript)
+  ✗ duplication          1.0/0.0  ░░░░░░░░ (cached)
+    1 duplicated groups &gt; allowed 0
+  ✓ errhandle           0.0/50.0  ████████ (cached)
+  ✗ fuzz                 7.0/0.0  ░░░░░░░░
+    7 fuzzable endpoints &gt; allowed 0
+      crates/fixtures/sample.py:17  unused
+      crates/fixtures/sample.py:10  process
+      crates/fixtures/sample.ts:10  process
+      crates/fixtures/sample.c:4  helper
+      crates/fixtures/sample.c:8  process
+      … 2 more
+  ✓ halstead             0.9/2.0  ████░░░░
+  ✓ licenses             0.0/0.0  ████████ (cached)
+  ✓ linelen              0.0/0.0  ████████ (cached)
+  ✓ mutate               0.0/0.0  ████████ (cached)
+  ✓ observability     0.0/1000.0  ████████ (cached)
+  ✓ outdated             0.0/0.0  ████████
+  ✓ propcov              0.0/0.0  ░░░░░░░░ (cached)
+  ✓ riskmap             0.0/50.0  ████████ (cached)
+  ✓ sast                 0.0/0.0  ████████ (cached)
+  ✓ secrets              0.0/0.0  ████████ (cached)
+  ✗ supply-chain         1.0/0.0  ░░░░░░░░
+    Supply chain failed (1 risks &gt; 0 threshold, 0 critical)
+  ✓ taint                0.0/0.0  ████████ (cached)
+  ✓ test-quality        0.0/60.0  ████████ (cached)
+  ✓ vulnscan          
+
+  ────────────────────────────────────────────────────────────
+  COGENT CHECK  ·  UNQUALIFIED PASS ✓
+  ────────────────────────────────────────────────────────────
+  Risk Score 80/100  ·  Grade B  ·  22/29 checks  ·  0.0s
+  crates/fixtures/
+  ────────────────────────────────────────────────────────────
+  ✓ Gate Killers (4/4)
+    ✓ secrets
+    ✓ vulnscan
+    ✓ sast
+    ✓ taint
+  ────────────────────────────────────────────────────────────
+  Security       (×5) ██████████  100/100
+  Compliance     (×3) ███████░░░  66/100
+  Quality        (×2) ████████░░  80/100
+  Hygiene        (×1) ███░░░░░░░  25/100
+  Operations     (×1) ████████░░  75/100
+  ────────────────────────────────────────────────────────────
+
+  Failed by category:
+    🔴 Security — supply-chain
+    🟡 Quality — comments, debt, design-docs, doc_coverage, duplication, fuzz
+
+  ────────────────────────────────────────────────────────────
+  Quick Fixes
+  ────────────────────────────────────────────────────────────
+  comments → add &#x27;why&#x27; comments for non-obvious logic
+  debt → convert TODOs to issues, remove resolved markers
+  design-docs → 0/3 design doc pillars present -- missing: ADR directory (docs/adr/ or doc/decisions/ with &gt;=1 .md), ARCHITECTURE.md or DESIGN.md, CHANGELOG.md or CHANGES.md
+  doc_coverage → add /// doc comments to public functions
+  duplication → extract clones into shared functions
+  fuzz → add fuzz targets for parsers, sanitize inputs
+  supply-chain → audit new deps, pin versions, use cargo-vet
+  ────────────────────────────────────────────────────────────
+
+
+Script done on 2026-06-23 14:09:16-04:00 [COMMAND_EXIT_CODE=&quot;0&quot;]</code></pre>
+</div>

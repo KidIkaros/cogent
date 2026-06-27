@@ -15,9 +15,12 @@
   <meta name="twitter:card" content="summary_large_image" />
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'><polygon points='22,3 38,12.5 38,31.5 22,41 6,31.5 6,12.5' fill='none' stroke='%23e4f222' stroke-width='3' stroke-linejoin='round'/><polyline points='29,12 16,22 29,32' fill='none' stroke='%23e4f222' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
+  <!-- Scroll Progress -->
+  <div class="scroll-progress" id="scroll-progress"></div>
+
   <header class="nav">
     <a class="brand" href="#top" aria-label="Cogent home">
       <svg class="brand-mark" viewBox="0 0 44 44" aria-hidden="true">
@@ -27,12 +30,27 @@
       <span>Cogent</span>
     </a>
     <nav class="nav-links">
-      <a href="demo.html">Demo</a>
       <a href="#tools">Tools</a>
       <a href="#install">Install</a>
       <a href="#compare">Compare</a>
       <a class="nav-cta" href="https://github.com/KidIkaros/cogent">GitHub</a>
     </nav>
+    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+      <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5" />
+        <line x1="12" y1="1" x2="12" y2="3" />
+        <line x1="12" y1="21" x2="12" y2="23" />
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+        <line x1="1" y1="12" x2="3" y2="12" />
+        <line x1="21" y1="12" x2="23" y2="12" />
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      </svg>
+      <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+    </button>
   </header>
 
   <main>
@@ -45,9 +63,8 @@
           Cogent is the unified security audit & compliance platform — a single Rust binary that replaces SonarQube, CodeQL, Snyk, and Slither. It speaks JSON, NDJSON, and SARIF natively.
         </p>
         <div class="hero-cta">
-          <a href="demo.html" class="btn btn-primary">Try Demo</a>
-          <a href="#install" class="btn btn-secondary">Install</a>
-          <a href="https://github.com/KidIkaros/cogent" class="btn btn-secondary">GitHub</a>
+          <a href="#install" class="btn btn-primary">Get started</a>
+          <a href="https://github.com/KidIkaros/cogent" class="btn btn-secondary">View on GitHub</a>
         </div>
       </div>
 
@@ -158,31 +175,38 @@
       </div>
     </section>
 
-    <!-- Tools Section -->
+    <!-- Tools Section (Enhanced) -->
     <section class="tools" id="tools">
       <h2>The 31-tool engine suite</h2>
-      <p class="section-desc">Invoke any tool individually or run the full battery with <code>cogent check .</code></p>
-      <div class="tool-grid">
-        <div class="tool-category">
-          <h3>Quality <span class="tool-count">16</span></h3>
-          <p>crap · debt · doccov · riskmap · dupfind · coupling · complexity · linelen · halstead · deadcode · cohesion · comments · propcov · typecov · fuzz · mutate</p>
+      <p class="section-desc">Search, filter, and explore all 31 audit tools. Click any tool for details.</p>
+
+      <!-- Search and Filter -->
+      <div class="tools-controls">
+        <div class="tools-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input type="text" id="tools-search" placeholder="Search tools..." />
         </div>
-        <div class="tool-category">
-          <h3>Security <span class="tool-count">7</span></h3>
-          <p>secrets · taint · errhandle · vulnscan · sast · crypto · access-control</p>
+        <div class="tools-filters">
+          <button class="tool-filter active" data-category="all">All</button>
+          <button class="tool-filter" data-category="quality">Quality</button>
+          <button class="tool-filter" data-category="security">Security</button>
+          <button class="tool-filter" data-category="compliance">Compliance</button>
+          <button class="tool-filter" data-category="supply-chain">Supply Chain</button>
+          <button class="tool-filter" data-category="operations">Operations</button>
         </div>
-        <div class="tool-category">
-          <h3>Compliance <span class="tool-count">2</span></h3>
-          <p>licenses · sbom</p>
-        </div>
-        <div class="tool-category">
-          <h3>Supply Chain <span class="tool-count">2</span></h3>
-          <p>supply-chain · outdated</p>
-        </div>
-        <div class="tool-category">
-          <h3>Operations <span class="tool-count">4</span></h3>
-          <p>observability · test-quality · design-docs · debuggability</p>
-        </div>
+      </div>
+
+      <!-- Tools Grid -->
+      <div class="tools-grid" id="tools-grid">
+        <!-- Tools will be rendered by JavaScript -->
+      </div>
+
+      <div class="tools-empty" id="tools-empty" style="display: none;">
+        <p>No tools match your search.</p>
+        <button class="btn btn-secondary" onclick="clearToolsSearch()">Clear search</button>
       </div>
     </section>
 
@@ -222,9 +246,6 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
           <pre><code id="code-cargo">cargo install --git https://github.com/KidIkaros/cogent.git</code></pre>
           <button class="copy-btn" data-target="code-cargo">Copy</button>
         </div>
-      </div>
-      <div class="install-try">
-        <p>Want to try without installing? <a href="demo.html">Open Web Demo →</a></p>
       </div>
     </section>
 
@@ -271,7 +292,7 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
         </div>
       </div>
       <div class="comparison-full">
-        <a href="https://github.com/KidIkaros/cogent#comparison" target="_blank">View full comparison table →</a>
+        <button class="btn btn-secondary" onclick="openComparisonModal()">View full comparison table →</button>
       </div>
     </section>
 
@@ -280,9 +301,8 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
       <h2>Ready to unify your audit pipeline?</h2>
       <p>Get started in 60 seconds with zero config.</p>
       <div class="cta-buttons">
-        <a href="demo.html" class="btn btn-primary">Try Demo</a>
-        <a href="#install" class="btn btn-secondary">Install</a>
-        <a href="https://github.com/KidIkaros/cogent" class="btn btn-secondary">GitHub</a>
+        <a href="#install" class="btn btn-primary">Get started</a>
+        <a href="https://github.com/KidIkaros/cogent" class="btn btn-secondary">View on GitHub</a>
       </div>
     </section>
   </main>
@@ -307,8 +327,316 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
     </div>
   </footer>
 
+  <!-- Tool Detail Modal -->
+  <div class="modal" id="tool-modal" role="dialog" aria-labelledby="modal-title">
+    <div class="modal-overlay" onclick="closeModal()"></div>
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()" aria-label="Close modal">&times;</button>
+      <h2 id="modal-title" class="modal-title">Tool Name</h2>
+      <div id="modal-body" class="modal-body">
+        <!-- Tool details will be rendered here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Modal -->
+  <div class="modal" id="comparison-modal" role="dialog" aria-labelledby="comparison-title">
+    <div class="modal-overlay" onclick="closeComparisonModal()"></div>
+    <div class="modal-content modal-content-wide">
+      <button class="modal-close" onclick="closeComparisonModal()" aria-label="Close modal">&times;</button>
+      <h2 id="comparison-title" class="modal-title">Full Comparison Table</h2>
+      <div id="comparison-body" class="modal-body">
+        <!-- Comparison table will be rendered here -->
+      </div>
+    </div>
+  </div>
+
   <script>
-    // Terminal typing effect
+    // Tools data
+    const tools = [
+      { name: 'crap', category: 'quality', desc: 'CRAP score measures risk based on cyclomatic complexity and test coverage. Lower is better.', threshold: '< 15', severity: 'Medium', fixTime: '2-8 hours' },
+      { name: 'debt', category: 'quality', desc: 'Technical debt estimation measures effort to fix code smells and complexity.', threshold: '< 1 hour', severity: 'Low', fixTime: 'Varies' },
+      { name: 'doccov', category: 'quality', desc: 'Documentation coverage measures percentage of documented functions and types.', threshold: '> 70%', severity: 'Medium', fixTime: '1-2 hours' },
+      { name: 'riskmap', category: 'quality', desc: 'Risk heatmap visualizes code risk across modules using complexity + coverage.', threshold: 'Configurable', severity: 'High', fixTime: 'Varies' },
+      { name: 'dupfind', category: 'quality', desc: 'Duplicate code detection finds copy-pasted code blocks that should be extracted.', threshold: '0 blocks', severity: 'Low', fixTime: '1-4 hours' },
+      { name: 'coupling', category: 'quality', desc: 'Coupling analysis measures dependency between modules. Tight coupling is bad.', threshold: '< 10', severity: 'Medium', fixTime: '2-6 hours' },
+      { name: 'complexity', category: 'quality', desc: 'Cyclomatic complexity measures code paths. Higher = more complex = harder to test.', threshold: '< 10', severity: 'Medium', fixTime: '1-4 hours' },
+      { name: 'linelen', category: 'quality', desc: 'Line length detects lines that exceed 100 characters (reduces readability).', threshold: '< 100 chars', severity: 'Low', fixTime: '5-10 minutes' },
+      { name: 'halstead', category: 'quality', desc: 'Halstead metrics measure program difficulty and effort using operator/operand counts.', threshold: 'Configurable', severity: 'Medium', fixTime: 'N/A' },
+      { name: 'deadcode', category: 'quality', desc: 'Dead code detection finds unused functions, variables, and imports.', threshold: '0 items', severity: 'Low', fixTime: '10-30 minutes' },
+      { name: 'cohesion', category: 'quality', desc: 'Cohesion analysis measures how closely related elements are within a module.', threshold: '> 0.6', severity: 'Medium', fixTime: '2-6 hours' },
+      { name: 'comments', category: 'quality', desc: 'Comment analysis measures comment ratio and identifies uncommented public APIs.', threshold: '> 20%', severity: 'Low', fixTime: '1-2 hours' },
+      { name: 'propcov', category: 'quality', desc: 'Property-based test coverage measures property test coverage (QuickCheck, Hypothesis).', threshold: '> 50%', severity: 'Medium', fixTime: 'Varies' },
+      { name: 'typecov', category: 'quality', desc: 'Type coverage measures percentage of types explicitly annotated (vs inferred).', threshold: '> 80%', severity: 'Low', fixTime: '1-2 hours' },
+      { name: 'fuzz', category: 'quality', desc: 'Fuzzing coverage measures fuzz test coverage for security-critical code.', threshold: 'Configurable', severity: 'High', fixTime: 'Varies' },
+      { name: 'mutate', category: 'quality', desc: 'Mutation testing measures test effectiveness by introducing bugs and checking if tests fail.', threshold: '> 80%', severity: 'Medium', fixTime: 'Varies' },
+      { name: 'secrets', category: 'security', desc: 'Secret detection scans for hardcoded API keys, passwords, tokens, and credentials.', threshold: '0 secrets', severity: 'Critical', fixTime: '5-15 minutes' },
+      { name: 'taint', category: 'security', desc: 'Taint analysis tracks data flow from untrusted sources to sensitive sinks (SQLi, XSS, etc.).', threshold: '0 paths', severity: 'High', fixTime: '2-6 hours' },
+      { name: 'errhandle', category: 'security', desc: 'Error handling finds unhandled errors and panics that can crash services.', threshold: '0 unhandled', severity: 'High', fixTime: '1-4 hours' },
+      { name: 'vulnscan', category: 'security', desc: 'Vulnerability scanner checks for known CVEs and security advisories in dependencies.', threshold: '0 CVEs', severity: 'Critical', fixTime: 'Varies' },
+      { name: 'sast', category: 'security', desc: 'Static application security testing finds security bugs like SQLi, XSS, command injection.', threshold: '0 issues', severity: 'High', fixTime: '1-4 hours' },
+      { name: 'crypto', category: 'security', desc: 'Cryptography identifies weak crypto usage (MD5, SHA1, weak ciphers, hard-coded keys).', threshold: '0 weak', severity: 'Critical', fixTime: '1-4 hours' },
+      { name: 'access-control', category: 'security', desc: 'Access control finds authorization bypasses, privilege escalation, and ACL issues.', threshold: '0 issues', severity: 'High', fixTime: '2-8 hours' },
+      { name: 'licenses', category: 'compliance', desc: 'License compliance checks dependency licenses against policy (GPL, MIT, Apache, etc.).', threshold: 'Approved only', severity: 'Medium', fixTime: 'Varies' },
+      { name: 'sbom', category: 'compliance', desc: 'SBOM generation creates Software Bill of Materials (CycloneDX, SPDX).', threshold: 'N/A', severity: 'Low', fixTime: 'N/A' },
+      { name: 'supply-chain', category: 'supply-chain', desc: 'Supply chain security checks dependency provenance, maintainer trust, and repo health.', threshold: 'Score > 80', severity: 'High', fixTime: 'Varies' },
+      { name: 'outdated', category: 'supply-chain', desc: 'Outdated dependencies finds packages with newer versions (security patches, bug fixes).', threshold: '0 outdated', severity: 'Low', fixTime: 'Varies' },
+      { name: 'observability', category: 'operations', desc: 'Observability checks logging, metrics, and tracing instrumentation (Prometheus, OpenTelemetry).', threshold: 'Instrumented', severity: 'Medium', fixTime: '2-6 hours' },
+      { name: 'test-quality', category: 'operations', desc: 'Test quality measures test coverage, flakiness, and assertion quality.', threshold: '> 80%', severity: 'Medium', fixTime: 'Varies' },
+      { name: 'design-docs', category: 'operations', desc: 'Design docs ensures code has matching documentation (ADR, RFC, design docs).', threshold: 'Doc for all changes', severity: 'Low', fixTime: '1-2 hours' },
+      { name: 'debuggability', category: 'operations', desc: 'Debuggability checks for debug symbols, stack traces, and error context.', threshold: 'Full context', severity: 'Medium', fixTime: '1-4 hours' }
+    ];
+
+    // Render tools grid
+    const toolsGrid = document.getElementById('tools-grid');
+    const toolsSearch = document.getElementById('tools-search');
+    const toolsFilters = document.querySelectorAll('.tool-filter');
+    const toolsEmpty = document.getElementById('tools-empty');
+
+    function renderTools(filteredTools) {
+      toolsGrid.innerHTML = '';
+
+      if (filteredTools.length === 0) {
+        toolsEmpty.style.display = 'block';
+        return;
+      }
+
+      toolsEmpty.style.display = 'none';
+
+      filteredTools.forEach(tool => {
+        const card = document.createElement('div');
+        card.className = 'tool-card';
+        card.setAttribute('data-category', tool.category);
+        card.onclick = () => openToolModal(tool.name);
+
+        card.innerHTML = `
+          <div class="tool-card-header">
+            <span class="tool-card-name">${tool.name}</span>
+            <span class="tool-card-category">${tool.category}</span>
+          </div>
+          <p class="tool-card-desc">${tool.desc}</p>
+          <div class="tool-card-meta">
+            <span class="tool-card-severity severity-${tool.severity.toLowerCase()}">${tool.severity}</span>
+          </div>
+        `;
+
+        toolsGrid.appendChild(card);
+      });
+    }
+
+    function filterTools() {
+      const searchTerm = toolsSearch.value.toLowerCase();
+      const activeCategory = document.querySelector('.tool-filter.active').getAttribute('data-category');
+
+      let filtered = tools;
+
+      if (searchTerm) {
+        filtered = filtered.filter(tool =>
+          tool.name.toLowerCase().includes(searchTerm) ||
+          tool.desc.toLowerCase().includes(searchTerm)
+        );
+      }
+
+      if (activeCategory !== 'all') {
+        filtered = filtered.filter(tool => tool.category === activeCategory);
+      }
+
+      renderTools(filtered);
+    }
+
+    toolsSearch.addEventListener('input', filterTools);
+
+    toolsFilters.forEach(filter => {
+      filter.addEventListener('click', () => {
+        toolsFilters.forEach(f => f.classList.remove('active'));
+        filter.classList.add('active');
+        filterTools();
+      });
+    });
+
+    function clearToolsSearch() {
+      toolsSearch.value = '';
+      filterTools();
+    }
+
+    // Initial render
+    renderTools(tools);
+
+    // Modal functions
+    function openToolModal(toolName) {
+      const tool = tools.find(t => t.name === toolName);
+      if (!tool) return;
+
+      const modal = document.getElementById('tool-modal');
+      const modalTitle = document.getElementById('modal-title');
+      const modalBody = document.getElementById('modal-body');
+
+      modalTitle.textContent = `${tool.name} (${tool.category})`;
+
+      modalBody.innerHTML = `
+        <div class="modal-section">
+          <h3>Description</h3>
+          <p>${tool.desc}</p>
+        </div>
+        <div class="modal-meta">
+          <div class="modal-meta-item">
+            <span class="modal-meta-label">Threshold</span>
+            <span class="modal-meta-value">${tool.threshold}</span>
+          </div>
+          <div class="modal-meta-item">
+            <span class="modal-meta-label">Severity</span>
+            <span class="modal-meta-value severity-${tool.severity.toLowerCase()}">${tool.severity}</span>
+          </div>
+          <div class="modal-meta-item">
+            <span class="modal-meta-label">Fix time</span>
+            <span class="modal-meta-value">${tool.fixTime}</span>
+          </div>
+        </div>
+        <div class="modal-section">
+          <h3>Usage</h3>
+          <pre><code>cogent ${tool.name} .</code></pre>
+          <p>Or run all tools: <code>cogent check .</code></p>
+        </div>
+      `;
+
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('tool-modal');
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    function openComparisonModal() {
+      const modal = document.getElementById('comparison-modal');
+      const modalBody = document.getElementById('comparison-body');
+
+      modalBody.innerHTML = `
+        <div class="comparison-table-wrapper">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Cogent</th>
+                <th>SonarQube</th>
+                <th>CodeQL</th>
+                <th>Snyk</th>
+                <th>Slither</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Installation</strong></td>
+                <td class="cogent-cell">Single binary</td>
+                <td>JVM + DB + server</td>
+                <td>GitHub only</td>
+                <td>Cloud SaaS</td>
+                <td>Python + pip</td>
+              </tr>
+              <tr>
+                <td><strong>Local / air-gapped</strong></td>
+                <td class="cogent-cell">Fully offline</td>
+                <td>Enterprise only</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td><strong>Pricing</strong></td>
+                <td class="cogent-cell">Free / OSS</td>
+                <td>Per-line or seat</td>
+                <td>Public repos</td>
+                <td>Per-seat</td>
+                <td>Free</td>
+              </tr>
+              <tr>
+                <td><strong>Output formats</strong></td>
+                <td class="cogent-cell">JSON · NDJSON · SARIF · HTML · MD</td>
+                <td>SARIF + own</td>
+                <td>SARIF</td>
+                <td>SARIF · JSON</td>
+                <td>JSON · MD</td>
+              </tr>
+              <tr>
+                <td><strong>Agent integration</strong></td>
+                <td class="cogent-cell">Hermes + MCP</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+              </tr>
+              <tr>
+                <td><strong>Coverage-aware</strong></td>
+                <td class="cogent-cell">CRAP + mutation</td>
+                <td>Partial</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+              </tr>
+              <tr>
+                <td><strong>Built-in Not supported</strong></td>
+                <td class="cogent-cell">Yes</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Not supported</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td><strong>Runtime deps</strong></td>
+                <td class="cogent-cell">0</td>
+                <td>JVM + DB</td>
+                <td>GitHub CLI</td>
+                <td>Cloud token</td>
+                <td>Python</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeComparisonModal() {
+      const modal = document.getElementById('comparison-modal');
+      modal.style.display = 'none';
+      document.body.style.overflow = '';
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        closeComparisonModal();
+      }
+    });
+
+    // Scroll progress
+    const scrollProgress = document.getElementById('scroll-progress');
+
+    window.addEventListener('scroll', () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrollPercent = (scrollTop / docHeight) * 100;
+      scrollProgress.style.width = `${scrollPercent}%`;
+    });
+
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+
+    themeToggle.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', newTheme);
+      localStorage.setItem('theme', newTheme);
+    });
+
+    // Terminal typing effect (from Phase 1)
     const terminalCommands = [
       'cogent init',
       '… detecting project ecosystem',
@@ -337,7 +665,6 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
           charIndex++;
           setTimeout(typeTerminal, 30 + Math.random() * 50);
         } else {
-          // Add line to body
           const line = document.createElement('div');
           line.className = 'terminal-line';
           line.textContent = currentCommand;
@@ -348,7 +675,6 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
           setTimeout(typeTerminal, 500);
         }
       } else {
-        // Reset and loop
         setTimeout(() => {
           commandIndex = 0;
           charIndex = 0;
@@ -362,14 +688,11 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
       }
     }
 
-    // Start terminal after page load
     setTimeout(typeTerminal, 1000);
 
-    // Stats counter animation
+    // Stats counter animation (from Phase 1)
     const stats = document.querySelectorAll('.stat-number');
-    const observerOptions = {
-      threshold: 0.5
-    };
+    const observerOptions = { threshold: 0.5 };
 
     const statsObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
@@ -400,25 +723,21 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
       }, stepTime);
     }
 
-    // Installation tabs
+    // Installation tabs (from Phase 1)
     const tabs = document.querySelectorAll('.install-tab');
     const panels = document.querySelectorAll('.install-panel');
 
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {
         const platform = tab.getAttribute('data-platform');
-
-        // Remove active from all
         tabs.forEach(t => t.classList.remove('active'));
         panels.forEach(p => p.classList.remove('active'));
-
-        // Add active to selected
         tab.classList.add('active');
         document.getElementById(`panel-${platform}`).classList.add('active');
       });
     });
 
-    // Copy buttons
+    // Copy buttons (from Phase 1)
     const copyButtons = document.querySelectorAll('.copy-btn');
     copyButtons.forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -437,7 +756,7 @@ docker run --rm -v $(pwd):/app ghcr.io/kidikaros/cogent:latest check .</code></p
       });
     });
 
-    // Smooth scrolling
+    // Smooth scrolling (from Phase 1)
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
       anchor.addEventListener('click', function(e) {
         e.preventDefault();
